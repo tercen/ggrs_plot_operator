@@ -1,3 +1,10 @@
+// Module declarations
+// These modules are organized to make future library extraction easy:
+// - `tercen`: All Tercen gRPC client code (will become `tercen-rust` crate)
+// - `ggrs_integration`: GGRS-specific integration code
+mod ggrs_integration;
+mod tercen;
+
 #[cfg(feature = "jemalloc")]
 use tikv_jemallocator::Jemalloc;
 

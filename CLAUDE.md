@@ -221,39 +221,37 @@ ggrs_plot_operator/
     └── 09_FINAL_DESIGN.md           # Complete architecture
 ```
 
-### Planned Module Structure
+### Module Structure (Designed for Library Extraction)
 
-```rust
-src/
-├── main.rs                     // Entry point, CLI args, task polling loop
-├── config.rs                   // OperatorConfig parsing
-├── executor.rs                 // Orchestrates full execution pipeline
-├── error.rs                    // OperatorError enum with From conversions
-├── auth.rs                     // Token-based authentication
-├── grpc_client.rs              // TercenGrpcClient with retry logic
-├── services/
-│   ├── task_service.rs         // TaskService wrapper
-│   ├── table_service.rs        // TableSchemaService wrapper
-│   └── file_service.rs         // FileService wrapper
-├── data/
-│   ├── stream.rs               // Chunked data retrieval
-│   ├── dataframe.rs            // DataFrame builder
-│   ├── aes_mapper.rs           // Crosstab → GGRS Aes mapping
-│   ├── facet_mapper.rs         // Faceting logic
-│   └── cache.rs                // In-memory cache
-├── ggrs_integration/
-│   ├── stream_generator.rs     // TercenStreamGenerator impl
-│   ├── plot_builder.rs         // EnginePlotSpec builder
-│   ├── generator.rs            // PlotGenerator wrapper
-│   └── renderer.rs             // ImageRenderer wrapper
-├── upload/
-│   └── file_uploader.rs        // Streaming file upload
-├── task/
-│   ├── manager.rs              // Task lifecycle management
-│   ├── result_linker.rs        // Link files to results
-│   └── progress.rs             // Progress reporting
-└── observability.rs            // Logging with tracing crate
 ```
+src/
+├── main.rs                     # Entry point and main application logic
+├── tercen/                     # ⭐ All Tercen gRPC code (future tercen-rust crate)
+│   ├── mod.rs                  # Module root with re-exports
+│   ├── README.md               # Extraction guide and API design
+│   ├── client.rs               # TercenClient with connection and auth
+│   ├── error.rs                # TercenError type
+│   ├── types.rs                # Common types and conversions
+│   └── services/
+│       ├── mod.rs
+│       ├── task.rs             # TaskService wrapper
+│       ├── table.rs            # TableSchemaService wrapper
+│       └── file.rs             # FileService wrapper
+└── ggrs_integration/           # GGRS-specific integration code
+    ├── mod.rs                  # Module root
+    ├── stream_generator.rs     # TercenStreamGenerator impl
+    ├── plot_builder.rs         # EnginePlotSpec builder
+    └── renderer.rs             # ImageRenderer wrapper
+```
+
+**Key Design Decision**: The `src/tercen/` module is intentionally isolated to make it easy to extract into a separate `tercen-rust` crate later. See `src/tercen/README.md` for the extraction plan.
+
+**Benefits of this structure**:
+- ✅ Clear separation between Tercen gRPC client and application logic
+- ✅ No GGRS dependencies in `tercen/` module
+- ✅ Easy to extract: just copy `src/tercen/` → `tercen-rust/src/`
+- ✅ Can be published to crates.io independently
+- ✅ Other Rust projects can use the Tercen client without GGRS
 
 ## Development Workflow
 
