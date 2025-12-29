@@ -1,0 +1,34 @@
+{
+  "name": "GGRS Plot Operator",
+  "description": "High-performance faceted plotting using the GGRS library",
+  "tags": ["visualization", "plot", "ggrs"],
+  "authors": ["Tercen"],
+  "urls": ["https://github.com/tercen/ggrs_plot_operator"],
+  "container": "ghcr.io/tercen/ggrs_plot_operator:latest",
+  "properties": [
+    {
+      "kind": "DoubleProperty",
+      "name": "width",
+      "defaultValue": 800,
+      "description": "Plot width in pixels"
+    },
+    {
+      "kind": "DoubleProperty",
+      "name": "height",
+      "defaultValue": 600,
+      "description": "Plot height in pixels"
+    },
+    {
+      "kind": "StringProperty",
+      "name": "theme",
+      "defaultValue": "gray",
+      "description": "Plot theme (gray, classic, minimal, dark)"
+    },
+    {
+      "kind": "StringProperty",
+      "name": "title",
+      "defaultValue": "Plot",
+      "description": "Plot title"
+    }
+  ]
+}

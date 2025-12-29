@@ -1,0 +1,80 @@
+# Multi-stage Dockerfile for GGRS Plot Operator
+# Optimized for minimal size with jemalloc for better memory management
+#
+# NOTE: This can be replaced with a custom base image in the future
+#       for faster builds and consistent dependencies across Tercen operators
+
+# ============================================================================
+# Builder Stage - Rust toolchain (not included in final image)
+# ============================================================================
+FROM rust:1.75-slim-bookworm AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    protobuf-compiler \
+    libjemalloc-dev \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /app
+
+# Copy manifests
+COPY Cargo.toml ./
+
+# Copy source tree
+COPY src ./src
+
+# Phase 1: protos and build.rs will be added in Phase 2
+# COPY protos ./protos
+# COPY build.rs ./
+
+# Build with jemalloc feature enabled
+# Release mode with optimizations
+RUN cargo build --release --features jemalloc
+
+# ============================================================================
+# Runtime Stage - Minimal runtime environment (no Rust toolchain)
+# ============================================================================
+FROM debian:bookworm-slim
+# NOTE: Can be replaced with tercen/rust-operator-base:latest or similar
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libjemalloc2 \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -f -g 1000 operator && \
+    useradd -m -u 1000 -g operator operator && \
+    mkdir -p /app && \
+    chown -R operator:operator /app
+
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /app/target/release/ggrs_plot_operator /usr/local/bin/ggrs_plot_operator
+
+# Set permissions
+RUN chmod +x /usr/local/bin/ggrs_plot_operator
+
+# Switch to non-root user
+USER operator
+
+# Configure jemalloc environment variables for optimal memory management
+ENV LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+ENV MALLOC_CONF=background_thread:true,metadata_thp:auto,dirty_decay_ms:30000,muzzy_decay_ms:30000
+
+# Set Rust backtrace for better debugging (can be overridden)
+ENV RUST_BACKTRACE=1
+
+# Health check endpoint (if implemented)
+# HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+#   CMD ["/usr/local/bin/ggrs_plot_operator", "--health-check"]
+
+# Entry point
+ENTRYPOINT ["/usr/local/bin/ggrs_plot_operator"]

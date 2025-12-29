@@ -1,0 +1,39 @@
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Rust build artifacts
+target/
+debug/
+**/*.rs.bk
+*.pdb
+mutants.out*/
+
+# CI/CD
+.github/
+
+# Development files
+*.log
+*.tmp
+*.bak
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+tests/fixtures/
+coverage/

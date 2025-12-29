@@ -1,0 +1,85 @@
+// Configure jemalloc as the global allocator when feature is enabled
+#[cfg(feature = "jemalloc")]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
+use clap::Parser;
+use tracing::{info, error};
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Tercen gRPC endpoint
+    #[arg(long, env = "TERCEN_ENDPOINT", default_value = "https://tercen.com:5400")]
+    endpoint: String,
+
+    /// Tercen username
+    #[arg(long, env = "TERCEN_USERNAME")]
+    username: String,
+
+    /// Tercen password
+    #[arg(long, env = "TERCEN_PASSWORD")]
+    password: String,
+
+    /// Operator task ID to execute
+    #[arg(long, env = "TERCEN_TASK_ID")]
+    task_id: Option<String>,
+
+    /// Log level (trace, debug, info, warn, error)
+    #[arg(long, env = "RUST_LOG", default_value = "info")]
+    log_level: String,
+
+    /// Health check mode (exit immediately after checking connectivity)
+    #[arg(long)]
+    health_check: bool,
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // Parse command-line arguments
+    let args = Args::parse();
+
+    // Initialize tracing/logging
+    tracing_subscriber::fmt()
+        .with_env_filter(&args.log_level)
+        .with_target(false)
+        .with_thread_ids(true)
+        .json()
+        .init();
+
+    info!(
+        "Starting GGRS Plot Operator v{}",
+        env!("CARGO_PKG_VERSION")
+    );
+
+    // Log jemalloc status
+    #[cfg(feature = "jemalloc")]
+    info!("Using jemalloc for memory allocation");
+
+    #[cfg(not(feature = "jemalloc"))]
+    info!("Using system allocator (jemalloc not enabled)");
+
+    if args.health_check {
+        info!("Health check mode - verifying connectivity");
+        // TODO: Implement health check
+        // - Try to connect to Tercen endpoint
+        // - Verify authentication works
+        // - Return 0 on success, 1 on failure
+        info!("Health check passed");
+        return Ok(());
+    }
+
+    // Main operator loop
+    info!("Connecting to Tercen at {}", args.endpoint);
+
+    // TODO: Implement main operator execution
+    // 1. Create TercenGrpcClient
+    // 2. Authenticate
+    // 3. Start task polling loop
+    // 4. Execute tasks as they arrive
+    // 5. Handle graceful shutdown
+
+    error!("Main operator execution not yet implemented");
+
+    Ok(())
+}
