@@ -7,7 +7,7 @@
 # ============================================================================
 # Builder Stage - Rust toolchain (not included in final image)
 # ============================================================================
-FROM rust:1.75-slim-bookworm AS builder
+FROM rust:1.83-slim-bookworm AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -24,12 +24,14 @@ WORKDIR /app
 # Copy manifests
 COPY Cargo.toml ./
 
+# Copy build script
+COPY build.rs ./
+
+# Copy proto files (needed for build.rs)
+COPY protos ./protos
+
 # Copy source tree
 COPY src ./src
-
-# Phase 1: protos and build.rs will be added in Phase 2
-# COPY protos ./protos
-# COPY build.rs ./
 
 # Build with jemalloc feature enabled
 # Release mode with optimizations
