@@ -31,7 +31,11 @@ async fn main() {
     }
 
     if let Ok(token) = std::env::var("TERCEN_TOKEN") {
-        println!("TERCEN_TOKEN: {}...{}", &token[..8.min(token.len())], if token.len() > 8 { "***" } else { "" });
+        println!(
+            "TERCEN_TOKEN: {}...{}",
+            &token[..8.min(token.len())],
+            if token.len() > 8 { "***" } else { "" }
+        );
     } else {
         println!("TERCEN_TOKEN not set");
     }
@@ -75,7 +79,10 @@ async fn main() {
     std::process::exit(0);
 }
 
-async fn get_task_info(client: &tercen::TercenClient, task_id: &str) -> Result<String, Box<dyn std::error::Error>> {
+async fn get_task_info(
+    client: &tercen::TercenClient,
+    task_id: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
     use tercen::client::proto::GetRequest;
 
     let mut task_service = client.task_service()?;
@@ -85,7 +92,7 @@ async fn get_task_info(client: &tercen::TercenClient, task_id: &str) -> Result<S
     });
 
     let response = task_service.get(request).await?;
-    let task = response.into_inner();
+    let _task = response.into_inner();
 
     // Task object is a oneof enum - just return a success message
     let state = format!("Task retrieved successfully (ID: {})", task_id);

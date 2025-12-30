@@ -17,4 +17,5 @@ pub mod client;
 
 // Re-exports for convenience
 pub use client::TercenClient;
+#[allow(unused_imports)]
 pub use error::{Result, TercenError};

@@ -5,6 +5,12 @@ use tonic::transport::{Channel, ClientTlsConfig};
 use tonic::{Request, Status};
 
 // Include the generated protobuf code
+#[allow(
+    dead_code,
+    unused_imports,
+    clippy::large_enum_variant,
+    clippy::enum_variant_names
+)]
 pub mod proto {
     tonic::include_proto!("tercen");
 }
@@ -13,10 +19,13 @@ use proto::task_service_client::TaskServiceClient;
 use proto::user_service_client::UserServiceClient;
 
 /// Type alias for authenticated TaskService client
-pub type AuthTaskServiceClient = TaskServiceClient<tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>>;
+pub type AuthTaskServiceClient =
+    TaskServiceClient<tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>>;
 
 /// Type alias for authenticated UserService client
-pub type AuthUserServiceClient = UserServiceClient<tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>>;
+#[allow(dead_code)]
+pub type AuthUserServiceClient =
+    UserServiceClient<tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>>;
 
 /// Interceptor that adds Bearer token authentication to all requests
 #[derive(Clone)]
@@ -80,14 +89,14 @@ impl TercenClient {
         let uri = std::env::var("TERCEN_URI")
             .map_err(|_| TercenError::Config("TERCEN_URI environment variable not set".into()))?;
 
-        let token = std::env::var("TERCEN_TOKEN").map_err(|_| {
-            TercenError::Config("TERCEN_TOKEN environment variable not set".into())
-        })?;
+        let token = std::env::var("TERCEN_TOKEN")
+            .map_err(|_| TercenError::Config("TERCEN_TOKEN environment variable not set".into()))?;
 
         Self::connect(uri, token).await
     }
 
     /// Get a UserService client with authentication
+    #[allow(dead_code)]
     pub fn user_service(&self) -> Result<AuthUserServiceClient> {
         let interceptor = AuthInterceptor::new(self.token.clone())?;
         Ok(UserServiceClient::with_interceptor(

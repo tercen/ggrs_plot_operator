@@ -5,11 +5,11 @@ use thiserror::Error;
 pub enum TercenError {
     /// gRPC transport or protocol error
     #[error("gRPC error: {0}")]
-    Grpc(#[from] tonic::Status),
+    Grpc(Box<tonic::Status>),
 
     /// gRPC transport error
     #[error("Transport error: {0}")]
-    Transport(#[from] tonic::transport::Error),
+    Transport(Box<tonic::transport::Error>),
 
     /// Authentication error
     #[error("Authentication error: {0}")]
@@ -24,9 +24,23 @@ pub enum TercenError {
     Connection(String),
 
     /// Generic error
+    #[allow(dead_code)]
     #[error("{0}")]
     Other(String),
 }
 
 /// Type alias for Results using TercenError
 pub type Result<T> = std::result::Result<T, TercenError>;
+
+// Manual From implementations for boxed error types
+impl From<tonic::Status> for TercenError {
+    fn from(err: tonic::Status) -> Self {
+        TercenError::Grpc(Box::new(err))
+    }
+}
+
+impl From<tonic::transport::Error> for TercenError {
+    fn from(err: tonic::transport::Error) -> Self {
+        TercenError::Transport(Box::new(err))
+    }
+}
