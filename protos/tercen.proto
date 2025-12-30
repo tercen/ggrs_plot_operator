@@ -1,0 +1,345 @@
+    // Copyright 2025 Tercen
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+    
+
+
+syntax = "proto3";
+
+package tercen;
+option csharp_namespace = "TercenGrpcClient";
+
+import "tercen_model.proto";
+
+message GetRequest {
+  string id = 1;
+  bool use_factory = 2;
+}
+message ResponseUpdate {
+  string rev = 1;
+}
+message ResponseDelete {
+}
+message DeleteRequest {
+  string id = 1;
+  string rev = 2;
+}
+message ListRequest {
+  repeated string ids = 1;
+}
+message IndexKeyValue {
+  string index_field = 1;
+  oneof value {
+    string string_value = 2;
+    double double_value = 3;
+    int32 int_value = 4;
+    bool bool_value = 5;
+  }
+}
+message KeyRangeRequest {
+  string name = 1;
+  repeated IndexKeyValue start_keys = 2;
+  repeated IndexKeyValue end_keys = 3;
+  int32 limit = 4;
+  bool descending = 5;
+  bool use_factory = 6;
+}
+message ReqUpload {
+  EFileDocument file = 1;
+  bytes bytes = 2;
+}
+message ReqDownload {
+  string fileDocumentId = 1;
+}
+message RespUpload {
+  EFileDocument result = 1;
+}
+message RespDownload {
+  bytes result = 1;
+}
+service FileService {
+  rpc create(EFileDocument) returns (EFileDocument);
+  rpc get(GetRequest) returns (EFileDocument);
+  rpc update(EFileDocument) returns (ResponseUpdate);
+  rpc delete(DeleteRequest) returns (ResponseDelete);
+  rpc upload(stream ReqUpload ) returns ( RespUpload );
+  rpc download( ReqDownload ) returns (stream RespDownload );
+}
+message ReqGetOrCreate {
+  string projectId = 1;
+  string path = 2;
+}
+message RespGetOrCreate {
+  EFolderDocument result = 1;
+}
+service FolderService {
+  rpc create(EFolderDocument) returns (EFolderDocument);
+  rpc get(GetRequest) returns (EFolderDocument);
+  rpc update(EFolderDocument) returns (ResponseUpdate);
+  rpc delete(DeleteRequest) returns (ResponseDelete);
+  rpc getOrCreate( ReqGetOrCreate ) returns ( RespGetOrCreate );
+}
+message ReqUploadTable {
+  EFileDocument file = 1;
+  bytes bytes = 2;
+}
+message ReqStreamTable {
+  string tableId = 1;
+  repeated string cnames = 2;
+  int64 offset = 3;
+  int64 limit = 4;
+  string binaryFormat = 5;
+}
+message ReqGetFileMimetypeStream {
+  string tableId = 1;
+  string filename = 2;
+}
+message RespUploadTable {
+  ESchema result = 1;
+}
+message RespStreamTable {
+  bytes result = 1;
+}
+message RespGetFileMimetypeStream {
+  bytes result = 1;
+}
+service TableSchemaService {
+  rpc create(ESchema) returns (ESchema);
+  rpc get(GetRequest) returns (ESchema);
+  rpc update(ESchema) returns (ResponseUpdate);
+  rpc delete(DeleteRequest) returns (ResponseDelete);
+  rpc uploadTable(stream ReqUploadTable ) returns ( RespUploadTable );
+  rpc streamTable( ReqStreamTable ) returns (stream RespStreamTable );
+  rpc getFileMimetypeStream( ReqGetFileMimetypeStream ) returns (stream RespGetFileMimetypeStream );
+}
+message ReqRunTask {
+  string taskId = 1;
+}
+message ReqCancelTask {
+  string taskId = 1;
+}
+message ReqWaitDone {
+  string taskId = 1;
+}
+message RespRunTask {
+  bytes result = 1;
+}
+message RespCancelTask {
+  bytes result = 1;
+}
+message RespWaitDone {
+  ETask result = 1;
+}
+service TaskService {
+  rpc create(ETask) returns (ETask);
+  rpc get(GetRequest) returns (ETask);
+  rpc update(ETask) returns (ResponseUpdate);
+  rpc delete(DeleteRequest) returns (ResponseDelete);
+  rpc runTask( ReqRunTask ) returns ( RespRunTask );
+  rpc cancelTask( ReqCancelTask ) returns ( RespCancelTask );
+  rpc waitDone( ReqWaitDone ) returns ( RespWaitDone );
+}
+service PatchRecordService {
+  rpc create(EPatchRecords) returns (EPatchRecords);
+  rpc get(GetRequest) returns (EPatchRecords);
+  rpc update(EPatchRecords) returns (ResponseUpdate);
+  rpc delete(DeleteRequest) returns (ResponseDelete);
+  rpc findKeyRange(KeyRangeRequest) returns (PatchRecordsKeyRangeResponse);
+}
+message PatchRecordsKeyRangeResponse {
+  repeated EPatchRecords list = 1;
+  repeated IndexKeyValue next_keys = 2;
+}
+message ReqSendPersistentChannel {
+  string channel = 1;
+  EEvent evt = 2;
+}
+message ReqSendChannel {
+  string channel = 1;
+  EEvent evt = 2;
+}
+message ReqChannel {
+  string name = 1;
+}
+message ReqListenTaskChannel {
+  string taskId = 1;
+  bool start = 2;
+}
+message RespSendPersistentChannel {
+  bytes result = 1;
+}
+message RespSendChannel {
+  bytes result = 1;
+}
+message RespChannel {
+  EEvent result = 1;
+}
+message RespListenTaskChannel {
+  ETaskEvent result = 1;
+}
+service EventService {
+  rpc create(EEvent) returns (EEvent);
+  rpc get(GetRequest) returns (EEvent);
+  rpc update(EEvent) returns (ResponseUpdate);
+  rpc delete(DeleteRequest) returns (ResponseDelete);
+  rpc sendPersistentChannel( ReqSendPersistentChannel ) returns ( RespSendPersistentChannel );
+  rpc sendChannel( ReqSendChannel ) returns ( RespSendChannel );
+  rpc channel( ReqChannel ) returns (stream RespChannel );
+  rpc listenTaskChannel( ReqListenTaskChannel ) returns (stream RespListenTaskChannel );
+  rpc findKeyRange(KeyRangeRequest) returns (EventKeyRangeResponse);
+}
+message EventKeyRangeResponse {
+  repeated EEvent list = 1;
+  repeated IndexKeyValue next_keys = 2;
+}
+message ReqGetCubeQuery {
+  string workflowId = 1;
+  string stepId = 2;
+}
+message ReqCopyApp {
+  string workflowId = 1;
+  string projectId = 2;
+}
+message RespGetCubeQuery {
+  CubeQuery result = 1;
+}
+message RespCopyApp {
+  EWorkflow result = 1;
+}
+service WorkflowService {
+  rpc create(EWorkflow) returns (EWorkflow);
+  rpc get(GetRequest) returns (EWorkflow);
+  rpc update(EWorkflow) returns (ResponseUpdate);
+  rpc delete(DeleteRequest) returns (ResponseDelete);
+  rpc getCubeQuery( ReqGetCubeQuery ) returns ( RespGetCubeQuery );
+  rpc copyApp( ReqCopyApp ) returns ( RespCopyApp );
+}
+message ReqConnect {
+  string usernameOrEmail = 1;
+  string password = 2;
+}
+message ReqConnect2 {
+  string domain = 1;
+  string usernameOrEmail = 2;
+  string password = 3;
+}
+message ReqCreateUser {
+  EUser user = 1;
+  string password = 2;
+}
+message ReqHasUserName {
+  string username = 1;
+}
+message ReqUpdatePassword {
+  string userId = 1;
+  string password = 2;
+}
+message ReqCreateToken {
+  string userId = 1;
+  int64 validityInSeconds = 2;
+}
+message ReqGetServerVersion {
+  string module = 1;
+}
+message RespConnect {
+  UserSession result = 1;
+}
+message RespConnect2 {
+  UserSession result = 1;
+}
+message RespCreateUser {
+  EUser result = 1;
+}
+message RespHasUserName {
+  bool result = 1;
+}
+message RespUpdatePassword {
+  bytes result = 1;
+}
+message RespCreateToken {
+  string result = 1;
+}
+message RespGetServerVersion {
+  Version result = 1;
+}
+service UserService {
+  rpc create(EUser) returns (EUser);
+  rpc get(GetRequest) returns (EUser);
+  rpc update(EUser) returns (ResponseUpdate);
+  rpc delete(DeleteRequest) returns (ResponseDelete);
+  rpc connect( ReqConnect ) returns ( RespConnect );
+  rpc connect2( ReqConnect2 ) returns ( RespConnect2 );
+  rpc createUser( ReqCreateUser ) returns ( RespCreateUser );
+  rpc hasUserName( ReqHasUserName ) returns ( RespHasUserName );
+  rpc updatePassword( ReqUpdatePassword ) returns ( RespUpdatePassword );
+  rpc createToken( ReqCreateToken ) returns ( RespCreateToken );
+  rpc getServerVersion( ReqGetServerVersion ) returns ( RespGetServerVersion );
+}
+message ReqCloneProjectDocument {
+  string documentId = 1;
+  string projectId = 2;
+}
+message RespCloneProjectDocument {
+  EProjectDocument result = 1;
+}
+service ProjectDocumentService {
+  rpc create(EProjectDocument) returns (EProjectDocument);
+  rpc get(GetRequest) returns (EProjectDocument);
+  rpc update(EProjectDocument) returns (ResponseUpdate);
+  rpc delete(DeleteRequest) returns (ResponseDelete);
+  rpc cloneProjectDocument( ReqCloneProjectDocument ) returns ( RespCloneProjectDocument );
+  rpc findKeyRange(KeyRangeRequest) returns (ProjectDocumentKeyRangeResponse);
+}
+message ProjectDocumentKeyRangeResponse {
+  repeated EProjectDocument list = 1;
+  repeated IndexKeyValue next_keys = 2;
+}
+service TeamService {
+  rpc create(ETeam) returns (ETeam);
+  rpc get(GetRequest) returns (ETeam);
+  rpc update(ETeam) returns (ResponseUpdate);
+  rpc delete(DeleteRequest) returns (ResponseDelete);
+}
+service ProjectService {
+  rpc create(EProject) returns (EProject);
+  rpc get(GetRequest) returns (EProject);
+  rpc update(EProject) returns (ResponseUpdate);
+  rpc delete(DeleteRequest) returns (ResponseDelete);
+  rpc findKeyRange(KeyRangeRequest) returns (ProjectKeyRangeResponse);
+}
+message ProjectKeyRangeResponse {
+  repeated EProject list = 1;
+  repeated IndexKeyValue next_keys = 2;
+}
+message ReqGetLibrary {
+  string projectId = 1;
+  repeated string teamIds = 2;
+  repeated string docTypes = 3;
+  repeated string tags = 4;
+  int64 offset = 5;
+  int64 limit = 6;
+}
+message RespGetLibrary {
+  repeated EDocument list = 1;
+}
+service DocumentService {
+  rpc create(EDocument) returns (EDocument);
+  rpc get(GetRequest) returns (EDocument);
+  rpc update(EDocument) returns (ResponseUpdate);
+  rpc delete(DeleteRequest) returns (ResponseDelete);
+  rpc getLibrary( ReqGetLibrary ) returns ( RespGetLibrary );
+  rpc findKeyRange(KeyRangeRequest) returns (DocumentKeyRangeResponse);
+}
+message DocumentKeyRangeResponse {
+  repeated EDocument list = 1;
+  repeated IndexKeyValue next_keys = 2;
+}

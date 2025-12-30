@@ -9,12 +9,12 @@
 //! - `types.rs`: Common types and conversions
 //! - `error.rs`: Error types
 
-// Module declarations will be added as we implement phases
-// pub mod client;
-// pub mod services;
-// pub mod types;
-// pub mod error;
+// Module declarations
+pub mod error;
+
+// Client module (Phase 2)
+pub mod client;
 
 // Re-exports for convenience
-// pub use client::TercenClient;
-// pub use error::TercenError;
+pub use client::TercenClient;
+pub use error::{Result, TercenError};

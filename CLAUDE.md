@@ -6,19 +6,57 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the GGRS plotting library with the Tercen platform. It receives tabular data through the Tercen gRPC API, generates high-performance plots using GGRS, and returns PNG images back to Tercen for visualization.
 
-This is a greenfield project currently in the planning phase with comprehensive architecture and implementation documentation but no code yet.
+**Current Status**: Phase 1 complete - basic operator structure with CI/CD. Ready for Phase 2 (gRPC integration).
+
+## Quick Reference
+
+### Common Commands
+
+```bash
+# Build and test
+cargo build                    # Debug build
+cargo build --release          # Release build with optimizations
+cargo test                     # Run all tests
+cargo clippy                   # Lint code
+cargo fmt                      # Format code
+
+# Docker
+docker build -t ggrs_plot_operator:local .
+docker run --rm ggrs_plot_operator:local
+
+# CI/CD
+git push origin main           # Triggers CI workflow
+git tag 0.1.0 && git push origin 0.1.0  # Create release (NO 'v' prefix)
+```
+
+See `BUILD.md` for comprehensive build and deployment instructions.
 
 ## Project Structure
 
 ```
 ggrs_plot_operator/
+├── src/
+│   ├── main.rs                  # Entry point (Phase 1 - minimal)
+│   ├── tercen/                  # Future Tercen gRPC client library
+│   │   ├── mod.rs               # Module stubs (empty)
+│   │   └── README.md            # Extraction plan
+│   └── ggrs_integration/        # GGRS integration code
+│       └── mod.rs               # Module stubs (empty)
 ├── docs/
-│   ├── 01_ARCHITECTURE.md       # Complete system architecture and design
-│   ├── 02_IMPLEMENTATION_PLAN.md # Phased implementation roadmap
-│   └── 03_GRPC_INTEGRATION.md   # Detailed gRPC API specifications
-├── README.md                    # Basic project description
-└── .gitignore                   # Rust project ignores
+│   ├── 09_FINAL_DESIGN.md       # ⭐ PRIMARY: Complete architecture
+│   ├── 10_IMPLEMENTATION_PHASES.md # Current implementation roadmap
+│   ├── 03_GRPC_INTEGRATION.md   # gRPC API specifications
+│   └── [other docs]             # Historical design iterations
+├── Cargo.toml                   # Minimal deps (tokio, jemalloc)
+├── Cargo.toml.template          # Full deps for Phase 2+
+├── Dockerfile                   # Multi-stage Docker build
+├── .github/workflows/ci.yml     # CI/CD pipeline
+├── operator.json                # Tercen operator specification
+├── BUILD.md                     # Comprehensive build guide
+└── CLAUDE.md                    # This file
 ```
+
+**Key files to read first**: `docs/09_FINAL_DESIGN.md`, `docs/10_IMPLEMENTATION_PHASES.md`
 
 ## High-Level Architecture
 
@@ -185,22 +223,32 @@ tonic_build::configure()
 
 ## Implementation Status
 
-**Current Phase**: Phase 1 (CI/CD and Basic Operator Structure) - ✅ COMPLETED
+**Current Phase**: Phase 1 ✅ COMPLETED → Starting Phase 2
 
-### Completed Phases
+### Phase 1 Completed ✅
+- ✅ `operator.json` with properties (width, height, theme, title)
+- ✅ `Cargo.toml` with minimal deps (tokio, jemalloc)
+- ✅ `src/main.rs` - prints version, checks environment vars
+- ✅ Dockerfile with multi-stage build
+- ✅ CI/CD workflow (`.github/workflows/ci.yml`) - test + build jobs
+- ✅ Successfully builds and runs locally
+- ✅ Module structure prepared (`tercen/`, `ggrs_integration/`)
 
-**Phase 1 (CI/CD and Basic Operator Structure)**:
-- ✅ Created `operator.json` with basic properties (width, height, theme, title)
-- ✅ Initialized `Cargo.toml` with minimal dependencies (tokio, jemalloc support)
-- ✅ Created minimal `src/main.rs` that prints version, checks environment, and exits cleanly
-- ✅ Successfully compiles and runs locally
-- Next: Set up CI workflow and Dockerfile
+### Next Steps (Phase 2)
+**Goal**: Establish gRPC connection to Tercen and make first service call
 
-### Implementation Roadmap
+**Key tasks**:
+1. Copy proto files from `/home/thiago/workspaces/tercen/main/sci/tercen_grpc/tercen_grpc_api/protos/`
+2. Create `build.rs` with `tonic-build` configuration
+3. Update `Cargo.toml` with full dependencies (see `Cargo.toml.template`)
+4. Implement `TercenClient::from_env()` for authentication
+5. Make first service call (TaskService.getTask)
 
-The project follows a revised implementation plan. See `docs/10_IMPLEMENTATION_PHASES.md` for the complete 9-phase roadmap:
+### Complete Roadmap
+
+See `docs/10_IMPLEMENTATION_PHASES.md` for details:
 - Phase 1: CI/CD and Basic Operator Structure ✅
-- Phase 2: gRPC Connection and Simple Call
+- Phase 2: gRPC Connection and Simple Call ⏭️ NEXT
 - Phase 3: Streaming Data - Test Chunking
 - Phase 4: Data Parsing and Filtering
 - Phase 5: Load Facet Metadata
@@ -209,61 +257,49 @@ The project follows a revised implementation plan. See `docs/10_IMPLEMENTATION_P
 - Phase 8: Full Faceting Support
 - Phase 9: Production Polish
 
-### Current Files
-```
-ggrs_plot_operator/
-├── operator.json         # Tercen operator specification
-├── Cargo.toml            # Rust dependencies and build config
-├── src/
-│   └── main.rs           # Minimal entry point (Phase 1)
-└── docs/
-    ├── 10_IMPLEMENTATION_PHASES.md  # Revised implementation roadmap
-    └── 09_FINAL_DESIGN.md           # Complete architecture
-```
-
 ### Module Structure (Designed for Library Extraction)
 
+The `src/tercen/` module is intentionally isolated to enable future extraction as a separate `tercen-rust` crate:
+
 ```
-src/
-├── main.rs                     # Entry point and main application logic
-├── tercen/                     # ⭐ All Tercen gRPC code (future tercen-rust crate)
-│   ├── mod.rs                  # Module root with re-exports
-│   ├── README.md               # Extraction guide and API design
-│   ├── client.rs               # TercenClient with connection and auth
-│   ├── error.rs                # TercenError type
-│   ├── types.rs                # Common types and conversions
-│   └── services/
-│       ├── mod.rs
-│       ├── task.rs             # TaskService wrapper
-│       ├── table.rs            # TableSchemaService wrapper
-│       └── file.rs             # FileService wrapper
-└── ggrs_integration/           # GGRS-specific integration code
-    ├── mod.rs                  # Module root
-    ├── stream_generator.rs     # TercenStreamGenerator impl
-    ├── plot_builder.rs         # EnginePlotSpec builder
-    └── renderer.rs             # ImageRenderer wrapper
+src/tercen/              # ⭐ Future tercen-rust crate
+├── client.rs            # TercenClient with connection and auth
+├── error.rs             # TercenError type
+├── types.rs             # Common types and conversions
+└── services/
+    ├── task.rs          # TaskService wrapper
+    ├── table.rs         # TableSchemaService wrapper
+    └── file.rs          # FileService wrapper
+
+src/ggrs_integration/    # GGRS-specific (stays in this project)
+├── stream_generator.rs  # TercenStreamGenerator impl
+├── plot_builder.rs      # EnginePlotSpec builder
+└── renderer.rs          # ImageRenderer wrapper
 ```
 
-**Key Design Decision**: The `src/tercen/` module is intentionally isolated to make it easy to extract into a separate `tercen-rust` crate later. See `src/tercen/README.md` for the extraction plan.
-
-**Benefits of this structure**:
-- ✅ Clear separation between Tercen gRPC client and application logic
-- ✅ No GGRS dependencies in `tercen/` module
-- ✅ Easy to extract: just copy `src/tercen/` → `tercen-rust/src/`
-- ✅ Can be published to crates.io independently
-- ✅ Other Rust projects can use the Tercen client without GGRS
+**Design benefits**: Clear separation, no GGRS deps in `tercen/`, easy extraction. See `src/tercen/README.md` for details.
 
 ## Development Workflow
 
-### When Starting Implementation
+### Proto Files Setup
 
-1. **Phase 0**: Initialize Cargo project, set up proto compilation, create Dockerfile
-2. **Phase 1**: Implement gRPC client foundation (auth, service wrappers, connection pooling)
-3. **Phase 2**: Build data retrieval and transformation pipeline
-4. **Phase 3**: Implement TercenStreamGenerator and GGRS integration
-5. **Phase 4-5**: File upload and main application loop
-6. **Phase 6-8**: Operator properties, optimization, testing
-7. **Phase 9**: Deployment and release
+Before Phase 2, proto files must be copied from the main Tercen gRPC repository:
+
+```bash
+# Source location (adjust path as needed)
+SOURCE=/home/thiago/workspaces/tercen/main/sci/tercen_grpc/tercen_grpc_api/protos
+
+# Copy to project
+mkdir -p protos
+cp $SOURCE/tercen.proto protos/
+cp $SOURCE/tercen_model.proto protos/
+```
+
+### Dependency Management
+
+- `Cargo.toml`: Current minimal dependencies (Phase 1)
+- `Cargo.toml.template`: Full dependencies for Phase 2+ (tonic, prost, csv, etc.)
+- When starting Phase 2, review and merge template into `Cargo.toml`
 
 ### Error Handling Strategy
 
@@ -290,29 +326,29 @@ Implement retry logic with exponential backoff for:
 
 ### Testing Strategy
 
-- **Unit tests**: Test each module independently with mocks (target >80% coverage)
-- **Integration tests**: Test against local Tercen instance (use `#[ignore]` flag)
-- **Visual regression tests**: Compare generated PNGs with reference images
-- **Performance benchmarks**: Measure against R plot_operator baseline
+- **Unit tests**: Test each module with mocks (target >80% coverage)
+- **Integration tests**: Against local Tercen instance (use `#[ignore]` flag)
+- **Visual regression**: Compare generated PNGs with reference images
+- **Performance benchmarks**: vs R plot_operator baseline
 
-### Deployment
+### CI/CD Pipeline
 
-**Docker multi-stage build** (see `docs/04_DOCKER_AND_CICD.md`):
-- Builder stage: Rust 1.75-slim-bookworm with jemalloc
-- Runtime stage: Debian bookworm-slim (~120-150 MB final image)
-- jemalloc enabled for better memory management
-- Size-optimized build (LTO, opt-level="z", stripped symbols)
-- Run as non-root user (UID 1000)
+**Workflow** (`.github/workflows/ci.yml`):
+- **Test job**: rustfmt, clippy, unit tests (all branches)
+- **Build job**: Docker build and push to ghcr.io (depends on test)
+- **Caching**: Cargo registry/index/target + Docker layers
+- **Attestation**: Supply chain security via GitHub attestations
 
-**Container registry**: GitHub Container Registry (ghcr.io/tercen/ggrs_plot_operator)
+**Container registry**: `ghcr.io/tercen/ggrs_plot_operator`
 
-**CI/CD Pipeline** (`.github/workflows/ci.yml`):
-- Based on Tercen reference: [model_estimator CI](https://github.com/tercen/model_estimator/blob/main/.github/workflows/ci.yml)
-- Test job: rustfmt, clippy, unit tests, doc tests (runs on all branches)
-- Build job: Docker build and push (only on main branch)
-- Automatic tagging: Uses `docker/metadata-action` for branch/version tags
-- Build attestation: Supply chain security via GitHub attestations
-- Cache strategy: Cargo (registry, index, target) + Docker layer caching (GHA)
+**Tagging**:
+- Push to main → `main` tag
+- Create tag `0.1.0` → `0.1.0` tag (NO 'v' prefix!)
+
+**Docker image**:
+- Multi-stage build (builder + runtime)
+- Runtime: Debian bookworm-slim (~120-150 MB)
+- jemalloc enabled, size-optimized, non-root user
 
 ## Important Tercen Concepts
 
@@ -356,20 +392,27 @@ Tercen organizes data as a crosstab with:
 
 ## Documentation References
 
-- Architecture details: `docs/01_ARCHITECTURE.md`
-- Implementation phases and tasks: `docs/02_IMPLEMENTATION_PLAN.md`
-- gRPC API specifications and examples: `docs/03_GRPC_INTEGRATION.md`
-- Docker and CI/CD setup: `docs/04_DOCKER_AND_CICD.md`
-- CI/CD final configuration: `CI_FINAL.md` (based on Tercen model_estimator)
-- **FINAL DESIGN**: `docs/09_FINAL_DESIGN.md` ⭐⭐⭐ **USE THIS**
-- Simple streaming design: `docs/08_SIMPLE_STREAMING_DESIGN.md` (good concepts)
-- ~Tercen Context design: `docs/06_CONTEXT_DESIGN.md` (Python pattern analysis - TOO COMPLEX)~
-- ~Rust Context implementation: `docs/07_RUST_CONTEXT_IMPL.md` (based on C# client - TOO COMPLEX)~
-- Quick build reference: `BUILD.md`
-- Docker updates summary: `DOCKER_UPDATES.md`
-- Tercen gRPC API: https://github.com/tercen/tercen_grpc_api
-- Tercen C# Client: https://github.com/tercen/TercenCSharpClient
-- Tercen Developers Guide: https://github.com/tercen/developers_guide
+### Primary Documentation (Read These First)
+- **`docs/09_FINAL_DESIGN.md`** ⭐⭐⭐ - Complete architecture and final design
+- **`docs/10_IMPLEMENTATION_PHASES.md`** - Current implementation roadmap
+- **`docs/03_GRPC_INTEGRATION.md`** - gRPC API specs and examples
+- **`BUILD.md`** - Comprehensive build and deployment guide
+
+### Supporting Documentation
+- `docs/08_SIMPLE_STREAMING_DESIGN.md` - Streaming architecture concepts
+- `docs/01_ARCHITECTURE.md` - Initial architecture design
+- `docs/04_DOCKER_AND_CICD.md` - Docker and CI/CD details
+- `src/tercen/README.md` - Library extraction plan
+- `CI_FINAL.md`, `DOCKER_UPDATES.md` - CI/CD implementation notes
+
+### Historical/Deprecated
+- ~~`docs/06_CONTEXT_DESIGN.md`~~ - Python pattern analysis (TOO COMPLEX, not used)
+- ~~`docs/07_RUST_CONTEXT_IMPL.md`~~ - C# client-based design (TOO COMPLEX, not used)
+
+### External Resources
+- [Tercen gRPC API](https://github.com/tercen/tercen_grpc_api)
+- [Tercen C# Client](https://github.com/tercen/TercenCSharpClient) - Reference implementation
+- [Tercen Developers Guide](https://github.com/tercen/developers_guide)
 
 ## Code Quality Standards
 
