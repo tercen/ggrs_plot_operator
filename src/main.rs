@@ -30,6 +30,10 @@ async fn main() {
         println!("TERCEN_URI not set (expected when running outside Tercen)");
     }
 
+    // Simulate operator processing time
+    println!("Processing...");
+    std::thread::sleep(std::time::Duration::from_secs(2));
+
     println!("Operator completed successfully!");
     std::process::exit(0);
 }
