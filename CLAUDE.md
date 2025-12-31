@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the GGRS plotting library with the Tercen platform. It receives tabular data through the Tercen gRPC API, generates high-performance plots using GGRS, and returns PNG images back to Tercen for visualization.
 
-**Current Status**: Phase 1 complete - basic operator structure with CI/CD. Ready for Phase 2 (gRPC integration).
+**Current Status**: Phase 4 complete - gRPC connection, data streaming, CSV parsing, and facet filtering implemented. Ready for Phase 5 (load facet metadata).
 
 ## Quick Reference
 
@@ -36,19 +36,27 @@ See `BUILD.md` for comprehensive build and deployment instructions.
 ```
 ggrs_plot_operator/
 ├── src/
-│   ├── main.rs                  # Entry point (Phase 1 - minimal)
-│   ├── tercen/                  # Future Tercen gRPC client library
-│   │   ├── mod.rs               # Module stubs (empty)
+│   ├── main.rs                  # Entry point with task processing logic
+│   ├── tercen/                  # Tercen gRPC client library (future tercen-rust crate)
+│   │   ├── mod.rs               # Module exports
+│   │   ├── client.rs            # TercenClient with gRPC connection and auth
+│   │   ├── error.rs             # TercenError types
+│   │   ├── logger.rs            # TercenLogger for sending logs/progress to Tercen
+│   │   ├── table.rs             # TableStreamer for streaming data in chunks
+│   │   ├── data.rs              # CSV parsing, DataRow, and facet filtering
 │   │   └── README.md            # Extraction plan
-│   └── ggrs_integration/        # GGRS integration code
+│   └── ggrs_integration/        # GGRS integration code (Phase 6+)
 │       └── mod.rs               # Module stubs (empty)
 ├── docs/
 │   ├── 09_FINAL_DESIGN.md       # ⭐ PRIMARY: Complete architecture
 │   ├── 10_IMPLEMENTATION_PHASES.md # Current implementation roadmap
 │   ├── 03_GRPC_INTEGRATION.md   # gRPC API specifications
 │   └── [other docs]             # Historical design iterations
-├── Cargo.toml                   # Minimal deps (tokio, jemalloc)
-├── Cargo.toml.template          # Full deps for Phase 2+
+├── protos/                      # gRPC protocol buffer definitions
+│   ├── tercen.proto             # Tercen service definitions
+│   └── tercen_model.proto       # Tercen data model definitions
+├── Cargo.toml                   # Current dependencies (tokio, tonic, prost, csv, etc.)
+├── build.rs                     # tonic-build configuration for proto compilation
 ├── Dockerfile                   # Multi-stage Docker build
 ├── .github/workflows/ci.yml     # CI/CD pipeline
 ├── operator.json                # Tercen operator specification
@@ -56,7 +64,12 @@ ggrs_plot_operator/
 └── CLAUDE.md                    # This file
 ```
 
-**Key files to read first**: `docs/09_FINAL_DESIGN.md`, `docs/10_IMPLEMENTATION_PHASES.md`
+**Key files to read first**:
+- `docs/09_FINAL_DESIGN.md` - Complete architecture and design decisions
+- `docs/10_IMPLEMENTATION_PHASES.md` - Phased implementation roadmap
+- `src/main.rs` - Entry point and task processing logic
+- `src/tercen/client.rs` - gRPC client implementation
+- `src/tercen/data.rs` - Data structures and CSV parsing
 
 ## High-Level Architecture
 
@@ -205,53 +218,86 @@ Proto files should be copied/linked from: `/home/thiago/workspaces/tercen/main/s
 - `tercen_model.proto`: Data model definitions (ETask, ComputationTask, CrosstabSpec, etc.)
 
 ### Core Dependencies
-- **tonic** (~0.11): gRPC client
+- **tonic** (~0.11): gRPC client with TLS support
 - **prost** (~0.12): Protocol Buffer serialization
-- **tokio** (~1.35): Async runtime
+- **tokio** (~1.35): Async runtime with multi-threading
+- **tokio-stream**: Stream utilities for gRPC
 - **csv** (1.3): Simple CSV parsing (NO Apache Arrow needed!)
-- **ggrs-core**: Plot generation library (local path dependency to sibling GGRS project)
-- **serde/serde_json**: Configuration parsing
+- **serde**: Serialization/deserialization
 - **thiserror**: Error handling
+- **anyhow**: Error context
+- **tikv-jemallocator** (optional): Memory allocator for performance
+- **ggrs-core** (Phase 6+): Plot generation library (local path dependency to sibling GGRS project)
 
 ### Build System
-Use `tonic-build` in `build.rs` to compile proto files at build time:
+Proto files are automatically compiled at build time using `tonic-build` in `build.rs`:
 ```rust
 tonic_build::configure()
-    .build_server(false)  // Client only
+    .build_server(false)      // Client only, no server code
+    .build_transport(false)   // Avoid naming conflicts
     .compile(&["protos/tercen.proto", "protos/tercen_model.proto"], &["protos"])
+```
+
+Generated proto code is included in the binary using:
+```rust
+// In src/tercen/client.rs
+pub mod proto {
+    tonic::include_proto!("tercen");
+}
 ```
 
 ## Implementation Status
 
-**Current Phase**: Phase 1 ✅ COMPLETED → Starting Phase 2
+**Current Phase**: Phase 4 ✅ COMPLETED → Starting Phase 5
 
-### Phase 1 Completed ✅
+### Completed Phases
+
+#### Phase 1: CI/CD and Basic Operator Structure ✅
 - ✅ `operator.json` with properties (width, height, theme, title)
-- ✅ `Cargo.toml` with minimal deps (tokio, jemalloc)
-- ✅ `src/main.rs` - prints version, checks environment vars
+- ✅ `Cargo.toml` with full dependencies
+- ✅ `src/main.rs` - entry point with task processing
 - ✅ Dockerfile with multi-stage build
 - ✅ CI/CD workflow (`.github/workflows/ci.yml`) - test + build jobs
 - ✅ Successfully builds and runs locally
-- ✅ Module structure prepared (`tercen/`, `ggrs_integration/`)
 
-### Next Steps (Phase 2)
-**Goal**: Establish gRPC connection to Tercen and make first service call
+#### Phase 2: gRPC Connection ✅
+- ✅ Proto files copied and compiling via `build.rs`
+- ✅ `TercenClient::from_env()` implemented with TLS authentication
+- ✅ `AuthInterceptor` for Bearer token injection
+- ✅ Service clients (TaskService, EventService, TableSchemaService)
+- ✅ Connection tested successfully
+
+#### Phase 3: Streaming Data ✅
+- ✅ `TableStreamer` implemented in `src/tercen/table.rs`
+- ✅ Chunked streaming via `ReqStreamTable` with offset/limit
+- ✅ `stream_csv()` and `stream_table_chunked()` methods
+- ✅ Verified chunking works correctly
+
+#### Phase 4: Data Parsing and Filtering ✅
+- ✅ `DataRow` struct with `.ci`, `.ri`, `.x`, `.y` fields
+- ✅ `ParsedData::from_csv()` for CSV parsing
+- ✅ `filter_by_facet()` for filtering by column/row indices
+- ✅ `DataSummary` with statistics (min/max for x/y axes)
+- ✅ `TercenLogger` for sending logs to Tercen
+
+### Next Steps (Phase 5)
+**Goal**: Load and parse facet metadata tables (column.csv, row.csv)
 
 **Key tasks**:
-1. Copy proto files from `/home/thiago/workspaces/tercen/main/sci/tercen_grpc/tercen_grpc_api/protos/`
-2. Create `build.rs` with `tonic-build` configuration
-3. Update `Cargo.toml` with full dependencies (see `Cargo.toml.template`)
-4. Implement `TercenClient::from_env()` for authentication
-5. Make first service call (TaskService.getTask)
+1. Extract table IDs from ComputationTask query relation
+2. Identify column and row facet table IDs from CrosstabSpec
+3. Load small facet tables (`column.csv`, `row.csv`)
+4. Parse facet metadata to determine facet structure
+5. Calculate total number of facet cells (n_col_facets × n_row_facets)
 
 ### Complete Roadmap
 
 See `docs/10_IMPLEMENTATION_PHASES.md` for details:
 - Phase 1: CI/CD and Basic Operator Structure ✅
-- Phase 2: gRPC Connection and Simple Call ⏭️ NEXT
-- Phase 3: Streaming Data - Test Chunking
-- Phase 4: Data Parsing and Filtering
-- Phase 5: Load Facet Metadata
+- Phase 2: gRPC Connection and Simple Call ✅
+- Phase 3: Streaming Data - Test Chunking ✅
+- Phase 4: Data Parsing and Filtering ✅
+- Phase 5: Load Facet Metadata ⏭️ NEXT
 - Phase 6: First GGRS Plot
 - Phase 7: Output to Tercen Table
 - Phase 8: Full Faceting Support
@@ -263,66 +309,104 @@ The `src/tercen/` module is intentionally isolated to enable future extraction a
 
 ```
 src/tercen/              # ⭐ Future tercen-rust crate
-├── client.rs            # TercenClient with connection and auth
-├── error.rs             # TercenError type
-├── types.rs             # Common types and conversions
-└── services/
-    ├── task.rs          # TaskService wrapper
-    ├── table.rs         # TableSchemaService wrapper
-    └── file.rs          # FileService wrapper
+├── mod.rs               # Module exports and documentation
+├── client.rs            # TercenClient with connection and auth (COMPLETE)
+├── error.rs             # TercenError type (COMPLETE)
+├── logger.rs            # TercenLogger for logs/progress (COMPLETE)
+├── table.rs             # TableStreamer for data streaming (COMPLETE)
+├── data.rs              # DataRow, ParsedData, CSV parsing (COMPLETE)
+└── README.md            # Extraction plan
 
 src/ggrs_integration/    # GGRS-specific (stays in this project)
-├── stream_generator.rs  # TercenStreamGenerator impl
-├── plot_builder.rs      # EnginePlotSpec builder
-└── renderer.rs          # ImageRenderer wrapper
+├── mod.rs               # Module stub (TODO)
+├── stream_generator.rs  # TercenStreamGenerator impl (Phase 6)
+├── plot_builder.rs      # EnginePlotSpec builder (Phase 6)
+└── renderer.rs          # ImageRenderer wrapper (Phase 6)
 ```
 
 **Design benefits**: Clear separation, no GGRS deps in `tercen/`, easy extraction. See `src/tercen/README.md` for details.
 
 ## Development Workflow
 
-### Proto Files Setup
+### Testing with Environment Variables
 
-Before Phase 2, proto files must be copied from the main Tercen gRPC repository:
+The operator requires these environment variables to connect to Tercen:
 
 ```bash
-# Source location (adjust path as needed)
-SOURCE=/home/thiago/workspaces/tercen/main/sci/tercen_grpc/tercen_grpc_api/protos
+# Required for connection
+export TERCEN_URI=https://tercen.com:5400
+export TERCEN_TOKEN=your_token_here
 
-# Copy to project
-mkdir -p protos
-cp $SOURCE/tercen.proto protos/
-cp $SOURCE/tercen_model.proto protos/
+# Required for task processing
+export TERCEN_TASK_ID=your_task_id_here
+
+# Run the operator
+cargo run
 ```
 
-### Dependency Management
+### Local Development
 
-- `Cargo.toml`: Current minimal dependencies (Phase 1)
-- `Cargo.toml.template`: Full dependencies for Phase 2+ (tonic, prost, csv, etc.)
-- When starting Phase 2, review and merge template into `Cargo.toml`
+```bash
+# Format code
+cargo fmt
 
-### Error Handling Strategy
+# Lint code
+cargo clippy
 
-Define comprehensive error types:
+# Build (debug)
+cargo build
+
+# Build (optimized)
+cargo build --release
+
+# Run tests
+cargo test
+
+# Run with environment variables
+cargo run
+```
+
+### Implemented Architecture (Phase 4)
+
+The current implementation includes:
+
+**TercenClient** (`src/tercen/client.rs`):
+- `from_env()`: Create client from environment variables
+- `connect(uri, token)`: Connect with explicit credentials
+- `task_service()`, `table_service()`, `event_service()`: Get authenticated service clients
+- `AuthInterceptor`: Injects Bearer token into all gRPC requests
+
+**TableStreamer** (`src/tercen/table.rs`):
+- `stream_csv(table_id, columns, offset, limit)`: Stream a chunk of data as CSV
+- `stream_table_chunked(table_id, columns, chunk_size, callback)`: Stream entire table in chunks
+
+**Data Types** (`src/tercen/data.rs`):
+- `DataRow`: Represents a row with `.ci`, `.ri`, `.x`, `.y`, and extra fields
+- `ParsedData`: Collection of rows with column names
+- `from_csv()`: Parse CSV bytes into structured data
+- `filter_by_facet()`: Filter rows by facet indices
+- `summary()`: Get statistics (min/max for axes)
+
+**Logger** (`src/tercen/logger.rs`):
+- `log(message)`: Send log message to Tercen
+- `progress(percent, message)`: Send progress update to Tercen
+
+**Error Handling** (`src/tercen/error.rs`):
 ```rust
 #[derive(Debug, thiserror::Error)]
-pub enum OperatorError {
+pub enum TercenError {
     #[error("gRPC error: {0}")]
-    Grpc(#[from] tonic::Status),
-    #[error("GGRS error: {0}")]
-    Ggrs(#[from] ggrs_core::GgrsError),
-    #[error("Data transformation error: {0}")]
-    DataTransform(String),
-    #[error("Configuration error: {0}")]
-    Config(String),
+    Grpc(Box<tonic::Status>),
+    #[error("Transport error: {0}")]
+    Transport(Box<tonic::transport::Error>),
     #[error("Authentication error: {0}")]
     Auth(String),
+    #[error("Configuration error: {0}")]
+    Config(String),
+    #[error("Connection error: {0}")]
+    Connection(String),
 }
 ```
-
-Implement retry logic with exponential backoff for:
-- `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `ABORTED`, `RESOURCE_EXHAUSTED` status codes
-- Max 3 retries, starting at 100ms delay, doubling each time
 
 ### Testing Strategy
 
@@ -382,13 +466,41 @@ Tercen organizes data as a crosstab with:
 
 ## Critical Implementation Notes
 
-1. **Authentication**: Use `AuthInterceptor` with tonic to inject Bearer token in all requests
-2. **TLS Required**: Always use TLS (ClientTlsConfig) for production connections
-3. **Token Refresh**: Implement automatic token refresh on `UNAUTHENTICATED` errors
-4. **Streaming Throughout**: Never accumulate entire dataset in memory; process chunks as they arrive
-5. **GGRS Integration**: Implement `StreamGenerator` trait for lazy data loading
-6. **Progress Reporting**: Send updates to Tercen to show user feedback during long operations
-7. **Resource Cleanup**: Ensure proper cleanup on errors (no partial uploads or leaked connections)
+### Current Implementation (Phase 4)
+
+1. **Authentication**: `AuthInterceptor` injects Bearer token from `TERCEN_TOKEN` env var into all gRPC requests
+2. **TLS Configuration**: `ClientTlsConfig` is configured for secure connections in `TercenClient::connect()`
+3. **Streaming Architecture**: `TableStreamer` uses chunked streaming with offset/limit - never loads entire datasets into memory
+4. **CSV Parsing**: Simple `csv` crate parsing into `DataRow` structs - NO Apache Arrow complexity
+5. **Facet Filtering**: `ParsedData::filter_by_facet()` filters data by `.ci` and `.ri` indices
+6. **Logging**: `TercenLogger` sends log messages and progress to Tercen via EventService
+7. **Error Handling**: `TercenError` enum with proper error context using `thiserror`
+
+### Main Entry Point (`src/main.rs`)
+
+The main function follows this flow:
+1. Print version and phase info
+2. Check for environment variables (`TERCEN_URI`, `TERCEN_TOKEN`, `TERCEN_TASK_ID`)
+3. Connect to Tercen using `TercenClient::from_env()`
+4. If `TERCEN_TASK_ID` is set:
+   - Create `TercenLogger` for the task
+   - Call `process_task()` to handle the task
+   - Send logs to Tercen showing progress
+5. Exit with status code
+
+The `process_task()` function (Phase 4 implementation):
+- Fetches task using `TaskService.get()`
+- Extracts `ComputationTask` from task object
+- Logs task structure (query, relation, settings)
+- **Phase 5 will add**: Extract table IDs and load facet metadata
+- **Phase 6 will add**: Generate plots using GGRS
+- **Phase 7 will add**: Upload results to Tercen
+
+### Future Implementation (Phase 6+)
+
+8. **GGRS Integration**: Implement `StreamGenerator` trait for lazy data loading
+9. **Progress Reporting**: Send incremental progress updates during long operations
+10. **Resource Cleanup**: Ensure proper cleanup on errors (no partial uploads or leaked connections)
 
 ## Documentation References
 
@@ -414,12 +526,45 @@ Tercen organizes data as a crosstab with:
 - [Tercen C# Client](https://github.com/tercen/TercenCSharpClient) - Reference implementation
 - [Tercen Developers Guide](https://github.com/tercen/developers_guide)
 
+## Code Organization Conventions
+
+### Module Structure
+- `src/tercen/`: Pure Tercen gRPC client code (no GGRS dependencies)
+  - Use `#![allow(dead_code)]` at module level for Phase 4 implementations not yet fully utilized
+  - All public APIs documented with rustdoc comments
+  - Re-export key types in `mod.rs` for convenience
+- `src/ggrs_integration/`: GGRS-specific code (Phase 6+)
+  - Will depend on both `tercen` module and `ggrs-core`
+- `src/main.rs`: Minimal entry point orchestrating modules
+
+### Proto Code Access
+- Generated proto code is in `client::proto` module
+- Use type aliases for authenticated clients (e.g., `AuthTaskServiceClient`)
+- Allow clippy lints for generated code: `#[allow(clippy::large_enum_variant, clippy::enum_variant_names)]`
+
+### Async Patterns
+- All gRPC operations are async using `tokio`
+- Use `tokio-stream` for streaming responses
+- Main function uses `#[tokio::main]` with implicit `rt-multi-thread`
+
 ## Code Quality Standards
 
 - Follow Rust API guidelines
-- Use `rustfmt` for formatting (configure in `rustfmt.toml`)
-- Pass `clippy` lints (configure in `clippy.toml`)
+- Use `rustfmt` for formatting: `cargo fmt`
+- Pass `clippy` lints: `cargo clippy`
 - Write rustdoc comments for all public APIs
-- Maintain test coverage >80%
+- Maintain test coverage >80% (future)
 - Use semantic commit messages
-- Feature branches with pull requests for all changes
+- Feature branches with pull requests for all changes (if working in team)
+
+## Git Policy
+
+**IMPORTANT**: Do NOT create git commits or push to remote repositories.
+
+- ❌ Never use `git commit`
+- ❌ Never use `git push`
+- ✅ Run `cargo fmt`, `cargo clippy`, `cargo build`, `cargo test`
+- ✅ Stage changes with `git add` if needed
+- ✅ Show `git status` and `git diff` to help user understand changes
+
+The user will handle all commits and pushes manually.

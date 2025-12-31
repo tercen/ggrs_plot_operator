@@ -15,6 +15,8 @@ pub mod proto {
     tonic::include_proto!("tercen");
 }
 
+use proto::event_service_client::EventServiceClient;
+use proto::table_schema_service_client::TableSchemaServiceClient;
 use proto::task_service_client::TaskServiceClient;
 use proto::user_service_client::UserServiceClient;
 
@@ -26,6 +28,16 @@ pub type AuthTaskServiceClient =
 #[allow(dead_code)]
 pub type AuthUserServiceClient =
     UserServiceClient<tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>>;
+
+/// Type alias for authenticated EventService client
+pub type AuthEventServiceClient =
+    EventServiceClient<tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>>;
+
+/// Type alias for authenticated TableSchemaService client
+#[allow(dead_code)]
+pub type AuthTableSchemaServiceClient = TableSchemaServiceClient<
+    tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>,
+>;
 
 /// Interceptor that adds Bearer token authentication to all requests
 #[derive(Clone)]
@@ -109,6 +121,25 @@ impl TercenClient {
     pub fn task_service(&self) -> Result<AuthTaskServiceClient> {
         let interceptor = AuthInterceptor::new(self.token.clone())?;
         Ok(TaskServiceClient::with_interceptor(
+            self.channel.clone(),
+            interceptor,
+        ))
+    }
+
+    /// Get an EventService client with authentication
+    pub fn event_service(&self) -> Result<AuthEventServiceClient> {
+        let interceptor = AuthInterceptor::new(self.token.clone())?;
+        Ok(EventServiceClient::with_interceptor(
+            self.channel.clone(),
+            interceptor,
+        ))
+    }
+
+    /// Get a TableSchemaService client with authentication
+    #[allow(dead_code)]
+    pub fn table_service(&self) -> Result<AuthTableSchemaServiceClient> {
+        let interceptor = AuthInterceptor::new(self.token.clone())?;
+        Ok(TableSchemaServiceClient::with_interceptor(
             self.channel.clone(),
             interceptor,
         ))
