@@ -146,7 +146,9 @@ async fn process_task(
                     println!("    row_hash: {}", row_hash);
 
                     logger.log(format!("Main data table: {}", qt_hash)).await?;
-                    logger.log(format!("Column facet table: {}", column_hash)).await?;
+                    logger
+                        .log(format!("Column facet table: {}", column_hash))
+                        .await?;
                     logger.log(format!("Row facet table: {}", row_hash)).await?;
 
                     // Query the main data table
@@ -211,14 +213,18 @@ async fn query_and_log_data(
     let mut offset = 0;
 
     println!("  Fetching data in chunks of {} rows...", chunk_size);
-    logger.log(format!("Chunk size: {} rows", chunk_size)).await?;
+    logger
+        .log(format!("Chunk size: {} rows", chunk_size))
+        .await?;
 
     loop {
         chunk_num += 1;
 
         if chunk_num > max_chunks {
             println!("  ⚠ Safety limit reached ({} chunks)", max_chunks);
-            logger.log(format!("Safety limit reached: {} chunks", max_chunks)).await?;
+            logger
+                .log(format!("Safety limit reached: {} chunks", max_chunks))
+                .await?;
             break;
         }
 
@@ -226,7 +232,9 @@ async fn query_and_log_data(
         logger.log(format!("Fetching chunk {}", chunk_num)).await?;
 
         // Stream this chunk
-        let csv_data = streamer.stream_csv(table_id, None, offset, chunk_size).await?;
+        let csv_data = streamer
+            .stream_csv(table_id, None, offset, chunk_size)
+            .await?;
 
         if csv_data.is_empty() {
             println!("  No more data (empty chunk)");
@@ -241,7 +249,9 @@ async fn query_and_log_data(
         total_rows += row_count;
 
         println!("  Rows in chunk: {}", row_count);
-        logger.log(format!("Chunk {}: {} rows", chunk_num, row_count)).await?;
+        logger
+            .log(format!("Chunk {}: {} rows", chunk_num, row_count))
+            .await?;
 
         // Log first entry of this chunk
         if let Some(first_row) = parsed.rows.first() {
@@ -259,10 +269,12 @@ async fn query_and_log_data(
                 }
             }
 
-            logger.log(format!(
-                "First entry: ci={:?}, ri={:?}, x={:?}, y={:?}",
-                first_row.ci, first_row.ri, first_row.x, first_row.y
-            )).await?;
+            logger
+                .log(format!(
+                    "First entry: ci={:?}, ri={:?}, x={:?}, y={:?}",
+                    first_row.ci, first_row.ri, first_row.x, first_row.y
+                ))
+                .await?;
         }
 
         // Get summary statistics for this chunk
@@ -284,10 +296,12 @@ async fn query_and_log_data(
     println!("  Total chunks processed: {}", chunk_num);
     println!("  Total rows: {}", total_rows);
 
-    logger.log(format!(
-        "Query complete: {} chunks, {} total rows",
-        chunk_num, total_rows
-    )).await?;
+    logger
+        .log(format!(
+            "Query complete: {} chunks, {} total rows",
+            chunk_num, total_rows
+        ))
+        .await?;
 
     Ok(())
 }

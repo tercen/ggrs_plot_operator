@@ -549,9 +549,34 @@ The `process_task()` function (Phase 4 implementation):
 
 ## Code Quality Standards
 
+### Pre-Commit Checklist
+
+**CRITICAL**: Before considering any code change complete, you MUST run these checks locally:
+
+```bash
+# 1. Format check (must pass)
+cargo fmt --check
+
+# 2. If formatting needed, apply it
+cargo fmt
+
+# 3. Clippy check (must pass with no warnings)
+cargo clippy -- -D warnings
+
+# 4. Build check (must compile)
+cargo build
+
+# 5. Test check (when tests exist)
+cargo test
+```
+
+**NEVER** consider a code update complete until all these checks pass locally. The CI will fail if any of these checks fail, wasting time and resources.
+
+### General Standards
+
 - Follow Rust API guidelines
 - Use `rustfmt` for formatting: `cargo fmt`
-- Pass `clippy` lints: `cargo clippy`
+- Pass `clippy` lints with zero warnings: `cargo clippy -- -D warnings`
 - Write rustdoc comments for all public APIs
 - Maintain test coverage >80% (future)
 - Use semantic commit messages
