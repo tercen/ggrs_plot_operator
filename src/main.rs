@@ -92,9 +92,7 @@ async fn main() {
         }
     }
 
-    // Simulate operator processing time
-    println!("\nProcessing...");
-    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    
 
     println!("Operator completed!");
     std::process::exit(0);
@@ -107,6 +105,10 @@ async fn process_task(
     logger: &tercen::TercenLogger<'_>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use tercen::client::proto::GetRequest;
+
+    logger.log("Start task processing").await?;
+    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    
 
     // Step 1: Fetch task information
     let mut task_service = client.task_service()?;
