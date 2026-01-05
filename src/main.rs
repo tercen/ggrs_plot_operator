@@ -92,8 +92,6 @@ async fn main() {
         }
     }
 
-    
-
     println!("Operator completed!");
     std::process::exit(0);
 }
@@ -108,7 +106,6 @@ async fn process_task(
 
     logger.log("Start task processing").await?;
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-    
 
     // Step 1: Fetch task information
     let mut task_service = client.task_service()?;
