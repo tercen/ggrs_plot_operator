@@ -25,12 +25,8 @@ fn extract_row_count_from_schema(
         Some(e_schema::Object::Tableschema(ts)) => Ok(ts.n_rows as i64),
         Some(e_schema::Object::Computedtableschema(cts)) => Ok(cts.n_rows as i64),
         Some(e_schema::Object::Cubequerytableschema(cqts)) => Ok(cqts.n_rows as i64),
-        Some(e_schema::Object::Schema(_)) => {
-            Err("Schema variant not supported".into())
-        }
-        None => {
-            Err("Schema object is None".into())
-        }
+        Some(e_schema::Object::Schema(_)) => Err("Schema variant not supported".into()),
+        None => Err("Schema object is None".into()),
     }
 }
 
@@ -388,9 +384,12 @@ impl TercenStreamGenerator {
                     .and_then(|v| v.as_f64())
                     .unwrap_or(0.0);
 
-                let stats = cell_stats
-                    .entry((col_idx, row_idx))
-                    .or_insert((f64::INFINITY, f64::NEG_INFINITY, f64::INFINITY, f64::NEG_INFINITY));
+                let stats = cell_stats.entry((col_idx, row_idx)).or_insert((
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                ));
 
                 stats.2 = stats.2.min(y);
                 stats.3 = stats.3.max(y);

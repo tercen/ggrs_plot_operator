@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the GGRS plotting library with the Tercen platform. It receives tabular data through the Tercen gRPC API, generates high-performance plots using GGRS, and returns PNG images back to Tercen for visualization.
 
-**Current Status**: Phase 6 COMPLETE + Columnar Architecture Migration ✅ - Full GGRS integration with pure Polars columnar operations! Records→DataFrame migration complete. Stream generator tested successfully with 475K rows in 5.6 seconds, memory stable at ~60MB.
+**Current Status**: Phase 7 COMPLETE ✅ - Full end-to-end plot generation with dequantization! Successfully tested with 475K rows, plot rendered in 9.5s, memory stable at ~46MB peak. Dequantization working correctly in GGRS render pipeline.
 
-**📋 Continue from**: Ready for Phase 7 (plot generation) and Phase 8 (result upload to Tercen).
+**📋 Continue from**: Ready for Phase 8 (result upload to Tercen).
 
 ## Quick Reference
 
@@ -110,34 +110,39 @@ ggrs_plot_operator/
    - Integrates with GGRS core components: PlotGenerator (engine) and ImageRenderer (rendering)
    - Uses Plotters backend for PNG generation
 
-### Data Flow (Final - Columnar Architecture)
+### Data Flow (Final - With Dequantization)
 
 ```
 User clicks "Run" in Tercen
   ↓
-1. TercenStreamGenerator::from_workflow_step()
+1. TercenStreamGenerator::new()
    - Connect & authenticate via gRPC
-   - Load task (get table IDs from ComputationTask)
    - Load facet metadata (column.csv, row.csv - small tables)
-   - Pre-compute axis ranges for all facet cells
+   - Pre-load axis ranges from Y-axis table (or compute from data)
+   - Create Aes mapping to .x and .y (dequantized columns)
    ↓
-2. GGRS calls query_data(col_idx, row_idx) per facet cell
-   - Stream TSON data in chunks via ReqStreamTable with offset/limit
+2. GGRS calls query_data_chunk() per facet cell during rendering
+   - Stream TSON data in 1000-row chunks via ReqStreamTable
    - Parse TSON → Polars DataFrame (COLUMNAR, no Records!)
    - Filter using Polars lazy: col(".ci").eq(col_idx).and(col(".ri").eq(row_idx))
    - Concatenate chunks with vstack_mut() (columnar append)
-   - Uses quantized coordinates: .xs/.ys (uint16 as i64)
-   - Return DataFrame to GGRS
+   - Data contains quantized coordinates: .xs/.ys (uint16 as i64)
    ↓
-3. GGRS renders incrementally
+3. GGRS dequantizes in render.rs after each query
+   - Calls dequantize_chunk(df, x_range, y_ranges)
+   - Formula: value = (quantized / 65535) * (max - min) + min
+   - Creates new columns .x and .y with actual data values
+   - Removes .xs and .ys columns
+   ↓
+4. GGRS renders with dequantized data
    - Auto-converts i64 → f64 for coordinates
-   - Dequantizes using axis ranges
-   - Each facet cell rendered as data arrives
+   - Plots points using actual data ranges (e.g., 0-10)
+   - Each facet cell rendered progressively as chunks arrive
    ↓
-4. Generate final PNG
+5. Generate final PNG
    - ImageRenderer produces complete PNG buffer
    ↓
-5. Save result to Tercen table (TODO: Phase 8)
+6. Save result to Tercen table (TODO: Phase 8)
    - Encode PNG to base64
    - Create DataFrame: .content (base64), filename, mimetype
    - Save as Tercen table
@@ -176,45 +181,62 @@ BD,M
 
 ```rust
 pub struct TercenStreamGenerator {
-    table_service: TableSchemaServiceClient,
-    table_id: String,
-    aes: Aes,  // Uses .xs/.ys for quantized coordinates
+    client: Arc<TercenClient>,
+    main_table_id: String,
+    facet_info: FacetInfo,
+    axis_ranges: HashMap<(usize, usize), (AxisData, AxisData)>,
+    total_rows: usize,
+    aes: Aes,  // Maps to .x and .y (dequantized coordinates)
     facet_spec: FacetSpec,
-    axis_ranges: HashMap<(usize, usize), (AxisRange, AxisRange)>,
+    chunk_size: usize,
+}
+
+impl TercenStreamGenerator {
+    /// Create generator with explicit table IDs
+    pub async fn new(
+        client: Arc<TercenClient>,
+        main_table_id: String,
+        col_facet_table_id: String,
+        row_facet_table_id: String,
+        y_axis_table_id: Option<String>,
+        chunk_size: usize,
+    ) -> Result<Self> {
+        // Load facet metadata from tables
+        let facet_info = FacetInfo::load(&client, &col_facet_table_id, &row_facet_table_id).await?;
+
+        // Load or compute axis ranges
+        let (axis_ranges, total_rows) = if let Some(ref y_table_id) = y_axis_table_id {
+            Self::load_axis_ranges_from_table(&client, y_table_id, &main_table_id, &facet_info).await?
+        } else {
+            Self::compute_axis_ranges(&client, &main_table_id, &facet_info, chunk_size).await?
+        };
+
+        // Create Aes mapping to dequantized columns
+        let aes = Aes::new().x(".x").y(".y");
+
+        Ok(Self { client, main_table_id, facet_info, axis_ranges, total_rows, aes, facet_spec, chunk_size })
+    }
 }
 
 impl StreamGenerator for TercenStreamGenerator {
-    // GGRS calls this for each facet cell as it renders
-    fn query_data(&self, col_idx: usize, row_idx: usize) -> Result<DataFrame> {
-        // Stream TSON chunks from Tercen
-        let mut all_dataframes = Vec::new();
-
-        for chunk_offset in (0..total_rows).step_by(chunk_size) {
-            // Stream TSON → Polars DataFrame (STAY COLUMNAR!)
-            let tson_bytes = self.stream_tson(table_id, columns, chunk_offset, chunk_size)?;
-            let mut df = tson_to_dataframe(&tson_bytes)?;
-
-            // Filter using Polars lazy API (predicate pushdown)
-            df = df.lazy()
-                .filter(col(".ci").eq(lit(col_idx as i64))
-                    .and(col(".ri").eq(lit(row_idx as i64))))
-                .collect()?;
-
-            // Concatenate chunks (columnar append)
-            all_dataframes.push(df);
-        }
-
-        // Combine all chunks
-        combine_dataframes(all_dataframes)
+    // GGRS calls this for each facet cell during rendering
+    fn query_data_chunk(&self, col_idx: usize, row_idx: usize, range: Range) -> DataFrame {
+        // Stream TSON chunks from Tercen (returns quantized .xs/.ys)
+        // GGRS will dequantize after this returns
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                self.stream_facet_data(col_idx, row_idx, range).await
+            })
+        }).unwrap_or_else(|_| DataFrame::new())
     }
 
-    fn n_col_facets(&self) -> usize { /* from FacetInfo */ }
-    fn n_row_facets(&self) -> usize { /* from FacetInfo */ }
-    fn query_x_axis(&self, col_idx, row_idx) -> Result<AxisData> {
-        // Pre-computed ranges with 5% padding
-        self.axis_ranges.get(&(col_idx, row_idx))
+    fn query_x_axis(&self, col_idx, row_idx) -> AxisData {
+        self.axis_ranges.get(&(col_idx, row_idx)).map(|(x, _)| x.clone()).unwrap_or_default()
     }
-    fn query_y_axis(&self, col_idx, row_idx) -> Result<AxisData> { /* same */ }
+
+    fn query_y_axis(&self, col_idx, row_idx) -> AxisData {
+        self.axis_ranges.get(&(col_idx, row_idx)).map(|(_, y)| y.clone()).unwrap_or_default()
+    }
 }
 ```
 
@@ -222,10 +244,11 @@ impl StreamGenerator for TercenStreamGenerator {
 - ✅ Pure columnar operations - NO row-by-row Record construction
 - ✅ Polars lazy API with predicate pushdown for efficient filtering
 - ✅ Zero-copy operations where possible
-- ✅ Memory efficient: stable ~60MB for 475K rows
-- ✅ Fast: 5.6 seconds for 475K rows (12 bytes/row with compression)
+- ✅ **Dequantization in GGRS** - operator stays simple, returns quantized data
+- ✅ Memory efficient: stable ~46MB for 475K rows with full plot rendering
+- ✅ Fast: 9.5 seconds total for 475K rows (data fetch + dequantization + rendering)
 - ✅ Lazy loading - only fetch what GGRS needs
-- ✅ Progressive rendering - each facet renders as data arrives
+- ✅ Progressive rendering - each chunk is dequantized and rendered immediately
 
 **Minimal main**:
 ```rust
@@ -295,17 +318,27 @@ let polars_df = polars_df
    - `column_as_f64()` auto-converts i64 → f64
    - Handles quantized coordinates (uint16 stored as i64)
 
-**Performance Results**:
+5. **Dequantization** (`ggrs-core/src/stream.rs` and `ggrs-core/src/render.rs`):
+   - `dequantize_chunk()` converts quantized `.xs`/`.ys` to actual `.x`/`.y` values
+   - Called in render pipeline after each `query_data_chunk()`
+   - Formula: `value = (quantized / 65535.0) * (max - min) + min`
+   - Handles both single-facet and multi-facet data
+
+**Performance Results (with Full Rendering + Dequantization)**:
 - Test dataset: 475,688 rows
-- Processing time: 5.6 seconds
-- Memory usage: Stable at ~60MB (peak 92MB)
-- Data size: ~12 bytes/row with compression
+- Total time: 9.5 seconds (data fetch + dequantization + rendering)
+- Memory usage: Stable at ~46MB (peak during rendering)
+- Plot output: 59KB PNG file
+- Data throughput: ~50K rows/second with full processing
 
 **Files Modified**:
-- `src/ggrs_integration/stream_generator.rs` - Removed all Record loops
+- `src/ggrs_integration/stream_generator.rs` - Added `new()` constructor with axis loading
 - `src/tercen/tson_convert.rs` - Pure columnar conversion
 - `ggrs/crates/ggrs-core/src/data.rs` - Added i64→f64 auto-conversion
-- `src/bin/test_stream_generator.rs` - Fixed string reference issues
+- `ggrs/crates/ggrs-core/src/stream.rs` - Added `dequantize_chunk()` function
+- `ggrs/crates/ggrs-core/src/render.rs` - Integrated dequantization into render loop
+- `ggrs/crates/ggrs-core/src/engine.rs` - Added dequantization for aesthetic training
+- `src/bin/test_stream_generator.rs` - Updated to use `new()` constructor
 
 ## Key Technical Decisions
 
@@ -316,12 +349,14 @@ let polars_df = polars_df
 - **Lazy API**: Use Polars lazy evaluation with predicate pushdown for filtering
 - **Zero-Copy**: Minimize data duplication, use references and move semantics
 
-### Memory Efficiency
-- **Streaming Architecture**: Don't load entire table into memory; process in chunks
+### Memory Efficiency & Dequantization
+- **Streaming Architecture**: Don't load entire table into memory; process in 1000-row chunks
 - **Lazy Faceting**: Only load data for facet cells being rendered
-- **Chunked Processing**: Default 8096 rows per chunk (configurable)
+- **Chunked Processing**: Default 15000 rows per operator chunk, 1000 rows per GGRS render chunk
 - **Schema-Based Limiting**: Use table schema row count to prevent infinite loops
-- **Test Results**: 475K rows processed in 5.6s, memory stable at ~60MB (peak 92MB)
+- **Dequantization in GGRS**: Operator returns compact quantized data (2 bytes/coordinate)
+- **Progressive Dequantization**: Each chunk dequantized immediately before rendering, then discarded
+- **Test Results**: 475K rows with full plot rendering in 9.5s, memory stable at ~46MB peak
 
 ### Proto Files Location
 Proto files should be copied/linked from: `/home/thiago/workspaces/tercen/main/sci/tercen_grpc/tercen_grpc_api/protos/`
@@ -361,20 +396,22 @@ pub mod proto {
 
 ## Implementation Status
 
-**Current Phase**: Phase 6 COMPLETE + Columnar Migration ✅ - Ready for Phase 7 (plot generation) and Phase 8 (result upload)
+**Current Phase**: Phase 7 COMPLETE ✅ - Full end-to-end plot generation working! Ready for Phase 8 (result upload)
 
-**✅ Working (Columnar Architecture)**:
+**✅ Working (Full Pipeline)**:
 1. Pure Polars columnar operations - NO Record construction
 2. TSON → Polars DataFrame conversion (schema-based limiting)
 3. Polars lazy filtering with predicate pushdown: `col().eq().and()`
 4. Chunked streaming with `vstack_mut()` concatenation
-5. Quantized coordinates: `.xs`/`.ys` (uint16 as i64) with auto i64→f64 conversion
-6. Axis range pre-computation with 5% padding
-7. Workflow/step-based context (like Python OperatorContextDev)
-8. Configuration system (operator_config.json)
-9. Test validation: 475K rows in 5.6s, ~60MB memory
+5. Quantized coordinates: `.xs`/`.ys` transmitted from operator
+6. **Dequantization in GGRS**: `.xs`/`.ys` → `.x`/`.y` conversion with axis ranges
+7. Axis range loading from Y-axis table or computation fallback
+8. `TercenStreamGenerator::new()` constructor with table IDs
+9. Full plot rendering: 475K rows → 59KB PNG in 9.5s
+10. Configuration system (operator_config.json)
+11. Test binary with memory tracking
 
-**📋 See**: Latest performance metrics in memory_usage_chunk_8096.csv/.png
+**📋 See**: Latest performance metrics in memory_usage_chunk_15000.csv/.png
 
 ### Completed Phases
 
@@ -426,30 +463,38 @@ pub mod proto {
 - ✅ Auto i64→f64 conversion in GGRS `column_as_f64()`
 - ✅ Configuration system (operator_config.json)
 - ✅ Standalone test binary (test_stream_generator)
-- ✅ Generated plot: `plot.png` (800x600, ~60KB)
-- ✅ Performance: 475K rows in 5.6s, memory stable at ~60MB
+
+#### Phase 7: Plot Generation and Dequantization ✅
+- ✅ Implemented `dequantize_chunk()` in GGRS `stream.rs`
+- ✅ Integrated dequantization into GGRS `render.rs` render loop (line ~1822)
+- ✅ Added dequantization to GGRS `engine.rs` aesthetic training (line ~551)
+- ✅ Handles both single-facet and multi-facet data (optional `.ri` column)
+- ✅ Implemented `TercenStreamGenerator::new()` constructor
+- ✅ Added `load_axis_ranges_from_table()` for Y-axis table loading
+- ✅ Added `compute_axis_ranges()` as fallback
+- ✅ Added helper functions: `extract_row_count_from_schema()`, `extract_column_names_from_schema()`
+- ✅ Updated Aes mapping to use `.x` and `.y` (dequantized columns)
+- ✅ Full end-to-end test: 475K rows → 59KB PNG in 9.5s
+- ✅ Memory stable: ~46MB peak during full rendering
+- ✅ Plot displays correct data ranges (verified dequantization working)
 
 ### Next Steps
 
-**Phase 7: Plot Generation and Rendering** 📋 READY
-1. Create `EnginePlotSpec` from operator properties
-2. Instantiate `PlotGenerator` with stream generator
-3. Call `ImageRenderer::render_to_bytes()` for PNG output
-4. Test with single facet cell, then multi-facet grids
-
-**Phase 8: Result Upload to Tercen** 📋 READY
+**Phase 8: Result Upload to Tercen** 📋 NEXT
 1. Encode PNG to base64
 2. Create result DataFrame with `.content`, `filename`, `mimetype` columns
 3. Wrap in `OperatorResult` JSON structure
 4. Upload via `FileService.uploadTable()`
 5. Update task with `fileResultId`
+6. Test full operator lifecycle from task pickup to result upload
 
 **Phase 9: Production Polish**
 1. Operator properties support (read from task)
 2. Better legend support (color mappings)
-3. Accurate `n_data_rows()` per facet
-4. Error handling improvements
-5. Progress reporting during long operations
+3. Multi-facet grid layout support
+4. Color aesthetics (categorical and continuous)
+5. Error handling improvements
+6. Progress reporting during long operations
 
 ### Complete Roadmap
 
@@ -459,9 +504,9 @@ See `docs/10_IMPLEMENTATION_PHASES.md` for details:
 - Phase 3: Streaming Data - Test Chunking ✅
 - Phase 4: Data Parsing and Filtering ✅
 - Phase 5: Load Facet Metadata ✅
-- Phase 6: First GGRS Plot ✅
-- Phase 7: Output to Tercen Table 📋 NEXT
-- Phase 8: Full Faceting Support
+- Phase 6: GGRS Integration + Columnar Migration ✅
+- Phase 7: Plot Generation and Dequantization ✅
+- Phase 8: Result Upload to Tercen 📋 NEXT
 - Phase 9: Production Polish
 
 ### Module Structure (Designed for Library Extraction)
@@ -603,13 +648,14 @@ The current implementation includes:
 
 **TercenStreamGenerator** (`src/ggrs_integration/stream_generator.rs`):
 - Implements GGRS `StreamGenerator` trait for lazy data loading
-- `from_workflow_step()`: Creates generator from workflow/step IDs (like Python OperatorContextDev)
-- `compute_axis_ranges()`: Pre-computes axis ranges with 5% padding for all facet cells
-- `stream_bulk_data()`: Streams TSON chunks and converts to DataFrame (COLUMNAR!)
+- `new()`: Creates generator with explicit table IDs, loads facets and axis ranges
+- `load_axis_ranges_from_table()`: Loads pre-computed Y-axis ranges from table
+- `compute_axis_ranges()`: Fallback to scan data and compute ranges
 - `stream_facet_data()`: Streams chunks, concatenates with `vstack_mut()` (columnar append)
-- `filter_dataframe_by_facet()`: Pure Polars lazy filtering with `col().eq().and()`
-- Uses quantized coordinates `.xs`/`.ys` directly (NO synthetic `.x` generation)
+- `filter_by_facet()`: Pure Polars lazy filtering with `col().eq().and()`
+- Returns quantized coordinates `.xs`/`.ys` - GGRS handles dequantization
 - Uses `tokio::task::block_in_place()` for async/sync trait compatibility
+- Helper functions: `extract_row_count_from_schema()`, `extract_column_names_from_schema()`
 
 **Configuration** (`src/config.rs`):
 - `OperatorConfig`: Centralized configuration from `operator_config.json`

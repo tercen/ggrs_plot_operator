@@ -21,6 +21,14 @@ pub struct OperatorConfig {
 
     /// Default plot height in pixels
     pub default_plot_height: u32,
+
+    /// Render backend: "cpu" or "gpu"
+    #[serde(default = "default_backend")]
+    pub render_backend: String,
+}
+
+fn default_backend() -> String {
+    "cpu".to_string()
 }
 
 impl Default for OperatorConfig {
@@ -31,6 +39,7 @@ impl Default for OperatorConfig {
             cache_axis_ranges: true,
             default_plot_width: 800,
             default_plot_height: 600,
+            render_backend: "cpu".to_string(),
         }
     }
 }
