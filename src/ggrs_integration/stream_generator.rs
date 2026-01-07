@@ -14,6 +14,47 @@ use polars::prelude::{col, IntoColumn, IntoLazy};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+/// Extract row count from schema
+fn extract_row_count_from_schema(
+    schema: &crate::tercen::client::proto::ESchema,
+) -> Result<i64, Box<dyn std::error::Error>> {
+    use crate::tercen::client::proto::e_schema;
+
+    // All schema types (TableSchema, ComputedTableSchema, CubeQueryTableSchema) have nRows field
+    match &schema.object {
+        Some(e_schema::Object::Tableschema(ts)) => Ok(ts.n_rows as i64),
+        Some(e_schema::Object::Computedtableschema(cts)) => Ok(cts.n_rows as i64),
+        Some(e_schema::Object::Cubequerytableschema(cqts)) => Ok(cqts.n_rows as i64),
+        Some(e_schema::Object::Schema(_)) => {
+            Err("Schema variant not supported".into())
+        }
+        None => {
+            Err("Schema object is None".into())
+        }
+    }
+}
+
+/// Helper function to extract column names from a schema
+fn extract_column_names_from_schema(
+    schema: &crate::tercen::client::proto::ESchema,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    use crate::tercen::client::proto::e_schema;
+
+    if let Some(e_schema::Object::Cubequerytableschema(cqts)) = &schema.object {
+        let mut column_names = Vec::new();
+        for col in &cqts.columns {
+            if let Some(crate::tercen::client::proto::e_column_schema::Object::Columnschema(cs)) =
+                &col.object
+            {
+                column_names.push(cs.name.clone());
+            }
+        }
+        Ok(column_names)
+    } else {
+        Err("Schema is not a CubeQueryTableSchema".into())
+    }
+}
+
 /// Tercen implementation of GGRS StreamGenerator
 ///
 /// Streams quantized coordinates (.xs, .ys) from Tercen.
@@ -45,6 +86,64 @@ pub struct TercenStreamGenerator {
 }
 
 impl TercenStreamGenerator {
+    /// Create a new stream generator with explicit table IDs
+    ///
+    /// This loads facet metadata and axis ranges from pre-computed tables.
+    #[allow(dead_code)]
+    pub async fn new(
+        client: Arc<TercenClient>,
+        main_table_id: String,
+        col_facet_table_id: String,
+        row_facet_table_id: String,
+        y_axis_table_id: Option<String>,
+        chunk_size: usize,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        // Load facet metadata
+        let facet_info = FacetInfo::load(&client, &col_facet_table_id, &row_facet_table_id).await?;
+
+        println!(
+            "Loaded facets: {} columns × {} rows = {} cells",
+            facet_info.n_col_facets(),
+            facet_info.n_row_facets(),
+            facet_info.total_facets()
+        );
+
+        // Load axis ranges from pre-computed Y-axis table (if available)
+        let (axis_ranges, total_rows) = if let Some(ref y_table_id) = y_axis_table_id {
+            println!("Loading axis ranges from Y-axis table: {}", y_table_id);
+            Self::load_axis_ranges_from_table(&client, y_table_id, &main_table_id, &facet_info)
+                .await?
+        } else {
+            println!("No Y-axis table provided, falling back to data scanning");
+            Self::compute_axis_ranges(&client, &main_table_id, &facet_info, chunk_size).await?
+        };
+
+        // Create default aesthetics
+        // Dequantization happens in GGRS render.rs using axis ranges
+        // After dequantization, columns are .x and .y (actual data values)
+        let aes = Aes::new().x(".x").y(".y");
+
+        // Create facet spec based on facet metadata
+        let facet_spec = if facet_info.has_faceting() {
+            // For now, create a simple grid spec
+            // TODO: Map from Tercen crosstab spec to proper FacetSpec
+            FacetSpec::none()
+        } else {
+            FacetSpec::none()
+        };
+
+        Ok(Self {
+            client,
+            main_table_id,
+            facet_info,
+            axis_ranges,
+            total_rows,
+            aes,
+            facet_spec,
+            chunk_size,
+        })
+    }
+
     /// Create a new stream generator from workflow and step IDs
     ///
     /// This is the primary constructor used by the operator.
@@ -92,6 +191,246 @@ impl TercenStreamGenerator {
             facet_spec,
             chunk_size,
         }
+    }
+
+    /// Load axis ranges from pre-computed Y-axis table
+    ///
+    /// The Y-axis table contains columns: .ri, .minY, .maxY (and optionally .ci)
+    /// There should be one row per facet cell (indexed by .ci and .ri)
+    async fn load_axis_ranges_from_table(
+        client: &TercenClient,
+        y_axis_table_id: &str,
+        main_table_id: &str,
+        facet_info: &FacetInfo,
+    ) -> Result<
+        (
+            HashMap<(usize, usize), (AxisData, AxisData)>,
+            usize, // total rows across all facets
+        ),
+        Box<dyn std::error::Error>,
+    > {
+        let streamer = TableStreamer::new(client);
+
+        // First, get the schema to see which columns exist
+        println!("  Fetching Y-axis table schema...");
+        let schema = streamer.get_schema(y_axis_table_id).await?;
+        let column_names = extract_column_names_from_schema(&schema)?;
+        println!("  Y-axis table columns: {:?}", column_names);
+
+        // Build column list: always need .ri, .minY, .maxY
+        // Optionally include .ci if it exists (for column facets)
+        let mut columns_to_fetch =
+            vec![".ri".to_string(), ".minY".to_string(), ".maxY".to_string()];
+        let has_ci = column_names.contains(&".ci".to_string());
+        if has_ci {
+            columns_to_fetch.push(".ci".to_string());
+        }
+
+        // Fetch all rows from Y-axis table
+        let expected_rows = facet_info.n_col_facets() * facet_info.n_row_facets();
+        println!(
+            "  Fetching Y-axis ranges (expecting {} rows)...",
+            expected_rows
+        );
+        let data = streamer
+            .stream_tson(
+                y_axis_table_id,
+                Some(columns_to_fetch),
+                0,
+                expected_rows as i64,
+            )
+            .await?;
+
+        println!("  Parsing {} bytes...", data.len());
+        let df = tson_to_dataframe(&data)?;
+        println!("  Parsed {} rows", df.nrow());
+
+        // Get total row count from main table schema
+        println!("  Getting main table row count...");
+        let main_schema = streamer.get_schema(main_table_id).await?;
+        let total_rows = extract_row_count_from_schema(&main_schema)? as usize;
+        println!("  Total rows: {}", total_rows);
+
+        let mut axis_ranges = HashMap::new();
+        let has_ci = df.columns().contains(&".ci".to_string());
+
+        // Process each row in Y-axis table
+        for i in 0..df.nrow() {
+            let col_idx = if has_ci {
+                match df.get_value(i, ".ci")? {
+                    ggrs_core::data::Value::Int(v) => v as usize,
+                    _ => 0,
+                }
+            } else {
+                0
+            };
+
+            let row_idx = match df.get_value(i, ".ri")? {
+                ggrs_core::data::Value::Int(v) => v as usize,
+                _ => return Err(format!("Invalid .ri at row {}", i).into()),
+            };
+
+            let min_y = match df.get_value(i, ".minY")? {
+                ggrs_core::data::Value::Float(v) => v,
+                _ => return Err(format!("Invalid .minY at row {}", i).into()),
+            };
+
+            let max_y = match df.get_value(i, ".maxY")? {
+                ggrs_core::data::Value::Float(v) => v,
+                _ => return Err(format!("Invalid .maxY at row {}", i).into()),
+            };
+
+            println!(
+                "  Facet ({}, {}): Y [{}, {}]",
+                col_idx, row_idx, min_y, max_y
+            );
+
+            // X-axis is quantized coordinate space (0-65535)
+            let x_axis = AxisData::Numeric(NumericAxisData {
+                min_value: 0.0,
+                max_value: 65535.0,
+                min_axis: 0.0,
+                max_axis: 65535.0,
+                transform: None,
+            });
+
+            let y_axis = AxisData::Numeric(NumericAxisData {
+                min_value: min_y,
+                max_value: max_y,
+                min_axis: min_y,
+                max_axis: max_y,
+                transform: None,
+            });
+
+            axis_ranges.insert((col_idx, row_idx), (x_axis, y_axis));
+        }
+
+        println!("  Loaded {} axis ranges", axis_ranges.len());
+        Ok((axis_ranges, total_rows))
+    }
+
+    /// Compute axis ranges by scanning the main data table
+    ///
+    /// This is the fallback when no pre-computed Y-axis table is available.
+    async fn compute_axis_ranges(
+        client: &TercenClient,
+        table_id: &str,
+        facet_info: &FacetInfo,
+        chunk_size: usize,
+    ) -> Result<(HashMap<(usize, usize), (AxisData, AxisData)>, usize), Box<dyn std::error::Error>>
+    {
+        println!("Computing axis ranges...");
+
+        let streamer = TableStreamer::new(client);
+        let schema = streamer.get_schema(table_id).await?;
+        let total_rows = extract_row_count_from_schema(&schema)?;
+        println!("  Total rows: {}", total_rows);
+
+        let chunk_size = chunk_size as i64;
+        let mut offset = 0;
+
+        // Track min/max for each facet cell
+        let mut cell_stats: HashMap<(usize, usize), (f64, f64, f64, f64)> = HashMap::new();
+
+        // Initialize all cells
+        for col_idx in 0..facet_info.n_col_facets() {
+            for row_idx in 0..facet_info.n_row_facets() {
+                cell_stats.insert(
+                    (col_idx, row_idx),
+                    (
+                        f64::INFINITY,
+                        f64::NEG_INFINITY,
+                        f64::INFINITY,
+                        f64::NEG_INFINITY,
+                    ),
+                );
+            }
+        }
+
+        let columns = Some(vec![".ci".to_string(), ".ri".to_string(), ".y".to_string()]);
+
+        // Stream through data
+        loop {
+            let remaining = total_rows - offset;
+            if remaining <= 0 {
+                break;
+            }
+            let limit = remaining.min(chunk_size);
+
+            let tson_data = streamer
+                .stream_tson(table_id, columns.clone(), offset, limit)
+                .await?;
+
+            if tson_data.is_empty() {
+                break;
+            }
+
+            let df = tson_to_dataframe(&tson_data)?;
+            let row_count = df.nrow();
+
+            // Update min/max for each row
+            for i in 0..row_count {
+                let col_idx = df
+                    .get_value(i, ".ci")
+                    .ok()
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0) as usize;
+
+                let row_idx = df
+                    .get_value(i, ".ri")
+                    .ok()
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0) as usize;
+
+                let y = df
+                    .get_value(i, ".y")
+                    .ok()
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+
+                let stats = cell_stats
+                    .entry((col_idx, row_idx))
+                    .or_insert((f64::INFINITY, f64::NEG_INFINITY, f64::INFINITY, f64::NEG_INFINITY));
+
+                stats.2 = stats.2.min(y);
+                stats.3 = stats.3.max(y);
+            }
+
+            offset += row_count as i64;
+
+            if offset % (chunk_size * 5) < chunk_size {
+                println!("    Progress: {}/{}", offset.min(total_rows), total_rows);
+            }
+
+            if row_count == 0 {
+                break;
+            }
+        }
+
+        // Convert to axis ranges
+        let mut axis_ranges = HashMap::new();
+        for ((col_idx, row_idx), (_min_x, _max_x, min_y, max_y)) in cell_stats {
+            let x_axis = AxisData::Numeric(NumericAxisData {
+                min_value: 0.0,
+                max_value: 65535.0,
+                min_axis: 0.0,
+                max_axis: 65535.0,
+                transform: None,
+            });
+
+            let y_axis = AxisData::Numeric(NumericAxisData {
+                min_value: min_y,
+                max_value: max_y,
+                min_axis: min_y,
+                max_axis: max_y,
+                transform: None,
+            });
+
+            axis_ranges.insert((col_idx, row_idx), (x_axis, y_axis));
+        }
+
+        println!("  Computed {} axis ranges", axis_ranges.len());
+        Ok((axis_ranges, total_rows as usize))
     }
 
     /// Stream data for a specific facet cell in chunks
@@ -186,22 +525,13 @@ impl TercenStreamGenerator {
                 row_idx
             );
 
-            // Dequantize coordinates: .xs/.ys (uint16 0-65535) → .x/.y (actual data values)
-            // This MUST happen before the data reaches the backends
-            let dequant_start = std::time::Instant::now();
-            let dequantized_df =
-                self.dequantize_coordinates(filtered_df.inner().clone(), col_idx, row_idx)?;
-            let dequant_time = dequant_start.elapsed();
+            // NOTE: Dequantization now happens in GGRS, not here in the operator
+            // The data is returned with quantized coordinates (.xs, .ys) and will be
+            // dequantized by GGRS based on axis ranges right before rendering
 
-            eprintln!(
-                "TIMING: Dequantize={:.2}ms for {} rows",
-                dequant_time.as_secs_f64() * 1000.0,
-                dequantized_df.height()
-            );
-
-            // Accumulate the dequantized Polars DataFrame
-            if dequantized_df.height() > 0 {
-                all_chunks.push(dequantized_df);
+            // Accumulate the filtered Polars DataFrame (still has .xs/.ys)
+            if filtered_df.nrow() > 0 {
+                all_chunks.push(filtered_df.inner().clone());
             }
 
             current_offset += fetched_rows as i64;
@@ -278,79 +608,6 @@ impl TercenStreamGenerator {
     ///
     /// This transformation is backend-agnostic and must happen BEFORE data reaches renderers.
     /// Uses the pre-computed axis ranges for this specific facet cell.
-    fn dequantize_coordinates(
-        &self,
-        mut df: polars::frame::DataFrame,
-        col_idx: usize,
-        row_idx: usize,
-    ) -> Result<polars::frame::DataFrame, Box<dyn std::error::Error>> {
-        // Get axis ranges for this facet cell
-        let (x_axis, y_axis) = self
-            .axis_ranges
-            .get(&(col_idx, row_idx))
-            .ok_or("Axis ranges not found for facet cell")?;
-
-        // Extract min/max from axis data
-        let (x_min, x_max) = match x_axis {
-            AxisData::Numeric(data) => (data.min_value, data.max_value),
-            _ => return Err("X-axis is not numeric".into()),
-        };
-
-        let (y_min, y_max) = match y_axis {
-            AxisData::Numeric(data) => (data.min_value, data.max_value),
-            _ => return Err("Y-axis is not numeric".into()),
-        };
-
-        // Dequantize: quantized_value / 65535 * (max - min) + min
-        // .xs and .ys are stored as i64 but represent uint16 values (0-65535)
-        const QUANTIZE_MAX: f64 = 65535.0;
-
-        // Get .xs column, convert to f64, dequantize, create .x column
-        if let Ok(xs_col) = df.column(".xs") {
-            let xs_series = xs_col.as_materialized_series();
-            if let Ok(xs_i64) = xs_series.i64() {
-                let x_values: Vec<f64> = xs_i64
-                    .into_iter()
-                    .map(|opt| {
-                        opt.map(|quantized| {
-                            let normalized = (quantized as f64) / QUANTIZE_MAX;
-                            normalized * (x_max - x_min) + x_min
-                        })
-                        .unwrap_or(f64::NAN)
-                    })
-                    .collect();
-
-                use polars::prelude::NamedFrom;
-                let x_series = polars::prelude::Series::from_vec(".x".into(), x_values);
-                df.with_column(x_series.into_column())
-                    .map_err(|e| format!("Failed to add .x column: {}", e))?;
-            }
-        }
-
-        // Get .ys column, convert to f64, dequantize, create .y column
-        if let Ok(ys_col) = df.column(".ys") {
-            let ys_series = ys_col.as_materialized_series();
-            if let Ok(ys_i64) = ys_series.i64() {
-                let y_values: Vec<f64> = ys_i64
-                    .into_iter()
-                    .map(|opt| {
-                        opt.map(|quantized| {
-                            let normalized = (quantized as f64) / QUANTIZE_MAX;
-                            normalized * (y_max - y_min) + y_min
-                        })
-                        .unwrap_or(f64::NAN)
-                    })
-                    .collect();
-
-                use polars::prelude::NamedFrom;
-                let y_series = polars::prelude::Series::from_vec(".y".into(), y_values);
-                df.with_column(y_series.into_column())
-                    .map_err(|e| format!("Failed to add .y column: {}", e))?;
-            }
-        }
-
-        Ok(df)
-    }
 
     /// Filter DataFrame to only include rows for a specific facet cell
     ///

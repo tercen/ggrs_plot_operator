@@ -324,6 +324,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating TercenStreamGenerator...");
     let client_arc = client_arc_temp;
 
+    // Use new() constructor with explicit table IDs from CubeQuery
     let stream_gen = TercenStreamGenerator::new(
         client_arc,
         cube_query.qt_hash.clone(),
