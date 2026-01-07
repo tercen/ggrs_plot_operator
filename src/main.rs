@@ -2,8 +2,13 @@
 // These modules are organized to make future library extraction easy:
 // - `tercen`: All Tercen gRPC client code (will become `tercen-rust` crate)
 // - `ggrs_integration`: GGRS-specific integration code
-mod ggrs_integration;
-mod tercen;
+// - `config`: Operator configuration
+#![allow(dead_code)] // Allow unused functions when building as lib
+pub mod config;
+pub mod ggrs_integration;
+pub mod tercen;
+
+use tercen::tson_to_dataframe;
 
 #[cfg(feature = "jemalloc")]
 use tikv_jemallocator::Jemalloc;
@@ -16,6 +21,9 @@ static GLOBAL: Jemalloc = Jemalloc;
 async fn main() {
     println!("GGRS Plot Operator v{}", env!("CARGO_PKG_VERSION"));
     println!("Phase 4+: Data Query & Logging Test");
+
+    // Load operator configuration
+    let config = config::OperatorConfig::load();
 
     // Print environment info to verify operator context
     if let Ok(task_id) = std::env::var("TERCEN_TASK_ID") {
@@ -63,7 +71,7 @@ async fn main() {
                     eprintln!("Warning: Failed to send log: {}", e);
                 }
 
-                match process_task(&client, &task_id, &logger).await {
+                match process_task(&client, &task_id, &logger, &config).await {
                     Ok(()) => {
                         println!("✓ Task processed successfully!");
                         if let Err(e) = logger.log("Task completed successfully").await {
@@ -101,6 +109,7 @@ async fn process_task(
     client: &tercen::TercenClient,
     task_id: &str,
     logger: &tercen::TercenLogger<'_>,
+    config: &config::OperatorConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use tercen::client::proto::GetRequest;
 
@@ -155,7 +164,7 @@ async fn process_task(
                         println!("\n  Querying main data table...");
                         logger.log("Starting data query").await?;
 
-                        match query_and_log_data(client, qt_hash, logger).await {
+                        match query_and_log_data(client, qt_hash, logger, config).await {
                             Ok(()) => {
                                 println!("  ✓ Data query completed successfully");
                                 logger.log("Data query completed").await?;
@@ -198,14 +207,15 @@ async fn query_and_log_data(
     client: &tercen::TercenClient,
     table_id: &str,
     logger: &tercen::TercenLogger<'_>,
+    config: &config::OperatorConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use tercen::{ParsedData, TableStreamer};
+    use tercen::TableStreamer;
 
     let streamer = TableStreamer::new(client);
 
-    // Configuration
-    let chunk_size = 10_000; // 10K rows per chunk
-    let max_chunks = 10; // Safety limit
+    // Configuration from operator_config.json
+    let chunk_size = config.chunk_size as i64;
+    let max_chunks = config.max_chunks;
 
     let mut chunk_num = 0;
     let mut total_rows = 0;
@@ -231,19 +241,19 @@ async fn query_and_log_data(
         logger.log(format!("Fetching chunk {}", chunk_num)).await?;
 
         // Stream this chunk
-        let csv_data = streamer
-            .stream_csv(table_id, None, offset, chunk_size)
+        let tson_data = streamer
+            .stream_tson(table_id, None, offset, chunk_size)
             .await?;
 
-        if csv_data.is_empty() {
+        if tson_data.is_empty() {
             println!("  No more data (empty chunk)");
             logger.log("End of data reached").await?;
             break;
         }
 
-        // Parse the CSV data
-        let parsed = ParsedData::from_csv(&csv_data)?;
-        let row_count = parsed.rows.len();
+        // Parse the TSON data
+        let df = tson_to_dataframe(&tson_data)?;
+        let row_count = df.nrow();
 
         total_rows += row_count;
 
@@ -253,33 +263,12 @@ async fn query_and_log_data(
             .await?;
 
         // Log first entry of this chunk
-        if let Some(first_row) = parsed.rows.first() {
-            println!("  First entry:");
-            println!("    .ci = {:?}", first_row.ci);
-            println!("    .ri = {:?}", first_row.ri);
-            println!("    .x  = {:?}", first_row.x);
-            println!("    .y  = {:?}", first_row.y);
-
-            // Log extra fields if any
-            if !first_row.extra.is_empty() {
-                println!("    Extra fields: {}", first_row.extra.len());
-                for (key, value) in first_row.extra.iter().take(3) {
-                    println!("      {} = {}", key, value);
-                }
-            }
-
-            logger
-                .log(format!(
-                    "First entry: ci={:?}, ri={:?}, x={:?}, y={:?}",
-                    first_row.ci, first_row.ri, first_row.x, first_row.y
-                ))
-                .await?;
+        // TODO: Re-implement sample row display for Arrow format
+        /* Commented out old ParsedData code
+        if row_count > 0 {
+            // Sample first row logging
         }
-
-        // Get summary statistics for this chunk
-        let summary = parsed.summary();
-        println!("  {}", summary);
-        logger.log(format!("Chunk summary: {}", summary)).await?;
+        */
 
         // Check if this was the last chunk (fewer rows than requested)
         if row_count < chunk_size as usize {

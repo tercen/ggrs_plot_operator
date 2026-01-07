@@ -1,0 +1,1823 @@
+Setting chunk_size to 16192 in operator_config.json...
+
+============================================
+Running test with chunk_size=16192
+============================================
+
+Building test binary...
+
+warning: `ggrs_plot_operator` (lib) generated 1 warning (run `cargo fix --lib -p ggrs_plot_operator` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.96s
+
+Starting test process and memory tracker...
+Monitoring process 277576 with interval 5ms
+Duration: until process exits
+Time: 0.0s | Memory: 2048 KB (2.00 MB)[PHASE @0.000s] START: Test initialization
+=== TercenStreamGenerator Test ===
+
+✓ Loaded configuration from operator_config.json
+Configuration:
+  URI: http://127.0.0.1:50051
+  Token: eyJ0eXAiOi...
+  Workflow ID: 28e3c9888e9935f667aed6f07c007c7c
+  Step ID: b9659735-27db-4480-b398-4e391431480f
+  Chunk size: 16192
+
+[PHASE @0.000s] PHASE 1: Connecting to Tercen
+Connecting to Tercen...
+✓ Connected successfully
+
+[PHASE @0.001s] PHASE 2: Fetching CubeQuery
+Fetching CubeQuery from workflow step...
+  Getting workflow...
+  Calling WorkflowService.get()...
+Time: 0.0s | Memory: 25216 KB (24.62 MB)Time: 0.0s | Memory: 25216 KB (24.62 MB)  Workflow name: Scatter Simple Large
+  Step name: Data step
+  Has crosstab model: true
+  CubeQueryTask ID from crosstab model: '28e3c9888e9935f667aed6f07c009276'
+  State task ID (for comparison): ''
+  Getting CubeQuery from existing task: 28e3c9888e9935f667aed6f07c009276
+Time: 0.0s | Memory: 25728 KB (25.12 MB)  DEBUG: ETask received
+    Has object: true
+    ✓ Task type: CubeQueryTask
+      ID: 28e3c9888e9935f667aed6f07c009276
+      Owner: test
+      Has query: true
+      Schema IDs (generated tables): 4 tables
+        Table 0: 28e3c9888e9935f667aed6f07c009c6e
+        Table 1: 28e3c9888e9935f667aed6f07c00a194
+        Table 2: 28e3c9888e9935f667aed6f07c00a4dc
+        Table 3: 28e3c9888e9935f667aed6f07c00a846
+      === CubeQuery from CubeQueryTask ===
+      Axis queries: 1
+      Main table (qt): 28e3c9888e9935f667aed6f07c009c6e
+      Column table: 28e3c9888e9935f667aed6f07c00a194
+      Row table: 28e3c9888e9935f667aed6f07c00a4dc
+        Axis query 0: chart_type=point
+          Y-axis settings meta pairs: 0
+          X-axis settings meta pairs: 0
+✓ CubeQuery retrieved
+  Main table (qt_hash): 28e3c9888e9935f667aed6f07c009c6e
+  Column table (column_hash): 28e3c9888e9935f667aed6f07c00a194
+  Row table (row_hash): 28e3c9888e9935f667aed6f07c00a4dc
+
+  DEBUG: Full CubeQuery details:
+    Axis queries: 1
+    Col columns (factors): 0
+    Row columns (factors): 0
+    Has relation: YES
+    Relation type: Some(Renamerelation(RenameRelation { id: "bab46ec0-e996-4863-bfc1-ce0fd769536c", in_names: ["Gender", "First Name", "Last Name", "City", "State", "Country", "Age", "Annual Vacation Days", "Average Monthly Spend on Entertainment", "Number of Online Purchases in Last Month", "Number of Charity Donations in Last Year", "Average Weekly Exercise Hours", "Investment Portfolio Value", "Health Consciousness Rating", "Education Level", "Average Daily Screen Time", "Environmental Awareness Rating", "Social Media Influence Score", "Risk Tolerance in Investments", "Number of Professional Trainings Attended", "Tech-Savviness Score", "Financial Wellness Index", "Lifestyle Balance Score", "Entertainment Engagement Factor", "Social Responsibility Index", "Work-Life Balance Indicator", "Investment Risk Appetite", "Eco-Consciousness Metric", "Stress Management Score", "Time Management Skill", "Lifestyle Choice", "28e3c9888e9935f667aed6f07c0028d1._rids"], out_names: ["Gender", "First Name", "Last Name", "City", "State", "Country", "Age", "Annual Vacation Days", "Average Monthly Spend on Entertainment", "Number of Online Purchases in Last Month", "Number of Charity Donations in Last Year", "Average Weekly Exercise Hours", "Investment Portfolio Value", "Health Consciousness Rating", "Education Level", "Average Daily Screen Time", "Environmental Awareness Rating", "Social Media Influence Score", "Risk Tolerance in Investments", "Number of Professional Trainings Attended", "Tech-Savviness Score", "Financial Wellness Index", "Lifestyle Balance Score", "Entertainment Engagement Factor", "Social Responsibility Index", "Work-Life Balance Indicator", "Investment Risk Appetite", "Eco-Consciousness Metric", "Stress Management Score", "Time Management Skill", "Lifestyle Choice", "rowId"], relation: Some(ERelation { object: Some(Simplerelation(SimpleRelation { id: "28e3c9888e9935f667aed6f07c0028d1", index: 0 })) }) }))
+    Has operator settings: YES
+    Namespace: ds1
+    Environment pairs: 0
+
+    Axis query 0:
+      Chart type: point
+      Point size: 4
+      Y-axis factor: name='Average Weekly Exercise Hours', type='double'
+      X-axis factor: name='', type='string'
+      Y-axis settings meta pairs: 0
+      X-axis settings meta pairs: 0
+      Colors: 0
+      Labels: 0
+      Errors: 0
+
+[PHASE @0.012s] PHASE 2.5: Investigating axis range tables
+
+  DEBUG: Found 4 schema tables from CubeQueryTask
+  Found extra table 3: 28e3c9888e9935f667aed6f07c00a846
+    This might be the axis ranges table!
+    Fetching schema...
+      Table type: CubeQueryTableSchema
+      Query table type: y
+      Columns: 4
+        Column 0: name='.ri', type='int32'
+        Column 1: name='.ticks', type='double'
+        Column 2: name='.minY', type='double'
+        Column 3: name='.maxY', type='double'
+      Fetching first 5 rows (all columns)...
+TERCEN: Requesting offset=0, limit=5
+Time: 0.0s | Memory: 26368 KB (25.75 MB)Time: 0.0s | Memory: 26368 KB (25.75 MB)Time: 0.0s | Memory: 26368 KB (25.75 MB)Time: 0.0s | Memory: 26368 KB (25.75 MB)Time: 0.0s | Memory: 26368 KB (25.75 MB)Time: 0.0s | Memory: 26368 KB (25.75 MB)Time: 0.1s | Memory: 26368 KB (25.75 MB)TERCEN: Received chunk #1 with 23 bytes
+TERCEN: Total 23 bytes in 1 chunks
+        Got 23 bytes of data
+        Parsed 0 rows
+        Columns: []
+      Fetching first row with specific columns [.ri, .minY, .maxY]...
+TERCEN: Requesting offset=0, limit=1
+Time: 0.1s | Memory: 29184 KB (28.50 MB)Time: 0.1s | Memory: 29184 KB (28.50 MB)TERCEN: Received chunk #1 with 161 bytes
+TERCEN: Total 161 bytes in 1 chunks
+        Got 161 bytes of data
+TSON: Parsed table with 3 columns, 1 rows
+TSON: Column names: [".ri", ".minY", ".maxY"]
+        Parsed 1 rows
+        Columns: [".ri", ".minY", ".maxY"]
+        First row values:
+          .ri = Int(0)
+          .minY = Float(0.0)
+          .maxY = Float(9.5)
+
+  DEBUG: Checking main table schema for column statistics...
+    Table has 14 columns
+    Column 0: name='.cri', type='uint64'
+      Quartiles: []
+      Properties: 0 pairs
+    Column 1: name='.ci', type='int32'
+      Quartiles: []
+      Properties: 0 pairs
+    Column 2: name='.y', type='double'
+      Quartiles: []
+      Properties: 0 pairs
+    Column 3: name='.sids', type='int32'
+      Quartiles: []
+      Properties: 0 pairs
+    Column 4: name='.axisIndex', type='int32'
+      Quartiles: []
+      Properties: 0 pairs
+
+Time: 0.1s | Memory: 35328 KB (34.50 MB)  Found Y-axis table: 28e3c9888e9935f667aed6f07c00a846
+[PHASE @0.064s] PHASE 3: Creating StreamGenerator (loads facets + axis ranges from table)
+Creating TercenStreamGenerator...
+TERCEN: Requesting offset=0, limit=10000
+TERCEN: Requesting offset=0, limit=10000
+Time: 0.1s | Memory: 35456 KB (34.62 MB)Time: 0.1s | Memory: 35456 KB (34.62 MB)TERCEN: Received chunk #1 with 23 bytes
+TERCEN: Received chunk #1 with 23 bytes
+TERCEN: Total 23 bytes in 1 chunks
+TERCEN: Total 23 bytes in 1 chunks
+Loaded facets: 1 columns × 1 rows = 1 cells
+Loading axis ranges from Y-axis table: 28e3c9888e9935f667aed6f07c00a846
+  Fetching Y-axis table schema...
+  Y-axis table columns: [".ri", ".ticks", ".minY", ".maxY"]
+  Fetching Y-axis ranges from table (expecting 1 rows = 1 cols × 1 rows)...
+TERCEN: Requesting offset=0, limit=1
+Time: 0.1s | Memory: 35456 KB (34.62 MB)Time: 0.1s | Memory: 35456 KB (34.62 MB)TERCEN: Received chunk #1 with 161 bytes
+TERCEN: Total 161 bytes in 1 chunks
+  Got 161 bytes, parsing...
+TSON: Parsed table with 3 columns, 1 rows
+TSON: Column names: [".ri", ".minY", ".maxY"]
+  Parsed 1 rows
+  Columns: [".ri", ".minY", ".maxY"]
+  Getting total row count from main table schema...
+Time: 0.1s | Memory: 35456 KB (34.62 MB)  Total rows in main table: 475688
+  Facet (0, 0): Y range [0, 9.5] (using total row count 475688 for X-axis)
+  Loaded axis ranges for 1 facet cells
+[PHASE @0.090s] PHASE 3 COMPLETE: StreamGenerator created
+✓ Stream generator created successfully
+
+=== Facet Information ===
+Column facets: 1
+Row facets: 1
+Total facet cells: 1
+
+=== Testing Axis Ranges ===
+Facet cell (0, 0):
+  X-axis: [0.00, 475688.00] (data: [0.00, 475688.00])
+  Y-axis: [0.00, 9.50] (data: [0.00, 9.50])
+
+[PHASE @0.090s] PHASE 4: Testing data query (100 rows)
+=== Testing Data Query ===
+Querying data chunk for facet (0, 0), range 0-100...
+DEBUG: GGRS requesting facet (0, 0) rows 0-100 (len=100)
+DEBUG:   Fetching chunk: offset=0, limit=100
+TERCEN: Requesting offset=0, limit=100
+Time: 0.1s | Memory: 35840 KB (35.00 MB)Time: 0.1s | Memory: 35840 KB (35.00 MB)Time: 0.1s | Memory: 35840 KB (35.00 MB)TERCEN: Received chunk #1 with 499 bytes
+TERCEN: Total 499 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 100 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 100 rows from table
+DEBUG:   Filtered to 100 rows for facet (0, 0)
+DEBUG: Total accumulated 1 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 100 rows
+DEBUG:   X range: Float64(0.0) to Float64(99.0)
+[PHASE @0.106s] PHASE 4 COMPLETE: Data query finished
+✓ Received 100 rows
+  Columns: [".xs", ".ys", ".x"]
+
+First 5 rows:
+  Row 0: .x=Float(0.0) 
+  Row 1: .x=Float(1.0) 
+  Row 2: .x=Float(2.0) 
+  Row 3: .x=Float(3.0) 
+  Row 4: .x=Float(4.0) 
+[PHASE @0.106s] PHASE 5: Starting plot generation
+
+=== Generating Plot ===
+Creating plot specification...
+[PHASE @0.106s] PHASE 5.1: Creating PlotGenerator
+Creating plot generator...
+[PHASE @0.106s] PHASE 5.2: Creating ImageRenderer
+Creating image renderer...
+[PHASE @0.106s] PHASE 5.3: Rendering plot (GGRS queries data here)
+Rendering plot...
+Time: 0.1s | Memory: 41088 KB (40.12 MB)Time: 0.1s | Memory: 43264 KB (42.25 MB)Time: 0.1s | Memory: 44672 KB (43.62 MB)DEBUG: GGRS requesting facet (0, 0) rows 0-16192 (len=16192)
+DEBUG:   Fetching chunk: offset=0, limit=16192
+TERCEN: Requesting offset=0, limit=16192
+Time: 0.1s | Memory: 46108 KB (45.03 MB)Time: 0.1s | Memory: 46108 KB (45.03 MB)Time: 0.1s | Memory: 46108 KB (45.03 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=15000, limit=1192
+TERCEN: Requesting offset=15000, limit=1192
+Time: 0.1s | Memory: 46748 KB (45.65 MB)Time: 0.1s | Memory: 46748 KB (45.65 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(0.0) to Float64(16191.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 0.2s | Memory: 49308 KB (48.15 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(0)
+DEBUG Cairo: Raw .ys[1] = Int(0)
+DEBUG Cairo: Raw .ys[2] = Int(0)
+DEBUG Cairo: Raw .ys[3] = Int(0)
+DEBUG Cairo: Raw .ys[4] = Int(0)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 0 -> 0
+DEBUG: Sample conversion [1]: 0 -> 0
+DEBUG: Sample conversion [2]: 0 -> 0
+DEBUG: Sample conversion [3]: 0 -> 0
+DEBUG: Sample conversion [4]: 0 -> 0
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(0)
+DEBUG WebGPU: Raw .ys[1] = Int(0)
+DEBUG WebGPU: Raw .ys[2] = Int(0)
+DEBUG WebGPU: Raw .ys[3] = Int(0)
+DEBUG WebGPU: Raw .ys[4] = Int(0)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 0 -> 0
+DEBUG WebGPU: Sample conversion [1]: 0 -> 0
+DEBUG WebGPU: Sample conversion [2]: 0 -> 0
+DEBUG WebGPU: Sample conversion [3]: 0 -> 0
+DEBUG WebGPU: Sample conversion [4]: 0 -> 0
+Time: 0.2s | Memory: 49820 KB (48.65 MB)DEBUG WebGPU: 16192 points, X=[0.0..16191.0], Y=[0.0..0.0]
+DEBUG: Pixel coords - X=[33.0..56.0], Y=[504.0..504.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Started accumulating 16192 points
+DEBUG: GGRS requesting facet (0, 0) rows 16192-32384 (len=16192)
+DEBUG:   Fetching chunk: offset=16192, limit=16192
+TERCEN: Requesting offset=16192, limit=16192
+Time: 0.2s | Memory: 50332 KB (49.15 MB)Time: 0.2s | Memory: 50332 KB (49.15 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=31192, limit=1192
+TERCEN: Requesting offset=31192, limit=1192
+Time: 0.2s | Memory: 50460 KB (49.28 MB)Time: 0.2s | Memory: 50460 KB (49.28 MB)Time: 0.2s | Memory: 50460 KB (49.28 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(16192.0) to Float64(32383.0)
+DEBUG: Found .ys column, converting quantized coordinates
+DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(0)
+DEBUG Cairo: Raw .ys[1] = Int(0)
+DEBUG Cairo: Raw .ys[2] = Int(0)
+DEBUG Cairo: Raw .ys[3] = Int(0)
+DEBUG Cairo: Raw .ys[4] = Int(0)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 0 -> 0
+DEBUG: Sample conversion [1]: 0 -> 0
+DEBUG: Sample conversion [2]: 0 -> 0
+DEBUG: Sample conversion [3]: 0 -> 0
+DEBUG: Sample conversion [4]: 0 -> 0
+Time: 0.2s | Memory: 50460 KB (49.28 MB)DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(0)
+DEBUG WebGPU: Raw .ys[1] = Int(0)
+DEBUG WebGPU: Raw .ys[2] = Int(0)
+DEBUG WebGPU: Raw .ys[3] = Int(0)
+DEBUG WebGPU: Raw .ys[4] = Int(0)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 0 -> 0
+DEBUG WebGPU: Sample conversion [1]: 0 -> 0
+DEBUG WebGPU: Sample conversion [2]: 0 -> 0
+DEBUG WebGPU: Sample conversion [3]: 0 -> 0
+DEBUG WebGPU: Sample conversion [4]: 0 -> 0
+DEBUG WebGPU: 16192 points, X=[16192.0..32383.0], Y=[0.0..0.0]
+Time: 0.2s | Memory: 50588 KB (49.40 MB)DEBUG: Pixel coords - X=[56.0..79.0], Y=[504.0..504.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 32384)
+DEBUG: GGRS requesting facet (0, 0) rows 32384-48576 (len=16192)
+DEBUG:   Fetching chunk: offset=32384, limit=16192
+TERCEN: Requesting offset=32384, limit=16192
+Time: 0.2s | Memory: 50976 KB (49.78 MB)Time: 0.2s | Memory: 50976 KB (49.78 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=47384, limit=1192
+TERCEN: Requesting offset=47384, limit=1192
+Time: 0.2s | Memory: 50976 KB (49.78 MB)Time: 0.2s | Memory: 50976 KB (49.78 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(32384.0) to Float64(48575.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 0.2s | Memory: 50976 KB (49.78 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(0)
+DEBUG Cairo: Raw .ys[1] = Int(0)
+DEBUG Cairo: Raw .ys[2] = Int(0)
+DEBUG Cairo: Raw .ys[3] = Int(0)
+DEBUG Cairo: Raw .ys[4] = Int(0)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 0 -> 0
+DEBUG: Sample conversion [1]: 0 -> 0
+DEBUG: Sample conversion [2]: 0 -> 0
+DEBUG: Sample conversion [3]: 0 -> 0
+DEBUG: Sample conversion [4]: 0 -> 0
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+Time: 0.2s | Memory: 50976 KB (49.78 MB)DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(0)
+DEBUG WebGPU: Raw .ys[1] = Int(0)
+DEBUG WebGPU: Raw .ys[2] = Int(0)
+DEBUG WebGPU: Raw .ys[3] = Int(0)
+DEBUG WebGPU: Raw .ys[4] = Int(0)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 0 -> 0
+DEBUG WebGPU: Sample conversion [1]: 0 -> 0
+DEBUG WebGPU: Sample conversion [2]: 0 -> 0
+DEBUG WebGPU: Sample conversion [3]: 0 -> 0
+DEBUG WebGPU: Sample conversion [4]: 0 -> 0
+DEBUG WebGPU: 16192 points, X=[32384.0..48575.0], Y=[0.0..0.0]
+DEBUG: Pixel coords - X=[79.0..102.0], Y=[504.0..504.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 48576)
+Time: 0.2s | Memory: 51872 KB (50.66 MB)DEBUG: GGRS requesting facet (0, 0) rows 48576-64768 (len=16192)
+DEBUG:   Fetching chunk: offset=48576, limit=16192
+TERCEN: Requesting offset=48576, limit=16192
+Time: 0.2s | Memory: 50536 KB (49.35 MB)Time: 0.2s | Memory: 50536 KB (49.35 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=63576, limit=1192
+TERCEN: Requesting offset=63576, limit=1192
+Time: 0.2s | Memory: 50792 KB (49.60 MB)Time: 0.3s | Memory: 50792 KB (49.60 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(48576.0) to Float64(64767.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 0.3s | Memory: 50792 KB (49.60 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(0)
+DEBUG Cairo: Raw .ys[1] = Int(0)
+DEBUG Cairo: Raw .ys[2] = Int(0)
+DEBUG Cairo: Raw .ys[3] = Int(0)
+DEBUG Cairo: Raw .ys[4] = Int(0)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 0 -> 0
+DEBUG: Sample conversion [1]: 0 -> 0
+DEBUG: Sample conversion [2]: 0 -> 0
+DEBUG: Sample conversion [3]: 0 -> 0
+DEBUG: Sample conversion [4]: 0 -> 0
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+Time: 0.3s | Memory: 51560 KB (50.35 MB)DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(0)
+DEBUG WebGPU: Raw .ys[1] = Int(0)
+DEBUG WebGPU: Raw .ys[2] = Int(0)
+DEBUG WebGPU: Raw .ys[3] = Int(0)
+DEBUG WebGPU: Raw .ys[4] = Int(0)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 0 -> 0
+DEBUG WebGPU: Sample conversion [1]: 0 -> 0
+DEBUG WebGPU: Sample conversion [2]: 0 -> 0
+DEBUG WebGPU: Sample conversion [3]: 0 -> 0
+DEBUG WebGPU: Sample conversion [4]: 0 -> 0
+DEBUG WebGPU: 16192 points, X=[48576.0..64767.0], Y=[0.0..0.0]
+DEBUG: Pixel coords - X=[102.0..125.0], Y=[504.0..504.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 64768)
+DEBUG: GGRS requesting facet (0, 0) rows 64768-80960 (len=16192)
+DEBUG:   Fetching chunk: offset=64768, limit=16192
+TERCEN: Requesting offset=64768, limit=16192
+Time: 0.3s | Memory: 50952 KB (49.76 MB)Time: 0.3s | Memory: 50952 KB (49.76 MB)Time: 0.3s | Memory: 50952 KB (49.76 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=79768, limit=1192
+TERCEN: Requesting offset=79768, limit=1192
+Time: 0.3s | Memory: 51208 KB (50.01 MB)Time: 0.3s | Memory: 51208 KB (50.01 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(64768.0) to Float64(80959.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 0.3s | Memory: 51592 KB (50.38 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(0)
+DEBUG Cairo: Raw .ys[1] = Int(0)
+DEBUG Cairo: Raw .ys[2] = Int(0)
+DEBUG Cairo: Raw .ys[3] = Int(0)
+DEBUG Cairo: Raw .ys[4] = Int(0)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 0 -> 0
+DEBUG: Sample conversion [1]: 0 -> 0
+DEBUG: Sample conversion [2]: 0 -> 0
+DEBUG: Sample conversion [3]: 0 -> 0
+DEBUG: Sample conversion [4]: 0 -> 0
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(0)
+DEBUG WebGPU: Raw .ys[1] = Int(0)
+DEBUG WebGPU: Raw .ys[2] = Int(0)
+DEBUG WebGPU: Raw .ys[3] = Int(0)
+DEBUG WebGPU: Raw .ys[4] = Int(0)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 0 -> 0
+DEBUG WebGPU: Sample conversion [1]: 0 -> 0
+DEBUG WebGPU: Sample conversion [2]: 0 -> 0
+DEBUG WebGPU: Sample conversion [3]: 0 -> 0
+DEBUG WebGPU: Sample conversion [4]: 0 -> 0
+Time: 0.3s | Memory: 52104 KB (50.88 MB)DEBUG WebGPU: 16192 points, X=[64768.0..80959.0], Y=[0.0..0.0]
+DEBUG: Pixel coords - X=[125.0..148.0], Y=[504.0..504.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 80960)
+DEBUG: GGRS requesting facet (0, 0) rows 80960-97152 (len=16192)
+DEBUG:   Fetching chunk: offset=80960, limit=16192
+TERCEN: Requesting offset=80960, limit=16192
+Time: 0.3s | Memory: 51456 KB (50.25 MB)Time: 0.3s | Memory: 51456 KB (50.25 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+Time: 0.3s | Memory: 51584 KB (50.38 MB)TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=95960, limit=1192
+TERCEN: Requesting offset=95960, limit=1192
+Time: 0.3s | Memory: 51840 KB (50.62 MB)Time: 0.3s | Memory: 51840 KB (50.62 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(80960.0) to Float64(97151.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 0.3s | Memory: 52096 KB (50.88 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(0)
+DEBUG Cairo: Raw .ys[1] = Int(0)
+DEBUG Cairo: Raw .ys[2] = Int(0)
+DEBUG Cairo: Raw .ys[3] = Int(0)
+DEBUG Cairo: Raw .ys[4] = Int(0)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 0 -> 0
+DEBUG: Sample conversion [1]: 0 -> 0
+DEBUG: Sample conversion [2]: 0 -> 0
+DEBUG: Sample conversion [3]: 0 -> 0
+DEBUG: Sample conversion [4]: 0 -> 0
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(0)
+DEBUG WebGPU: Raw .ys[1] = Int(0)
+DEBUG WebGPU: Raw .ys[2] = Int(0)
+DEBUG WebGPU: Raw .ys[3] = Int(0)
+DEBUG WebGPU: Raw .ys[4] = Int(0)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 0 -> 0
+DEBUG WebGPU: Sample conversion [1]: 0 -> 0
+DEBUG WebGPU: Sample conversion [2]: 0 -> 0
+DEBUG WebGPU: Sample conversion [3]: 0 -> 0
+DEBUG WebGPU: Sample conversion [4]: 0 -> 0
+Time: 0.3s | Memory: 52736 KB (51.50 MB)DEBUG WebGPU: 16192 points, X=[80960.0..97151.0], Y=[0.0..0.0]
+DEBUG: Pixel coords - X=[148.0..171.0], Y=[504.0..504.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 97152)
+DEBUG: GGRS requesting facet (0, 0) rows 97152-113344 (len=16192)
+DEBUG:   Fetching chunk: offset=97152, limit=16192
+TERCEN: Requesting offset=97152, limit=16192
+Time: 0.3s | Memory: 52092 KB (50.87 MB)Time: 0.3s | Memory: 52092 KB (50.87 MB)Time: 0.3s | Memory: 52092 KB (50.87 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=112152, limit=1192
+TERCEN: Requesting offset=112152, limit=1192
+Time: 0.4s | Memory: 52348 KB (51.12 MB)Time: 0.4s | Memory: 52348 KB (51.12 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(97152.0) to Float64(113343.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 0.4s | Memory: 52476 KB (51.25 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(0)
+DEBUG Cairo: Raw .ys[1] = Int(0)
+DEBUG Cairo: Raw .ys[2] = Int(0)
+DEBUG Cairo: Raw .ys[3] = Int(0)
+DEBUG Cairo: Raw .ys[4] = Int(0)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 0 -> 0
+DEBUG: Sample conversion [1]: 0 -> 0
+DEBUG: Sample conversion [2]: 0 -> 0
+DEBUG: Sample conversion [3]: 0 -> 0
+DEBUG: Sample conversion [4]: 0 -> 0
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+Time: 0.4s | Memory: 53244 KB (52.00 MB)DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(0)
+DEBUG WebGPU: Raw .ys[1] = Int(0)
+DEBUG WebGPU: Raw .ys[2] = Int(0)
+DEBUG WebGPU: Raw .ys[3] = Int(0)
+DEBUG WebGPU: Raw .ys[4] = Int(0)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 0 -> 0
+DEBUG WebGPU: Sample conversion [1]: 0 -> 0
+DEBUG WebGPU: Sample conversion [2]: 0 -> 0
+DEBUG WebGPU: Sample conversion [3]: 0 -> 0
+DEBUG WebGPU: Sample conversion [4]: 0 -> 0
+DEBUG WebGPU: 16192 points, X=[97152.0..113343.0], Y=[0.0..0.0]
+DEBUG: Pixel coords - X=[171.0..193.0], Y=[504.0..504.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 113344)
+DEBUG: GGRS requesting facet (0, 0) rows 113344-129536 (len=16192)
+DEBUG:   Fetching chunk: offset=113344, limit=16192
+TERCEN: Requesting offset=113344, limit=16192
+Time: 0.4s | Memory: 52596 KB (51.36 MB)Time: 0.4s | Memory: 52596 KB (51.36 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+Time: 0.4s | Memory: 52596 KB (51.36 MB)TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=128344, limit=1192
+TERCEN: Requesting offset=128344, limit=1192
+Time: 0.4s | Memory: 52852 KB (51.61 MB)Time: 0.4s | Memory: 52852 KB (51.61 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(113344.0) to Float64(129535.0)
+DEBUG: Found .ys column, converting quantized coordinates
+DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(0)
+DEBUG Cairo: Raw .ys[1] = Int(0)
+DEBUG Cairo: Raw .ys[2] = Int(0)
+DEBUG Cairo: Raw .ys[3] = Int(0)
+DEBUG Cairo: Raw .ys[4] = Int(0)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 0 -> 0
+DEBUG: Sample conversion [1]: 0 -> 0
+DEBUG: Sample conversion [2]: 0 -> 0
+DEBUG: Sample conversion [3]: 0 -> 0
+DEBUG: Sample conversion [4]: 0 -> 0
+Time: 0.4s | Memory: 53364 KB (52.11 MB)DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(0)
+DEBUG WebGPU: Raw .ys[1] = Int(0)
+DEBUG WebGPU: Raw .ys[2] = Int(0)
+DEBUG WebGPU: Raw .ys[3] = Int(0)
+DEBUG WebGPU: Raw .ys[4] = Int(0)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 0 -> 0
+DEBUG WebGPU: Sample conversion [1]: 0 -> 0
+DEBUG WebGPU: Sample conversion [2]: 0 -> 0
+DEBUG WebGPU: Sample conversion [3]: 0 -> 0
+DEBUG WebGPU: Sample conversion [4]: 0 -> 0
+DEBUG WebGPU: 16192 points, X=[113344.0..129535.0], Y=[0.0..0.0]
+Time: 0.4s | Memory: 53748 KB (52.49 MB)DEBUG: Pixel coords - X=[193.0..216.0], Y=[503.0..504.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 129536)
+DEBUG: GGRS requesting facet (0, 0) rows 129536-145728 (len=16192)
+DEBUG:   Fetching chunk: offset=129536, limit=16192
+TERCEN: Requesting offset=129536, limit=16192
+Time: 0.4s | Memory: 53104 KB (51.86 MB)Time: 0.4s | Memory: 53104 KB (51.86 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=144536, limit=1192
+TERCEN: Requesting offset=144536, limit=1192
+Time: 0.4s | Memory: 53360 KB (52.11 MB)Time: 0.4s | Memory: 53360 KB (52.11 MB)Time: 0.4s | Memory: 53360 KB (52.11 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(129536.0) to Float64(145727.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 0.4s | Memory: 53360 KB (52.11 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(37)
+DEBUG Cairo: Raw .ys[1] = Int(37)
+DEBUG Cairo: Raw .ys[2] = Int(37)
+DEBUG Cairo: Raw .ys[3] = Int(37)
+DEBUG Cairo: Raw .ys[4] = Int(37)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 37 -> 0.005363546196688793
+DEBUG: Sample conversion [1]: 37 -> 0.005363546196688793
+DEBUG: Sample conversion [2]: 37 -> 0.005363546196688793
+DEBUG: Sample conversion [3]: 37 -> 0.005363546196688793
+DEBUG: Sample conversion [4]: 37 -> 0.005363546196688793
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+Time: 0.4s | Memory: 54000 KB (52.73 MB)DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(37)
+DEBUG WebGPU: Raw .ys[1] = Int(37)
+DEBUG WebGPU: Raw .ys[2] = Int(37)
+DEBUG WebGPU: Raw .ys[3] = Int(37)
+DEBUG WebGPU: Raw .ys[4] = Int(37)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 37 -> 0.005363546196688793
+DEBUG WebGPU: Sample conversion [1]: 37 -> 0.005363546196688793
+DEBUG WebGPU: Sample conversion [2]: 37 -> 0.005363546196688793
+DEBUG WebGPU: Sample conversion [3]: 37 -> 0.005363546196688793
+DEBUG WebGPU: Sample conversion [4]: 37 -> 0.005363546196688793
+DEBUG WebGPU: 16192 points, X=[129536.0..145727.0], Y=[0.0..0.0]
+DEBUG: Pixel coords - X=[216.0..239.0], Y=[503.0..503.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 145728)
+DEBUG: GGRS requesting facet (0, 0) rows 145728-161920 (len=16192)
+DEBUG:   Fetching chunk: offset=145728, limit=16192
+TERCEN: Requesting offset=145728, limit=16192
+Time: 0.4s | Memory: 53616 KB (52.36 MB)Time: 0.4s | Memory: 53616 KB (52.36 MB)Time: 0.5s | Memory: 53616 KB (52.36 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=160728, limit=1192
+TERCEN: Requesting offset=160728, limit=1192
+Time: 0.5s | Memory: 53872 KB (52.61 MB)Time: 0.5s | Memory: 53872 KB (52.61 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(145728.0) to Float64(161919.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 0.5s | Memory: 54128 KB (52.86 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(91)
+DEBUG Cairo: Raw .ys[1] = Int(91)
+DEBUG Cairo: Raw .ys[2] = Int(91)
+DEBUG Cairo: Raw .ys[3] = Int(91)
+DEBUG Cairo: Raw .ys[4] = Int(91)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 91 -> 0.013191424429694057
+DEBUG: Sample conversion [1]: 91 -> 0.013191424429694057
+DEBUG: Sample conversion [2]: 91 -> 0.013191424429694057
+DEBUG: Sample conversion [3]: 91 -> 0.013191424429694057
+DEBUG: Sample conversion [4]: 91 -> 0.013191424429694057
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(91)
+DEBUG WebGPU: Raw .ys[1] = Int(91)
+DEBUG WebGPU: Raw .ys[2] = Int(91)
+DEBUG WebGPU: Raw .ys[3] = Int(91)
+DEBUG WebGPU: Raw .ys[4] = Int(91)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 91 -> 0.013191424429694057
+DEBUG WebGPU: Sample conversion [1]: 91 -> 0.013191424429694057
+DEBUG WebGPU: Sample conversion [2]: 91 -> 0.013191424429694057
+DEBUG WebGPU: Sample conversion [3]: 91 -> 0.013191424429694057
+DEBUG WebGPU: Sample conversion [4]: 91 -> 0.013191424429694057
+Time: 0.5s | Memory: 54768 KB (53.48 MB)DEBUG WebGPU: 16192 points, X=[145728.0..161919.0], Y=[0.0..0.0]
+DEBUG: Pixel coords - X=[239.0..262.0], Y=[502.0..503.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 161920)
+DEBUG: GGRS requesting facet (0, 0) rows 161920-178112 (len=16192)
+DEBUG:   Fetching chunk: offset=161920, limit=16192
+TERCEN: Requesting offset=161920, limit=16192
+Time: 0.5s | Memory: 54128 KB (52.86 MB)Time: 0.5s | Memory: 54128 KB (52.86 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=176920, limit=1192
+TERCEN: Requesting offset=176920, limit=1192
+Time: 0.5s | Memory: 54384 KB (53.11 MB)Time: 0.5s | Memory: 54384 KB (53.11 MB)Time: 0.5s | Memory: 54384 KB (53.11 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(161920.0) to Float64(178111.0)
+DEBUG: Found .ys column, converting quantized coordinates
+DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(143)
+DEBUG Cairo: Raw .ys[1] = Int(143)
+DEBUG Cairo: Raw .ys[2] = Int(143)
+DEBUG Cairo: Raw .ys[3] = Int(143)
+DEBUG Cairo: Raw .ys[4] = Int(143)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 143 -> 0.020729381246662088
+DEBUG: Sample conversion [1]: 143 -> 0.020729381246662088
+DEBUG: Sample conversion [2]: 143 -> 0.020729381246662088
+DEBUG: Sample conversion [3]: 143 -> 0.020729381246662088
+DEBUG: Sample conversion [4]: 143 -> 0.020729381246662088
+Time: 0.5s | Memory: 54896 KB (53.61 MB)DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(143)
+DEBUG WebGPU: Raw .ys[1] = Int(143)
+DEBUG WebGPU: Raw .ys[2] = Int(143)
+DEBUG WebGPU: Raw .ys[3] = Int(143)
+DEBUG WebGPU: Raw .ys[4] = Int(143)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 143 -> 0.020729381246662088
+DEBUG WebGPU: Sample conversion [1]: 143 -> 0.020729381246662088
+DEBUG WebGPU: Sample conversion [2]: 143 -> 0.020729381246662088
+DEBUG WebGPU: Sample conversion [3]: 143 -> 0.020729381246662088
+DEBUG WebGPU: Sample conversion [4]: 143 -> 0.020729381246662088
+DEBUG WebGPU: 16192 points, X=[161920.0..178111.0], Y=[0.0..0.0]
+Time: 0.5s | Memory: 55280 KB (53.98 MB)DEBUG: Pixel coords - X=[262.0..285.0], Y=[502.0..502.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 178112)
+DEBUG: GGRS requesting facet (0, 0) rows 178112-194304 (len=16192)
+DEBUG:   Fetching chunk: offset=178112, limit=16192
+TERCEN: Requesting offset=178112, limit=16192
+Time: 0.5s | Memory: 54636 KB (53.36 MB)Time: 0.5s | Memory: 54636 KB (53.36 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=193112, limit=1192
+TERCEN: Requesting offset=193112, limit=1192
+Time: 0.5s | Memory: 54892 KB (53.61 MB)Time: 0.5s | Memory: 54892 KB (53.61 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(178112.0) to Float64(194303.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 0.5s | Memory: 55020 KB (53.73 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(195)
+DEBUG Cairo: Raw .ys[1] = Int(195)
+DEBUG Cairo: Raw .ys[2] = Int(195)
+DEBUG Cairo: Raw .ys[3] = Int(195)
+DEBUG Cairo: Raw .ys[4] = Int(195)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 195 -> 0.028267338063630118
+DEBUG: Sample conversion [1]: 195 -> 0.028267338063630118
+DEBUG: Sample conversion [2]: 195 -> 0.028267338063630118
+DEBUG: Sample conversion [3]: 195 -> 0.028267338063630118
+DEBUG: Sample conversion [4]: 195 -> 0.028267338063630118
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+Time: 0.5s | Memory: 55660 KB (54.36 MB)DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(195)
+DEBUG WebGPU: Raw .ys[1] = Int(195)
+DEBUG WebGPU: Raw .ys[2] = Int(195)
+DEBUG WebGPU: Raw .ys[3] = Int(195)
+DEBUG WebGPU: Raw .ys[4] = Int(195)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 195 -> 0.028267338063630118
+DEBUG WebGPU: Sample conversion [1]: 195 -> 0.028267338063630118
+DEBUG WebGPU: Sample conversion [2]: 195 -> 0.028267338063630118
+DEBUG WebGPU: Sample conversion [3]: 195 -> 0.028267338063630118
+DEBUG WebGPU: Sample conversion [4]: 195 -> 0.028267338063630118
+DEBUG WebGPU: 16192 points, X=[178112.0..194303.0], Y=[0.0..0.0]
+DEBUG: Pixel coords - X=[285.0..308.0], Y=[502.0..502.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 194304)
+DEBUG: GGRS requesting facet (0, 0) rows 194304-210496 (len=16192)
+DEBUG:   Fetching chunk: offset=194304, limit=16192
+TERCEN: Requesting offset=194304, limit=16192
+Time: 0.5s | Memory: 55152 KB (53.86 MB)Time: 0.6s | Memory: 55152 KB (53.86 MB)Time: 0.6s | Memory: 55152 KB (53.86 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=209304, limit=1192
+TERCEN: Requesting offset=209304, limit=1192
+Time: 0.6s | Memory: 55408 KB (54.11 MB)Time: 0.6s | Memory: 55408 KB (54.11 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(194304.0) to Float64(210495.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 0.6s | Memory: 55536 KB (54.23 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(249)
+DEBUG Cairo: Raw .ys[1] = Int(249)
+DEBUG Cairo: Raw .ys[2] = Int(249)
+DEBUG Cairo: Raw .ys[3] = Int(249)
+DEBUG Cairo: Raw .ys[4] = Int(249)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 249 -> 0.03609521629663538
+DEBUG: Sample conversion [1]: 249 -> 0.03609521629663538
+DEBUG: Sample conversion [2]: 249 -> 0.03609521629663538
+DEBUG: Sample conversion [3]: 249 -> 0.03609521629663538
+DEBUG: Sample conversion [4]: 249 -> 0.03609521629663538
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+Time: 0.6s | Memory: 56176 KB (54.86 MB)DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(249)
+DEBUG WebGPU: Raw .ys[1] = Int(249)
+DEBUG WebGPU: Raw .ys[2] = Int(249)
+DEBUG WebGPU: Raw .ys[3] = Int(249)
+DEBUG WebGPU: Raw .ys[4] = Int(249)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 249 -> 0.03609521629663538
+DEBUG WebGPU: Sample conversion [1]: 249 -> 0.03609521629663538
+DEBUG WebGPU: Sample conversion [2]: 249 -> 0.03609521629663538
+DEBUG WebGPU: Sample conversion [3]: 249 -> 0.03609521629663538
+DEBUG WebGPU: Sample conversion [4]: 249 -> 0.03609521629663538
+DEBUG WebGPU: 16192 points, X=[194304.0..210495.0], Y=[0.0..0.0]
+DEBUG: Pixel coords - X=[308.0..331.0], Y=[501.0..502.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 210496)
+DEBUG: GGRS requesting facet (0, 0) rows 210496-226688 (len=16192)
+DEBUG:   Fetching chunk: offset=210496, limit=16192
+TERCEN: Requesting offset=210496, limit=16192
+Time: 0.6s | Memory: 55656 KB (54.35 MB)Time: 0.6s | Memory: 55656 KB (54.35 MB)Time: 0.6s | Memory: 55656 KB (54.35 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=225496, limit=1192
+TERCEN: Requesting offset=225496, limit=1192
+Time: 0.6s | Memory: 55912 KB (54.60 MB)Time: 0.6s | Memory: 55912 KB (54.60 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(210496.0) to Float64(226687.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 0.6s | Memory: 55912 KB (54.60 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(304)
+DEBUG Cairo: Raw .ys[1] = Int(304)
+DEBUG Cairo: Raw .ys[2] = Int(304)
+DEBUG Cairo: Raw .ys[3] = Int(304)
+DEBUG Cairo: Raw .ys[4] = Int(304)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 304 -> 0.04406805523765927
+DEBUG: Sample conversion [1]: 304 -> 0.04406805523765927
+DEBUG: Sample conversion [2]: 304 -> 0.04406805523765927
+DEBUG: Sample conversion [3]: 304 -> 0.04406805523765927
+DEBUG: Sample conversion [4]: 304 -> 0.04406805523765927
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+Time: 0.6s | Memory: 56552 KB (55.23 MB)DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(304)
+DEBUG WebGPU: Raw .ys[1] = Int(304)
+DEBUG WebGPU: Raw .ys[2] = Int(304)
+DEBUG WebGPU: Raw .ys[3] = Int(304)
+DEBUG WebGPU: Raw .ys[4] = Int(304)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 304 -> 0.04406805523765927
+DEBUG WebGPU: Sample conversion [1]: 304 -> 0.04406805523765927
+DEBUG WebGPU: Sample conversion [2]: 304 -> 0.04406805523765927
+DEBUG WebGPU: Sample conversion [3]: 304 -> 0.04406805523765927
+DEBUG WebGPU: Sample conversion [4]: 304 -> 0.04406805523765927
+DEBUG WebGPU: 16192 points, X=[210496.0..226687.0], Y=[0.0..0.1]
+DEBUG: Pixel coords - X=[331.0..354.0], Y=[501.0..501.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+Time: 0.6s | Memory: 57448 KB (56.10 MB)✓ Accumulated 16192 points (total: 226688)
+DEBUG: GGRS requesting facet (0, 0) rows 226688-242880 (len=16192)
+DEBUG:   Fetching chunk: offset=226688, limit=16192
+TERCEN: Requesting offset=226688, limit=16192
+Time: 0.6s | Memory: 56164 KB (54.85 MB)Time: 0.6s | Memory: 56164 KB (54.85 MB)Time: 0.6s | Memory: 56164 KB (54.85 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=241688, limit=1192
+TERCEN: Requesting offset=241688, limit=1192
+Time: 0.6s | Memory: 56420 KB (55.10 MB)Time: 0.6s | Memory: 56420 KB (55.10 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(226688.0) to Float64(242879.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 0.6s | Memory: 56548 KB (55.22 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(365)
+DEBUG Cairo: Raw .ys[1] = Int(365)
+DEBUG Cairo: Raw .ys[2] = Int(365)
+DEBUG Cairo: Raw .ys[3] = Int(365)
+DEBUG Cairo: Raw .ys[4] = Int(365)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 365 -> 0.05291065842679484
+DEBUG: Sample conversion [1]: 365 -> 0.05291065842679484
+DEBUG: Sample conversion [2]: 365 -> 0.05291065842679484
+DEBUG: Sample conversion [3]: 365 -> 0.05291065842679484
+DEBUG: Sample conversion [4]: 365 -> 0.05291065842679484
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+Time: 0.7s | Memory: 57188 KB (55.85 MB)DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(365)
+DEBUG WebGPU: Raw .ys[1] = Int(365)
+DEBUG WebGPU: Raw .ys[2] = Int(365)
+DEBUG WebGPU: Raw .ys[3] = Int(365)
+DEBUG WebGPU: Raw .ys[4] = Int(365)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 365 -> 0.05291065842679484
+DEBUG WebGPU: Sample conversion [1]: 365 -> 0.05291065842679484
+DEBUG WebGPU: Sample conversion [2]: 365 -> 0.05291065842679484
+DEBUG WebGPU: Sample conversion [3]: 365 -> 0.05291065842679484
+DEBUG WebGPU: Sample conversion [4]: 365 -> 0.05291065842679484
+DEBUG WebGPU: 16192 points, X=[226688.0..242879.0], Y=[0.1..0.1]
+DEBUG: Pixel coords - X=[354.0..377.0], Y=[500.0..501.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 242880)
+DEBUG: GGRS requesting facet (0, 0) rows 242880-259072 (len=16192)
+DEBUG:   Fetching chunk: offset=242880, limit=16192
+TERCEN: Requesting offset=242880, limit=16192
+Time: 0.7s | Memory: 56712 KB (55.38 MB)Time: 0.7s | Memory: 56712 KB (55.38 MB)Time: 0.7s | Memory: 56712 KB (55.38 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=257880, limit=1192
+TERCEN: Requesting offset=257880, limit=1192
+Time: 0.7s | Memory: 56968 KB (55.63 MB)Time: 0.7s | Memory: 56968 KB (55.63 MB)Time: 0.7s | Memory: 56968 KB (55.63 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(242880.0) to Float64(259071.0)
+DEBUG: Found .ys column, converting quantized coordinates
+DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(433)
+DEBUG Cairo: Raw .ys[1] = Int(433)
+DEBUG Cairo: Raw .ys[2] = Int(433)
+DEBUG Cairo: Raw .ys[3] = Int(433)
+DEBUG Cairo: Raw .ys[4] = Int(433)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 433 -> 0.06276798657206073
+DEBUG: Sample conversion [1]: 433 -> 0.06276798657206073
+DEBUG: Sample conversion [2]: 433 -> 0.06276798657206073
+DEBUG: Sample conversion [3]: 433 -> 0.06276798657206073
+DEBUG: Sample conversion [4]: 433 -> 0.06276798657206073
+Time: 0.7s | Memory: 57224 KB (55.88 MB)DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(433)
+DEBUG WebGPU: Raw .ys[1] = Int(433)
+DEBUG WebGPU: Raw .ys[2] = Int(433)
+DEBUG WebGPU: Raw .ys[3] = Int(433)
+DEBUG WebGPU: Raw .ys[4] = Int(433)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 433 -> 0.06276798657206073
+DEBUG WebGPU: Sample conversion [1]: 433 -> 0.06276798657206073
+DEBUG WebGPU: Sample conversion [2]: 433 -> 0.06276798657206073
+DEBUG WebGPU: Sample conversion [3]: 433 -> 0.06276798657206073
+DEBUG WebGPU: Sample conversion [4]: 433 -> 0.06276798657206073
+Time: 0.7s | Memory: 57736 KB (56.38 MB)DEBUG WebGPU: 16192 points, X=[242880.0..259071.0], Y=[0.1..0.1]
+DEBUG: Pixel coords - X=[377.0..400.0], Y=[500.0..500.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 259072)
+DEBUG: GGRS requesting facet (0, 0) rows 259072-275264 (len=16192)
+DEBUG:   Fetching chunk: offset=259072, limit=16192
+TERCEN: Requesting offset=259072, limit=16192
+Time: 0.7s | Memory: 57172 KB (55.83 MB)Time: 0.7s | Memory: 57172 KB (55.83 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=274072, limit=1192
+TERCEN: Requesting offset=274072, limit=1192
+Time: 0.7s | Memory: 57428 KB (56.08 MB)Time: 0.7s | Memory: 57428 KB (56.08 MB)Time: 0.7s | Memory: 57428 KB (56.08 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(259072.0) to Float64(275263.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 0.7s | Memory: 57556 KB (56.21 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(510)
+DEBUG Cairo: Raw .ys[1] = Int(510)
+DEBUG Cairo: Raw .ys[2] = Int(510)
+DEBUG Cairo: Raw .ys[3] = Int(510)
+DEBUG Cairo: Raw .ys[4] = Int(510)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 510 -> 0.07392996108949416
+DEBUG: Sample conversion [1]: 510 -> 0.07392996108949416
+DEBUG: Sample conversion [2]: 510 -> 0.07392996108949416
+DEBUG: Sample conversion [3]: 510 -> 0.07392996108949416
+DEBUG: Sample conversion [4]: 510 -> 0.07392996108949416
+Time: 0.7s | Memory: 57940 KB (56.58 MB)DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(510)
+DEBUG WebGPU: Raw .ys[1] = Int(510)
+DEBUG WebGPU: Raw .ys[2] = Int(510)
+DEBUG WebGPU: Raw .ys[3] = Int(510)
+DEBUG WebGPU: Raw .ys[4] = Int(510)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 510 -> 0.07392996108949416
+DEBUG WebGPU: Sample conversion [1]: 510 -> 0.07392996108949416
+DEBUG WebGPU: Sample conversion [2]: 510 -> 0.07392996108949416
+DEBUG WebGPU: Sample conversion [3]: 510 -> 0.07392996108949416
+DEBUG WebGPU: Sample conversion [4]: 510 -> 0.07392996108949416
+DEBUG WebGPU: 16192 points, X=[259072.0..275263.0], Y=[0.1..0.1]
+Time: 0.7s | Memory: 58324 KB (56.96 MB)DEBUG: Pixel coords - X=[400.0..422.0], Y=[499.0..500.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 275264)
+DEBUG: GGRS requesting facet (0, 0) rows 275264-291456 (len=16192)
+DEBUG:   Fetching chunk: offset=275264, limit=16192
+TERCEN: Requesting offset=275264, limit=16192
+Time: 0.7s | Memory: 57748 KB (56.39 MB)Time: 0.7s | Memory: 57748 KB (56.39 MB)Time: 0.8s | Memory: 57748 KB (56.39 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=290264, limit=1192
+TERCEN: Requesting offset=290264, limit=1192
+Time: 0.8s | Memory: 58004 KB (56.64 MB)Time: 0.8s | Memory: 58004 KB (56.64 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(275264.0) to Float64(291455.0)
+DEBUG: Found .ys column, converting quantized coordinates
+DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(605)
+DEBUG Cairo: Raw .ys[1] = Int(605)
+DEBUG Cairo: Raw .ys[2] = Int(605)
+DEBUG Cairo: Raw .ys[3] = Int(605)
+DEBUG Cairo: Raw .ys[4] = Int(605)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 605 -> 0.08770122835126269
+DEBUG: Sample conversion [1]: 605 -> 0.08770122835126269
+DEBUG: Sample conversion [2]: 605 -> 0.08770122835126269
+DEBUG: Sample conversion [3]: 605 -> 0.08770122835126269
+DEBUG: Sample conversion [4]: 605 -> 0.08770122835126269
+Time: 0.8s | Memory: 58516 KB (57.14 MB)DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(605)
+DEBUG WebGPU: Raw .ys[1] = Int(605)
+DEBUG WebGPU: Raw .ys[2] = Int(605)
+DEBUG WebGPU: Raw .ys[3] = Int(605)
+DEBUG WebGPU: Raw .ys[4] = Int(605)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 605 -> 0.08770122835126269
+DEBUG WebGPU: Sample conversion [1]: 605 -> 0.08770122835126269
+DEBUG WebGPU: Sample conversion [2]: 605 -> 0.08770122835126269
+DEBUG WebGPU: Sample conversion [3]: 605 -> 0.08770122835126269
+DEBUG WebGPU: Sample conversion [4]: 605 -> 0.08770122835126269
+DEBUG WebGPU: 16192 points, X=[275264.0..291455.0], Y=[0.1..0.1]
+Time: 0.8s | Memory: 58900 KB (57.52 MB)DEBUG: Pixel coords - X=[422.0..445.0], Y=[498.0..499.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 291456)
+DEBUG: GGRS requesting facet (0, 0) rows 291456-307648 (len=16192)
+DEBUG:   Fetching chunk: offset=291456, limit=16192
+TERCEN: Requesting offset=291456, limit=16192
+Time: 0.8s | Memory: 58256 KB (56.89 MB)Time: 0.8s | Memory: 58256 KB (56.89 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=306456, limit=1192
+TERCEN: Requesting offset=306456, limit=1192
+Time: 0.8s | Memory: 58512 KB (57.14 MB)Time: 0.8s | Memory: 58512 KB (57.14 MB)Time: 0.8s | Memory: 58512 KB (57.14 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(291456.0) to Float64(307647.0)
+DEBUG: Found .ys column, converting quantized coordinates
+DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(731)
+DEBUG Cairo: Raw .ys[1] = Int(731)
+DEBUG Cairo: Raw .ys[2] = Int(731)
+DEBUG Cairo: Raw .ys[3] = Int(731)
+DEBUG Cairo: Raw .ys[4] = Int(731)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 731 -> 0.1059662775616083
+DEBUG: Sample conversion [1]: 731 -> 0.1059662775616083
+DEBUG: Sample conversion [2]: 731 -> 0.1059662775616083
+DEBUG: Sample conversion [3]: 731 -> 0.1059662775616083
+DEBUG: Sample conversion [4]: 731 -> 0.1059662775616083
+Time: 0.8s | Memory: 59024 KB (57.64 MB)DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(731)
+DEBUG WebGPU: Raw .ys[1] = Int(731)
+DEBUG WebGPU: Raw .ys[2] = Int(731)
+DEBUG WebGPU: Raw .ys[3] = Int(731)
+DEBUG WebGPU: Raw .ys[4] = Int(731)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 731 -> 0.1059662775616083
+DEBUG WebGPU: Sample conversion [1]: 731 -> 0.1059662775616083
+DEBUG WebGPU: Sample conversion [2]: 731 -> 0.1059662775616083
+DEBUG WebGPU: Sample conversion [3]: 731 -> 0.1059662775616083
+DEBUG WebGPU: Sample conversion [4]: 731 -> 0.1059662775616083
+DEBUG WebGPU: 16192 points, X=[291456.0..307647.0], Y=[0.1..0.1]
+Time: 0.8s | Memory: 59408 KB (58.02 MB)DEBUG: Pixel coords - X=[445.0..468.0], Y=[497.0..498.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 307648)
+DEBUG: GGRS requesting facet (0, 0) rows 307648-323840 (len=16192)
+DEBUG:   Fetching chunk: offset=307648, limit=16192
+TERCEN: Requesting offset=307648, limit=16192
+Time: 0.8s | Memory: 58760 KB (57.38 MB)Time: 0.8s | Memory: 58760 KB (57.38 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=322648, limit=1192
+TERCEN: Requesting offset=322648, limit=1192
+Time: 0.8s | Memory: 59144 KB (57.76 MB)Time: 0.8s | Memory: 59144 KB (57.76 MB)Time: 0.8s | Memory: 59144 KB (57.76 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(307648.0) to Float64(323839.0)
+DEBUG: Found .ys column, converting quantized coordinates
+DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(920)
+DEBUG Cairo: Raw .ys[1] = Int(920)
+DEBUG Cairo: Raw .ys[2] = Int(920)
+DEBUG Cairo: Raw .ys[3] = Int(920)
+DEBUG Cairo: Raw .ys[4] = Int(920)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 920 -> 0.13336385137712672
+DEBUG: Sample conversion [1]: 920 -> 0.13336385137712672
+DEBUG: Sample conversion [2]: 920 -> 0.13336385137712672
+DEBUG: Sample conversion [3]: 920 -> 0.13336385137712672
+DEBUG: Sample conversion [4]: 920 -> 0.13336385137712672
+Time: 0.8s | Memory: 59528 KB (58.13 MB)DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(920)
+DEBUG WebGPU: Raw .ys[1] = Int(920)
+DEBUG WebGPU: Raw .ys[2] = Int(920)
+DEBUG WebGPU: Raw .ys[3] = Int(920)
+DEBUG WebGPU: Raw .ys[4] = Int(920)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 920 -> 0.13336385137712672
+DEBUG WebGPU: Sample conversion [1]: 920 -> 0.13336385137712672
+DEBUG WebGPU: Sample conversion [2]: 920 -> 0.13336385137712672
+DEBUG WebGPU: Sample conversion [3]: 920 -> 0.13336385137712672
+DEBUG WebGPU: Sample conversion [4]: 920 -> 0.13336385137712672
+DEBUG WebGPU: 16192 points, X=[307648.0..323839.0], Y=[0.1..0.2]
+Time: 0.8s | Memory: 60040 KB (58.63 MB)DEBUG: Pixel coords - X=[468.0..491.0], Y=[495.0..497.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 323840)
+DEBUG: GGRS requesting facet (0, 0) rows 323840-340032 (len=16192)
+DEBUG:   Fetching chunk: offset=323840, limit=16192
+TERCEN: Requesting offset=323840, limit=16192
+Time: 0.8s | Memory: 59360 KB (57.97 MB)Time: 0.9s | Memory: 59360 KB (57.97 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=338840, limit=1192
+TERCEN: Requesting offset=338840, limit=1192
+Time: 0.9s | Memory: 59616 KB (58.22 MB)Time: 0.9s | Memory: 59616 KB (58.22 MB)Time: 0.9s | Memory: 59616 KB (58.22 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(323840.0) to Float64(340031.0)
+DEBUG: Found .ys column, converting quantized coordinates
+DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(1216)
+DEBUG Cairo: Raw .ys[1] = Int(1216)
+DEBUG Cairo: Raw .ys[2] = Int(1216)
+DEBUG Cairo: Raw .ys[3] = Int(1216)
+DEBUG Cairo: Raw .ys[4] = Int(1216)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 1216 -> 0.17627222095063708
+DEBUG: Sample conversion [1]: 1216 -> 0.17627222095063708
+DEBUG: Sample conversion [2]: 1216 -> 0.17627222095063708
+DEBUG: Sample conversion [3]: 1216 -> 0.17627222095063708
+DEBUG: Sample conversion [4]: 1216 -> 0.17627222095063708
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+Time: 0.9s | Memory: 60128 KB (58.72 MB)DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(1216)
+DEBUG WebGPU: Raw .ys[1] = Int(1216)
+DEBUG WebGPU: Raw .ys[2] = Int(1216)
+DEBUG WebGPU: Raw .ys[3] = Int(1216)
+DEBUG WebGPU: Raw .ys[4] = Int(1216)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 1216 -> 0.17627222095063708
+DEBUG WebGPU: Sample conversion [1]: 1216 -> 0.17627222095063708
+DEBUG WebGPU: Sample conversion [2]: 1216 -> 0.17627222095063708
+DEBUG WebGPU: Sample conversion [3]: 1216 -> 0.17627222095063708
+DEBUG WebGPU: Sample conversion [4]: 1216 -> 0.17627222095063708
+DEBUG WebGPU: 16192 points, X=[323840.0..340031.0], Y=[0.2..0.2]
+DEBUG: Pixel coords - X=[491.0..514.0], Y=[491.0..495.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+Time: 0.9s | Memory: 60512 KB (59.09 MB)✓ Accumulated 16192 points (total: 340032)
+DEBUG: GGRS requesting facet (0, 0) rows 340032-356224 (len=16192)
+DEBUG:   Fetching chunk: offset=340032, limit=16192
+TERCEN: Requesting offset=340032, limit=16192
+Time: 0.9s | Memory: 61024 KB (59.59 MB)Time: 0.9s | Memory: 61024 KB (59.59 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=355032, limit=1192
+TERCEN: Requesting offset=355032, limit=1192
+Time: 0.9s | Memory: 61024 KB (59.59 MB)Time: 0.9s | Memory: 61024 KB (59.59 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(340032.0) to Float64(356223.0)
+Time: 0.9s | Memory: 61024 KB (59.59 MB)DEBUG: Found .ys column, converting quantized coordinates
+DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(1716)
+DEBUG Cairo: Raw .ys[1] = Int(1716)
+DEBUG Cairo: Raw .ys[2] = Int(1716)
+DEBUG Cairo: Raw .ys[3] = Int(1716)
+DEBUG Cairo: Raw .ys[4] = Int(1716)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 1716 -> 0.24875257495994507
+DEBUG: Sample conversion [1]: 1716 -> 0.24875257495994507
+DEBUG: Sample conversion [2]: 1716 -> 0.24875257495994507
+DEBUG: Sample conversion [3]: 1716 -> 0.24875257495994507
+DEBUG: Sample conversion [4]: 1716 -> 0.24875257495994507
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+Time: 0.9s | Memory: 61024 KB (59.59 MB)DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(1716)
+DEBUG WebGPU: Raw .ys[1] = Int(1716)
+DEBUG WebGPU: Raw .ys[2] = Int(1716)
+DEBUG WebGPU: Raw .ys[3] = Int(1716)
+DEBUG WebGPU: Raw .ys[4] = Int(1716)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 1716 -> 0.24875257495994507
+DEBUG WebGPU: Sample conversion [1]: 1716 -> 0.24875257495994507
+DEBUG WebGPU: Sample conversion [2]: 1716 -> 0.24875257495994507
+DEBUG WebGPU: Sample conversion [3]: 1716 -> 0.24875257495994507
+DEBUG WebGPU: Sample conversion [4]: 1716 -> 0.24875257495994507
+DEBUG WebGPU: 16192 points, X=[340032.0..356223.0], Y=[0.2..0.4]
+DEBUG: Pixel coords - X=[514.0..537.0], Y=[485.0..491.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 356224)
+DEBUG: GGRS requesting facet (0, 0) rows 356224-372416 (len=16192)
+DEBUG:   Fetching chunk: offset=356224, limit=16192
+TERCEN: Requesting offset=356224, limit=16192
+Time: 0.9s | Memory: 60584 KB (59.16 MB)Time: 0.9s | Memory: 60584 KB (59.16 MB)Time: 0.9s | Memory: 60584 KB (59.16 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=371224, limit=1192
+TERCEN: Requesting offset=371224, limit=1192
+Time: 0.9s | Memory: 60840 KB (59.41 MB)Time: 0.9s | Memory: 60840 KB (59.41 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(356224.0) to Float64(372415.0)
+DEBUG: Found .ys column, converting quantized coordinates
+DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(2534)
+DEBUG Cairo: Raw .ys[1] = Int(2534)
+DEBUG Cairo: Raw .ys[2] = Int(2534)
+DEBUG Cairo: Raw .ys[3] = Int(2534)
+DEBUG Cairo: Raw .ys[4] = Int(2534)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 2534 -> 0.367330434119173
+DEBUG: Sample conversion [1]: 2534 -> 0.367330434119173
+DEBUG: Sample conversion [2]: 2534 -> 0.367330434119173
+DEBUG: Sample conversion [3]: 2534 -> 0.367330434119173
+DEBUG: Sample conversion [4]: 2534 -> 0.367330434119173
+Time: 0.9s | Memory: 61224 KB (59.79 MB)DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(2534)
+DEBUG WebGPU: Raw .ys[1] = Int(2534)
+DEBUG WebGPU: Raw .ys[2] = Int(2534)
+DEBUG WebGPU: Raw .ys[3] = Int(2534)
+DEBUG WebGPU: Raw .ys[4] = Int(2534)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 2534 -> 0.367330434119173
+DEBUG WebGPU: Sample conversion [1]: 2534 -> 0.367330434119173
+DEBUG WebGPU: Sample conversion [2]: 2534 -> 0.367330434119173
+DEBUG WebGPU: Sample conversion [3]: 2534 -> 0.367330434119173
+DEBUG WebGPU: Sample conversion [4]: 2534 -> 0.367330434119173
+DEBUG WebGPU: 16192 points, X=[356224.0..372415.0], Y=[0.4..0.5]
+Time: 0.9s | Memory: 61736 KB (60.29 MB)DEBUG: Pixel coords - X=[537.0..560.0], Y=[476.0..485.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 372416)
+DEBUG: GGRS requesting facet (0, 0) rows 372416-388608 (len=16192)
+DEBUG:   Fetching chunk: offset=372416, limit=16192
+TERCEN: Requesting offset=372416, limit=16192
+Time: 0.9s | Memory: 61088 KB (59.66 MB)Time: 1.0s | Memory: 61088 KB (59.66 MB)Time: 1.0s | Memory: 61088 KB (59.66 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=387416, limit=1192
+TERCEN: Requesting offset=387416, limit=1192
+Time: 1.0s | Memory: 61344 KB (59.91 MB)Time: 1.0s | Memory: 61344 KB (59.91 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(372416.0) to Float64(388607.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 1.0s | Memory: 61600 KB (60.16 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(3773)
+DEBUG Cairo: Raw .ys[1] = Int(3773)
+DEBUG Cairo: Raw .ys[2] = Int(3773)
+DEBUG Cairo: Raw .ys[3] = Int(3773)
+DEBUG Cairo: Raw .ys[4] = Int(3773)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 3773 -> 0.5469367513542381
+DEBUG: Sample conversion [1]: 3773 -> 0.5469367513542381
+DEBUG: Sample conversion [2]: 3773 -> 0.5469367513542381
+DEBUG: Sample conversion [3]: 3773 -> 0.5469367513542381
+DEBUG: Sample conversion [4]: 3773 -> 0.5469367513542381
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(3773)
+DEBUG WebGPU: Raw .ys[1] = Int(3773)
+DEBUG WebGPU: Raw .ys[2] = Int(3773)
+DEBUG WebGPU: Raw .ys[3] = Int(3773)
+DEBUG WebGPU: Raw .ys[4] = Int(3773)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 3773 -> 0.5469367513542381
+DEBUG WebGPU: Sample conversion [1]: 3773 -> 0.5469367513542381
+DEBUG WebGPU: Sample conversion [2]: 3773 -> 0.5469367513542381
+DEBUG WebGPU: Sample conversion [3]: 3773 -> 0.5469367513542381
+DEBUG WebGPU: Sample conversion [4]: 3773 -> 0.5469367513542381
+Time: 1.0s | Memory: 62240 KB (60.78 MB)DEBUG WebGPU: 16192 points, X=[372416.0..388607.0], Y=[0.5..0.8]
+DEBUG: Pixel coords - X=[560.0..583.0], Y=[463.0..476.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 388608)
+DEBUG: GGRS requesting facet (0, 0) rows 388608-404800 (len=16192)
+DEBUG:   Fetching chunk: offset=388608, limit=16192
+TERCEN: Requesting offset=388608, limit=16192
+Time: 1.0s | Memory: 61628 KB (60.18 MB)Time: 1.0s | Memory: 61628 KB (60.18 MB)Time: 1.0s | Memory: 61628 KB (60.18 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=403608, limit=1192
+TERCEN: Requesting offset=403608, limit=1192
+Time: 1.0s | Memory: 62012 KB (60.56 MB)Time: 1.0s | Memory: 62012 KB (60.56 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(388608.0) to Float64(404799.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 1.0s | Memory: 62140 KB (60.68 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(5551)
+DEBUG Cairo: Raw .ys[1] = Int(5551)
+DEBUG Cairo: Raw .ys[2] = Int(5551)
+DEBUG Cairo: Raw .ys[3] = Int(5552)
+DEBUG Cairo: Raw .ys[4] = Int(5552)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 5551 -> 0.8046768902113375
+DEBUG: Sample conversion [1]: 5551 -> 0.8046768902113375
+DEBUG: Sample conversion [2]: 5551 -> 0.8046768902113375
+DEBUG: Sample conversion [3]: 5552 -> 0.8048218509193561
+DEBUG: Sample conversion [4]: 5552 -> 0.8048218509193561
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(5551)
+DEBUG WebGPU: Raw .ys[1] = Int(5551)
+DEBUG WebGPU: Raw .ys[2] = Int(5551)
+DEBUG WebGPU: Raw .ys[3] = Int(5552)
+DEBUG WebGPU: Raw .ys[4] = Int(5552)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 5551 -> 0.8046768902113375
+DEBUG WebGPU: Sample conversion [1]: 5551 -> 0.8046768902113375
+DEBUG WebGPU: Sample conversion [2]: 5551 -> 0.8046768902113375
+DEBUG WebGPU: Sample conversion [3]: 5552 -> 0.8048218509193561
+DEBUG WebGPU: Sample conversion [4]: 5552 -> 0.8048218509193561
+Time: 1.0s | Memory: 62908 KB (61.43 MB)DEBUG WebGPU: 16192 points, X=[388608.0..404799.0], Y=[0.8..1.1]
+DEBUG: Pixel coords - X=[583.0..606.0], Y=[446.0..463.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 404800)
+DEBUG: GGRS requesting facet (0, 0) rows 404800-420992 (len=16192)
+DEBUG:   Fetching chunk: offset=404800, limit=16192
+TERCEN: Requesting offset=404800, limit=16192
+Time: 1.0s | Memory: 62228 KB (60.77 MB)Time: 1.0s | Memory: 62228 KB (60.77 MB)Time: 1.0s | Memory: 62228 KB (60.77 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=419800, limit=1192
+TERCEN: Requesting offset=419800, limit=1192
+Time: 1.0s | Memory: 62484 KB (61.02 MB)Time: 1.0s | Memory: 62484 KB (61.02 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(404800.0) to Float64(420991.0)
+DEBUG: Found .ys column, converting quantized coordinates
+Time: 1.0s | Memory: 62612 KB (61.14 MB)DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(7900)
+DEBUG Cairo: Raw .ys[1] = Int(7900)
+DEBUG Cairo: Raw .ys[2] = Int(7900)
+DEBUG Cairo: Raw .ys[3] = Int(7901)
+DEBUG Cairo: Raw .ys[4] = Int(7901)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 7900 -> 1.1451895933470664
+DEBUG: Sample conversion [1]: 7900 -> 1.1451895933470664
+DEBUG: Sample conversion [2]: 7900 -> 1.1451895933470664
+DEBUG: Sample conversion [3]: 7901 -> 1.145334554055085
+DEBUG: Sample conversion [4]: 7901 -> 1.145334554055085
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+Time: 1.1s | Memory: 63252 KB (61.77 MB)DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(7900)
+DEBUG WebGPU: Raw .ys[1] = Int(7900)
+DEBUG WebGPU: Raw .ys[2] = Int(7900)
+DEBUG WebGPU: Raw .ys[3] = Int(7901)
+DEBUG WebGPU: Raw .ys[4] = Int(7901)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 7900 -> 1.1451895933470664
+DEBUG WebGPU: Sample conversion [1]: 7900 -> 1.1451895933470664
+DEBUG WebGPU: Sample conversion [2]: 7900 -> 1.1451895933470664
+DEBUG WebGPU: Sample conversion [3]: 7901 -> 1.145334554055085
+DEBUG WebGPU: Sample conversion [4]: 7901 -> 1.145334554055085
+DEBUG WebGPU: 16192 points, X=[404800.0..420991.0], Y=[1.1..1.6]
+DEBUG: Pixel coords - X=[606.0..629.0], Y=[424.0..446.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 420992)
+DEBUG: GGRS requesting facet (0, 0) rows 420992-437184 (len=16192)
+DEBUG:   Fetching chunk: offset=420992, limit=16192
+TERCEN: Requesting offset=420992, limit=16192
+Time: 1.1s | Memory: 62736 KB (61.27 MB)Time: 1.1s | Memory: 62736 KB (61.27 MB)Time: 1.1s | Memory: 62736 KB (61.27 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=435992, limit=1192
+TERCEN: Requesting offset=435992, limit=1192
+Time: 1.1s | Memory: 62992 KB (61.52 MB)Time: 1.1s | Memory: 62992 KB (61.52 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(420992.0) to Float64(437183.0)
+DEBUG: Found .ys column, converting quantized coordinates
+DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(10813)
+DEBUG Cairo: Raw .ys[1] = Int(10813)
+DEBUG Cairo: Raw .ys[2] = Int(10813)
+DEBUG Cairo: Raw .ys[3] = Int(10813)
+DEBUG Cairo: Raw .ys[4] = Int(10813)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 10813 -> 1.5674601358052949
+DEBUG: Sample conversion [1]: 10813 -> 1.5674601358052949
+DEBUG: Sample conversion [2]: 10813 -> 1.5674601358052949
+DEBUG: Sample conversion [3]: 10813 -> 1.5674601358052949
+DEBUG: Sample conversion [4]: 10813 -> 1.5674601358052949
+Time: 1.1s | Memory: 63376 KB (61.89 MB)DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(10813)
+DEBUG WebGPU: Raw .ys[1] = Int(10813)
+DEBUG WebGPU: Raw .ys[2] = Int(10813)
+DEBUG WebGPU: Raw .ys[3] = Int(10813)
+DEBUG WebGPU: Raw .ys[4] = Int(10813)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 10813 -> 1.5674601358052949
+DEBUG WebGPU: Sample conversion [1]: 10813 -> 1.5674601358052949
+DEBUG WebGPU: Sample conversion [2]: 10813 -> 1.5674601358052949
+DEBUG WebGPU: Sample conversion [3]: 10813 -> 1.5674601358052949
+DEBUG WebGPU: Sample conversion [4]: 10813 -> 1.5674601358052949
+DEBUG WebGPU: 16192 points, X=[420992.0..437183.0], Y=[1.6..2.1]
+Time: 1.1s | Memory: 63888 KB (62.39 MB)DEBUG: Pixel coords - X=[629.0..651.0], Y=[398.0..424.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 437184)
+DEBUG: GGRS requesting facet (0, 0) rows 437184-453376 (len=16192)
+DEBUG:   Fetching chunk: offset=437184, limit=16192
+TERCEN: Requesting offset=437184, limit=16192
+Time: 1.1s | Memory: 63240 KB (61.76 MB)Time: 1.1s | Memory: 63240 KB (61.76 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=452184, limit=1192
+TERCEN: Requesting offset=452184, limit=1192
+Time: 1.1s | Memory: 63624 KB (62.13 MB)Time: 1.1s | Memory: 63624 KB (62.13 MB)Time: 1.1s | Memory: 63624 KB (62.13 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(437184.0) to Float64(453375.0)
+DEBUG: Found .ys column, converting quantized coordinates
+DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(14439)
+DEBUG Cairo: Raw .ys[1] = Int(14440)
+DEBUG Cairo: Raw .ys[2] = Int(14440)
+DEBUG Cairo: Raw .ys[3] = Int(14440)
+DEBUG Cairo: Raw .ys[4] = Int(14440)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 14439 -> 2.0930876630807966
+DEBUG: Sample conversion [1]: 14440 -> 2.0932326237888152
+DEBUG: Sample conversion [2]: 14440 -> 2.0932326237888152
+DEBUG: Sample conversion [3]: 14440 -> 2.0932326237888152
+DEBUG: Sample conversion [4]: 14440 -> 2.0932326237888152
+Time: 1.1s | Memory: 64008 KB (62.51 MB)DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(14439)
+DEBUG WebGPU: Raw .ys[1] = Int(14440)
+DEBUG WebGPU: Raw .ys[2] = Int(14440)
+DEBUG WebGPU: Raw .ys[3] = Int(14440)
+DEBUG WebGPU: Raw .ys[4] = Int(14440)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 14439 -> 2.0930876630807966
+DEBUG WebGPU: Sample conversion [1]: 14440 -> 2.0932326237888152
+DEBUG WebGPU: Sample conversion [2]: 14440 -> 2.0932326237888152
+DEBUG WebGPU: Sample conversion [3]: 14440 -> 2.0932326237888152
+DEBUG WebGPU: Sample conversion [4]: 14440 -> 2.0932326237888152
+DEBUG WebGPU: 16192 points, X=[437184.0..453375.0], Y=[2.1..2.8]
+Time: 1.1s | Memory: 64392 KB (62.88 MB)DEBUG: Pixel coords - X=[651.0..674.0], Y=[361.0..398.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 453376)
+DEBUG: GGRS requesting facet (0, 0) rows 453376-469568 (len=16192)
+DEBUG:   Fetching chunk: offset=453376, limit=16192
+TERCEN: Requesting offset=453376, limit=16192
+Time: 1.1s | Memory: 63832 KB (62.34 MB)Time: 1.1s | Memory: 63832 KB (62.34 MB)TERCEN: Received chunk #1 with 60099 bytes
+TERCEN: Received chunk #2 with 4867 bytes
+TERCEN: Total 64966 bytes in 2 chunks
+TSON: Parsed table with 2 columns, 15000 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 15000 rows from table
+DEBUG:   Filtered to 15000 rows for facet (0, 0)
+DEBUG:   Fetching chunk: offset=468376, limit=1192
+TERCEN: Requesting offset=468376, limit=1192
+Time: 1.1s | Memory: 64088 KB (62.59 MB)Time: 1.1s | Memory: 64088 KB (62.59 MB)Time: 1.1s | Memory: 64088 KB (62.59 MB)TERCEN: Received chunk #1 with 4867 bytes
+TERCEN: Total 4867 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 1192 rows
+TSON: Column names: [".xs", ".ys"]
+DEBUG:   Fetched 1192 rows from table
+DEBUG:   Filtered to 1192 rows for facet (0, 0)
+DEBUG: Total accumulated 2 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 16192 rows
+DEBUG:   X range: Float64(453376.0) to Float64(469567.0)
+DEBUG: Found .ys column, converting quantized coordinates
+DEBUG Cairo: Raw .ys column has 16192 values
+DEBUG Cairo: Raw .ys[0] = Int(19443)
+DEBUG Cairo: Raw .ys[1] = Int(19443)
+DEBUG Cairo: Raw .ys[2] = Int(19445)
+DEBUG Cairo: Raw .ys[3] = Int(19447)
+DEBUG Cairo: Raw .ys[4] = Int(19447)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 19443 -> 2.818471046005951
+DEBUG: Sample conversion [1]: 19443 -> 2.818471046005951
+DEBUG: Sample conversion [2]: 19445 -> 2.8187609674219885
+DEBUG: Sample conversion [3]: 19447 -> 2.8190508888380257
+DEBUG: Sample conversion [4]: 19447 -> 2.8190508888380257
+Time: 1.2s | Memory: 64344 KB (62.84 MB)DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 16192 values
+DEBUG WebGPU: Raw .ys[0] = Int(19443)
+DEBUG WebGPU: Raw .ys[1] = Int(19443)
+DEBUG WebGPU: Raw .ys[2] = Int(19445)
+DEBUG WebGPU: Raw .ys[3] = Int(19447)
+DEBUG WebGPU: Raw .ys[4] = Int(19447)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 19443 -> 2.818471046005951
+DEBUG WebGPU: Sample conversion [1]: 19443 -> 2.818471046005951
+DEBUG WebGPU: Sample conversion [2]: 19445 -> 2.8187609674219885
+DEBUG WebGPU: Sample conversion [3]: 19447 -> 2.8190508888380257
+DEBUG WebGPU: Sample conversion [4]: 19447 -> 2.8190508888380257
+Time: 1.2s | Memory: 64856 KB (63.34 MB)DEBUG WebGPU: 16192 points, X=[453376.0..469567.0], Y=[2.8..4.2]
+DEBUG: Pixel coords - X=[674.0..697.0], Y=[290.0..361.0] (panel: 741x528)
+✓ Converted 16192 points to pixel coordinates
+✓ Accumulated 16192 points (total: 469568)
+DEBUG: GGRS requesting facet (0, 0) rows 469568-475688 (len=6120)
+DEBUG:   Fetching chunk: offset=469568, limit=6120
+TERCEN: Requesting offset=469568, limit=6120
+Time: 1.2s | Memory: 64288 KB (62.78 MB)Time: 1.2s | Memory: 64288 KB (62.78 MB)TERCEN: Received chunk #1 with 24579 bytes
+TERCEN: Total 24579 bytes in 1 chunks
+TSON: Parsed table with 2 columns, 6120 rows
+TSON: Column names: [".xs", ".ys"]
+Time: 1.2s | Memory: 64288 KB (62.78 MB)DEBUG:   Fetched 6120 rows from table
+DEBUG:   Filtered to 6120 rows for facet (0, 0)
+DEBUG: Total accumulated 1 chunks for facet (0, 0)
+DEBUG: Final DataFrame has 6120 rows
+DEBUG:   X range: Float64(469568.0) to Float64(475687.0)
+DEBUG: Found .ys column, converting quantized coordinates
+DEBUG Cairo: Raw .ys column has 6120 values
+DEBUG Cairo: Raw .ys[0] = Int(29164)
+DEBUG Cairo: Raw .ys[1] = Int(29164)
+DEBUG Cairo: Raw .ys[2] = Int(29165)
+DEBUG Cairo: Raw .ys[3] = Int(29166)
+DEBUG Cairo: Raw .ys[4] = Int(29170)
+DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG: Sample conversion [0]: 29164 -> 4.227634088654917
+DEBUG: Sample conversion [1]: 29164 -> 4.227634088654917
+DEBUG: Sample conversion [2]: 29165 -> 4.227779049362936
+DEBUG: Sample conversion [3]: 29166 -> 4.2279240100709545
+DEBUG: Sample conversion [4]: 29170 -> 4.228503852903029
+DEBUG WebGPU: Found .ys column, converting quantized coordinates
+DEBUG WebGPU: Raw .ys column has 6120 values
+DEBUG WebGPU: Raw .ys[0] = Int(29164)
+DEBUG WebGPU: Raw .ys[1] = Int(29164)
+DEBUG WebGPU: Raw .ys[2] = Int(29165)
+DEBUG WebGPU: Raw .ys[3] = Int(29166)
+DEBUG WebGPU: Raw .ys[4] = Int(29170)
+DEBUG WebGPU: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
+DEBUG WebGPU: Converting .ys with range [0, 9.5] (range=9.5)
+DEBUG WebGPU: Sample conversion [0]: 29164 -> 4.227634088654917
+DEBUG WebGPU: Sample conversion [1]: 29164 -> 4.227634088654917
+DEBUG WebGPU: Sample conversion [2]: 29165 -> 4.227779049362936
+DEBUG WebGPU: Sample conversion [3]: 29166 -> 4.2279240100709545
+DEBUG WebGPU: Sample conversion [4]: 29170 -> 4.228503852903029
+DEBUG WebGPU: 6120 points, X=[469568.0..475687.0], Y=[4.2..9.4]
+Time: 1.2s | Memory: 64416 KB (62.91 MB)DEBUG: Pixel coords - X=[697.0..706.0], Y=[29.0..290.0] (panel: 741x528)
+✓ Converted 6120 points to pixel coordinates
+✓ Accumulated 6120 points (total: 475688)
+✓ Rendering 475688 accumulated vertices in ONE GPU context
+Time: 1.2s | Memory: 69536 KB (67.91 MB)Time: 1.2s | Memory: 89760 KB (87.66 MB)Time: 1.2s | Memory: 122528 KB (119.66 MB)Time: 1.2s | Memory: 135120 KB (131.95 MB)Time: 1.2s | Memory: 138704 KB (135.45 MB)Time: 1.2s | Memory: 142544 KB (139.20 MB)Time: 1.2s | Memory: 142928 KB (139.58 MB)Time: 1.2s | Memory: 143572 KB (140.21 MB)Time: 1.2s | Memory: 146192 KB (142.77 MB)Time: 1.2s | Memory: 146960 KB (143.52 MB)Time: 1.2s | Memory: 149776 KB (146.27 MB)Time: 1.2s | Memory: 158864 KB (155.14 MB)Time: 1.2s | Memory: 158864 KB (155.14 MB)Time: 1.3s | Memory: 158992 KB (155.27 MB)Time: 1.3s | Memory: 159120 KB (155.39 MB)Time: 1.3s | Memory: 159120 KB (155.39 MB)Time: 1.3s | Memory: 160144 KB (156.39 MB)Time: 1.3s | Memory: 164172 KB (160.32 MB)Time: 1.3s | Memory: 164940 KB (161.07 MB)Time: 1.3s | Memory: 164940 KB (161.07 MB)Time: 1.3s | Memory: 164940 KB (161.07 MB)Time: 1.3s | Memory: 165068 KB (161.20 MB)Time: 1.3s | Memory: 166092 KB (162.20 MB)Time: 1.3s | Memory: 166092 KB (162.20 MB)Time: 1.3s | Memory: 166092 KB (162.20 MB)Time: 1.3s | Memory: 166988 KB (163.07 MB)Time: 1.3s | Memory: 166988 KB (163.07 MB)Time: 1.3s | Memory: 168140 KB (164.20 MB)Time: 1.3s | Memory: 168268 KB (164.32 MB)Time: 1.3s | Memory: 168268 KB (164.32 MB)Time: 1.3s | Memory: 170316 KB (166.32 MB)Time: 1.3s | Memory: 170700 KB (166.70 MB)Time: 1.3s | Memory: 170700 KB (166.70 MB)Time: 1.4s | Memory: 171852 KB (167.82 MB)Time: 1.4s | Memory: 171852 KB (167.82 MB)Time: 1.4s | Memory: 171980 KB (167.95 MB)Time: 1.4s | Memory: 172620 KB (168.57 MB)Time: 1.4s | Memory: 172620 KB (168.57 MB)Time: 1.4s | Memory: 173900 KB (169.82 MB)Time: 1.4s | Memory: 174924 KB (170.82 MB)Time: 1.4s | Memory: 175180 KB (171.07 MB)Time: 1.4s | Memory: 175564 KB (171.45 MB)Time: 1.4s | Memory: 178380 KB (174.20 MB)Time: 1.4s | Memory: 178380 KB (174.20 MB)Time: 1.4s | Memory: 178636 KB (174.45 MB)Time: 1.4s | Memory: 178636 KB (174.45 MB)Time: 1.4s | Memory: 179660 KB (175.45 MB)Time: 1.4s | Memory: 179660 KB (175.45 MB)Time: 1.4s | Memory: 185804 KB (181.45 MB)Time: 1.4s | Memory: 188108 KB (183.70 MB)Time: 1.4s | Memory: 188108 KB (183.70 MB)Time: 1.4s | Memory: 188108 KB (183.70 MB)Time: 1.4s | Memory: 188108 KB (183.70 MB)Time: 1.5s | Memory: 188108 KB (183.70 MB)Time: 1.5s | Memory: 188108 KB (183.70 MB)Time: 1.5s | Memory: 188108 KB (183.70 MB)Time: 1.5s | Memory: 308428 KB (301.20 MB)Time: 1.5s | Memory: 320076 KB (312.57 MB)✓ WebGPU rendered 475688 points to 741x528 surface
+Time: 1.5s | Memory: 322460 KB (314.90 MB)Time: 1.5s | Memory: 323100 KB (315.53 MB)Time: 1.5s | Memory: 323484 KB (315.90 MB)Time: 1.5s | Memory: 323868 KB (316.28 MB)✓ Composited single WebGPU surface with 475688 points
+Time: 1.5s | Memory: 324124 KB (316.53 MB)Time: 1.5s | Memory: 193052 KB (188.53 MB)Time: 1.5s | Memory: 193052 KB (188.53 MB)Time: 1.5s | Memory: 193180 KB (188.65 MB)Time: 1.5s | Memory: 191748 KB (187.25 MB)Time: 1.5s | Memory: 190364 KB (185.90 MB)Time: 1.5s | Memory: 189836 KB (185.39 MB)Time: 1.5s | Memory: 188724 KB (184.30 MB)Time: 1.5s | Memory: 181492 KB (177.24 MB)Time: 1.5s | Memory: 142756 KB (139.41 MB)Time: 1.6s | Memory: 142756 KB (139.41 MB)Time: 1.6s | Memory: 142756 KB (139.41 MB)Time: 1.6s | Memory: 142756 KB (139.41 MB)Time: 1.6s | Memory: 142884 KB (139.54 MB)Time: 1.6s | Memory: 142884 KB (139.54 MB)Time: 1.6s | Memory: 142884 KB (139.54 MB)Time: 1.6s | Memory: 142884 KB (139.54 MB)Time: 1.6s | Memory: 142884 KB (139.54 MB)Time: 1.6s | Memory: 142884 KB (139.54 MB)Time: 1.6s | Memory: 142884 KB (139.54 MB)[PHASE @1.593s] PHASE 5.4: Saving PNG
+Saving plot to plot.png...
+✓ Plot saved to plot.png (67494 bytes)
+[PHASE @1.593s] PHASE 6: Test complete
+
+=== Test Complete ===
+All checks passed! The TercenStreamGenerator is working correctly.
+Time: 1.6s | Memory: 141184 KB (137.88 MB)Time: 1.6s | Memory: 141184 KB (137.88 MB)Time: 1.6s | Memory: 138744 KB (135.49 MB)
+Process 277576 no longer exists or is not accessible: VmRSS not found in /proc/277576/status
+
+
+Generating statistics...
+Total samples: 317
+Mean memory: 86673.34 KB (84.64 MB)
+Median memory: 58900.00 KB (57.52 MB)
+Max memory: 324124 KB (316.53 MB)
+Min memory: 2048 KB (2.00 MB)
+
+Generating chart: memory_usage_chunk_16192.png
+Chart saved successfully!
+
+Saving memory data to CSV: memory_usage_chunk_16192.csv
+CSV saved successfully!
+
+============================================
+Test completed with exit code: 0
+Memory chart saved to: memory_usage_chunk_16192.png
+Memory data saved to: memory_usage_chunk_16192.csv
+============================================

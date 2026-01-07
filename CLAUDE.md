@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the GGRS plotting library with the Tercen platform. It receives tabular data through the Tercen gRPC API, generates high-performance plots using GGRS, and returns PNG images back to Tercen for visualization.
 
-**Current Status**: Phase 4 complete - gRPC connection, data streaming, CSV parsing, and facet filtering implemented. Ready for Phase 5 (load facet metadata).
+**Current Status**: Phase 6 COMPLETE + Columnar Architecture Migration ✅ - Full GGRS integration with pure Polars columnar operations! Records→DataFrame migration complete. Stream generator tested successfully with 475K rows in 5.6 seconds, memory stable at ~60MB.
+
+**📋 Continue from**: Ready for Phase 7 (plot generation) and Phase 8 (result upload to Tercen).
 
 ## Quick Reference
 
@@ -20,6 +22,15 @@ cargo test                     # Run all tests
 cargo clippy                   # Lint code
 cargo fmt                      # Format code
 
+# Local testing with workflow/step IDs (like Python OperatorContextDev)
+./test_local.sh                # Uses hardcoded test values in script
+# Or manually:
+TERCEN_URI="http://127.0.0.1:50051" \
+TERCEN_TOKEN="your_token" \
+WORKFLOW_ID="workflow_id" \
+STEP_ID="step_id" \
+cargo run --bin test_stream_generator
+
 # Docker
 docker build -t ggrs_plot_operator:local .
 docker run --rm ggrs_plot_operator:local
@@ -30,6 +41,7 @@ git tag 0.1.0 && git push origin 0.1.0  # Create release (NO 'v' prefix)
 ```
 
 See `BUILD.md` for comprehensive build and deployment instructions.
+See `TEST_LOCAL.md` and `WORKFLOW_TEST_INSTRUCTIONS.md` for testing instructions.
 
 ## Project Structure
 
@@ -81,8 +93,11 @@ ggrs_plot_operator/
    - Services: TaskService (task lifecycle), TableSchemaService (data streaming), FileService (file upload)
    - Uses tonic (~0.11) for gRPC, prost (~0.12) for protobuf serialization
 
-2. **Data Transformation Layer**
-   - Converts Tercen data formats (CSV/Arrow) to GGRS DataFrame
+2. **Data Transformation Layer (COLUMNAR ARCHITECTURE)**
+   - **Pure Polars columnar operations** - NO row-by-row Record construction
+   - Converts Tercen TSON format directly to Polars DataFrame (columnar → columnar)
+   - Uses Polars lazy API for filtering: `col().eq().and()` with predicate pushdown
+   - Zero-copy operations where possible, avoiding data duplication
    - Maps Tercen crosstab specifications (row factors, column factors, X/Y axes) to GGRS Aes (aesthetics)
    - Translates Tercen faceting to GGRS FacetSpec (none/col/row/grid)
    - Handles operator properties (theme, dimensions, scales)
@@ -90,34 +105,39 @@ ggrs_plot_operator/
 3. **GGRS Integration Layer**
    - Custom `TercenStreamGenerator` implementing GGRS `StreamGenerator` trait
    - Lazy loads data from Tercen on demand for memory efficiency
+   - Uses quantized coordinates: `.xs` and `.ys` (uint16 stored as i64)
+   - GGRS automatically dequantizes using axis ranges
    - Integrates with GGRS core components: PlotGenerator (engine) and ImageRenderer (rendering)
    - Uses Plotters backend for PNG generation
 
-### Data Flow (Final)
+### Data Flow (Final - Columnar Architecture)
 
 ```
 User clicks "Run" in Tercen
   ↓
-1. TercenStreamGenerator::from_env()
+1. TercenStreamGenerator::from_workflow_step()
    - Connect & authenticate via gRPC
    - Load task (get table IDs from ComputationTask)
    - Load facet metadata (column.csv, row.csv - small tables)
    - Pre-compute axis ranges for all facet cells
    ↓
 2. GGRS calls query_data(col_idx, row_idx) per facet cell
-   - Stream data in chunks via ReqStreamTable with offset/limit
-   - Filter by .ci == col_idx AND .ri == row_idx
-   - Parse CSV, collect all chunks for this facet
+   - Stream TSON data in chunks via ReqStreamTable with offset/limit
+   - Parse TSON → Polars DataFrame (COLUMNAR, no Records!)
+   - Filter using Polars lazy: col(".ci").eq(col_idx).and(col(".ri").eq(row_idx))
+   - Concatenate chunks with vstack_mut() (columnar append)
+   - Uses quantized coordinates: .xs/.ys (uint16 as i64)
    - Return DataFrame to GGRS
    ↓
 3. GGRS renders incrementally
+   - Auto-converts i64 → f64 for coordinates
+   - Dequantizes using axis ranges
    - Each facet cell rendered as data arrives
-   - "Paint canvas incrementally"
    ↓
 4. Generate final PNG
    - ImageRenderer produces complete PNG buffer
    ↓
-5. Save result to Tercen table
+5. Save result to Tercen table (TODO: Phase 8)
    - Encode PNG to base64
    - Create DataFrame: .content (base64), filename, mimetype
    - Save as Tercen table
@@ -125,16 +145,16 @@ User clicks "Run" in Tercen
 
 ### Data Structure (from example files)
 
-**Main data** (`qt.csv`-like): Large table with plot points
+**Main data** (TSON format): Large table with plot points
 ```csv
-.ci,.ri,.x,.y,sp,...
-0,0,51.0,6.1,"B",...
-0,0,52.0,7.7,"B",...
+.ci,.ri,.xs,.ys,sp,...
+0,0,12845,15632,"B",...
+0,0,13124,19687,"B",...
 ```
-- `.ci`: Column facet index
-- `.ri`: Row facet index
-- `.x`, `.y`: Plot coordinates
-- Other columns: Color, aesthetics
+- `.ci`: Column facet index (i64)
+- `.ri`: Row facet index (i64)
+- `.xs`, `.ys`: Quantized coordinates (uint16 stored as i64, range 0-65535)
+- Other columns: Color/aesthetics (string or numeric)
 
 **Column facets** (`column.csv`): Small table defining column groups
 ```csv
@@ -150,7 +170,7 @@ BD,F
 BD,M
 ```
 
-### Streaming Implementation
+### Streaming Implementation (COLUMNAR)
 
 **Key insight**: GGRS `StreamGenerator` trait queries data on-demand per facet cell. Tercen's `ReqStreamTable` supports chunking with `offset` and `limit`!
 
@@ -158,31 +178,52 @@ BD,M
 pub struct TercenStreamGenerator {
     table_service: TableSchemaServiceClient,
     table_id: String,
-    aes: Aes,
+    aes: Aes,  // Uses .xs/.ys for quantized coordinates
     facet_spec: FacetSpec,
+    axis_ranges: HashMap<(usize, usize), (AxisRange, AxisRange)>,
 }
 
 impl StreamGenerator for TercenStreamGenerator {
     // GGRS calls this for each facet cell as it renders
     fn query_data(&self, col_idx: usize, row_idx: usize) -> Result<DataFrame> {
-        // Stream from Tercen filtered by facet indices
-        let csv_data = self.stream_facet_data(col_idx, row_idx).await?;
+        // Stream TSON chunks from Tercen
+        let mut all_dataframes = Vec::new();
 
-        // Parse CSV directly (no Arrow complexity needed!)
-        parse_csv_to_dataframe(csv_data)
+        for chunk_offset in (0..total_rows).step_by(chunk_size) {
+            // Stream TSON → Polars DataFrame (STAY COLUMNAR!)
+            let tson_bytes = self.stream_tson(table_id, columns, chunk_offset, chunk_size)?;
+            let mut df = tson_to_dataframe(&tson_bytes)?;
+
+            // Filter using Polars lazy API (predicate pushdown)
+            df = df.lazy()
+                .filter(col(".ci").eq(lit(col_idx as i64))
+                    .and(col(".ri").eq(lit(row_idx as i64))))
+                .collect()?;
+
+            // Concatenate chunks (columnar append)
+            all_dataframes.push(df);
+        }
+
+        // Combine all chunks
+        combine_dataframes(all_dataframes)
     }
 
-    fn n_col_facets(&self) -> usize { /* from crosstab spec */ }
-    fn n_row_facets(&self) -> usize { /* from crosstab spec */ }
-    fn query_x_axis(&self, col_idx, row_idx) -> Result<AxisData> { /* query range */ }
-    fn query_y_axis(&self, col_idx, row_idx) -> Result<AxisData> { /* query range */ }
+    fn n_col_facets(&self) -> usize { /* from FacetInfo */ }
+    fn n_row_facets(&self) -> usize { /* from FacetInfo */ }
+    fn query_x_axis(&self, col_idx, row_idx) -> Result<AxisData> {
+        // Pre-computed ranges with 5% padding
+        self.axis_ranges.get(&(col_idx, row_idx))
+    }
+    fn query_y_axis(&self, col_idx, row_idx) -> Result<AxisData> { /* same */ }
 }
 ```
 
 **Benefits**:
-- ✅ No Context abstraction - direct gRPC
-- ✅ No Apache Arrow - simple CSV parsing
-- ✅ No buffering - stream directly from Tercen to GGRS
+- ✅ Pure columnar operations - NO row-by-row Record construction
+- ✅ Polars lazy API with predicate pushdown for efficient filtering
+- ✅ Zero-copy operations where possible
+- ✅ Memory efficient: stable ~60MB for 475K rows
+- ✅ Fast: 5.6 seconds for 475K rows (12 bytes/row with compression)
 - ✅ Lazy loading - only fetch what GGRS needs
 - ✅ Progressive rendering - each facet renders as data arrives
 
@@ -205,12 +246,82 @@ async fn main() -> Result<()> {
 }
 ```
 
+### Columnar Architecture Deep Dive
+
+#### Records → Polars DataFrame Migration (COMPLETED ✅)
+
+The codebase underwent a complete migration from row-oriented Record processing to pure columnar Polars operations for maximum performance.
+
+**Before (Row-Oriented)**:
+```rust
+// ❌ OLD: Build records row-by-row
+let mut records = Vec::new();
+for row_idx in 0..df.height() {
+    let mut record = Record::new();
+    for col_name in df.column_names() {
+        let value = df.get_value(row_idx, col_name)?;
+        record.insert(col_name.to_string(), value);
+    }
+    records.push(record);
+}
+```
+
+**After (Columnar)**:
+```rust
+// ✅ NEW: Pure columnar operations
+let polars_df = polars_df
+    .lazy()
+    .filter(col(".ci").eq(lit(col_idx as i64))
+        .and(col(".ri").eq(lit(row_idx as i64))))
+    .collect()?;
+```
+
+**Key Changes**:
+1. **TSON Parsing** (`src/tercen/tson_convert.rs`):
+   - Converts TSON columnar arrays directly to Polars `Series` → `Column`
+   - NO intermediate row-by-row processing
+   - Stays columnar: TSON → Polars → GGRS
+
+2. **Filtering** (`src/ggrs_integration/stream_generator.rs`):
+   - Uses Polars lazy API with predicate pushdown
+   - `col(".ci").eq(lit(idx)).and(col(".ri").eq(lit(idx)))`
+   - Eliminates manual row iteration and HashMap construction
+
+3. **Concatenation**:
+   - Uses `vstack_mut()` for columnar chunk appending
+   - NO record-by-record merging
+
+4. **Type Coercion** (`ggrs-core/src/data.rs`):
+   - `column_as_f64()` auto-converts i64 → f64
+   - Handles quantized coordinates (uint16 stored as i64)
+
+**Performance Results**:
+- Test dataset: 475,688 rows
+- Processing time: 5.6 seconds
+- Memory usage: Stable at ~60MB (peak 92MB)
+- Data size: ~12 bytes/row with compression
+
+**Files Modified**:
+- `src/ggrs_integration/stream_generator.rs` - Removed all Record loops
+- `src/tercen/tson_convert.rs` - Pure columnar conversion
+- `ggrs/crates/ggrs-core/src/data.rs` - Added i64→f64 auto-conversion
+- `src/bin/test_stream_generator.rs` - Fixed string reference issues
+
 ## Key Technical Decisions
+
+### Columnar Architecture (CRITICAL!)
+- **Pure Polars Operations**: ALL data processing uses columnar operations
+- **NO Record Construction**: Never build row-by-row `Vec<Record>` or `HashMap<String, Value>`
+- **Stay Columnar**: TSON (columnar) → Polars DataFrame (columnar) → GGRS (columnar)
+- **Lazy API**: Use Polars lazy evaluation with predicate pushdown for filtering
+- **Zero-Copy**: Minimize data duplication, use references and move semantics
 
 ### Memory Efficiency
 - **Streaming Architecture**: Don't load entire table into memory; process in chunks
 - **Lazy Faceting**: Only load data for facet cells being rendered
-- **Chunked Processing**: Default 10K rows per chunk
+- **Chunked Processing**: Default 8096 rows per chunk (configurable)
+- **Schema-Based Limiting**: Use table schema row count to prevent infinite loops
+- **Test Results**: 475K rows processed in 5.6s, memory stable at ~60MB (peak 92MB)
 
 ### Proto Files Location
 Proto files should be copied/linked from: `/home/thiago/workspaces/tercen/main/sci/tercen_grpc/tercen_grpc_api/protos/`
@@ -222,12 +333,14 @@ Proto files should be copied/linked from: `/home/thiago/workspaces/tercen/main/s
 - **prost** (~0.12): Protocol Buffer serialization
 - **tokio** (~1.35): Async runtime with multi-threading
 - **tokio-stream**: Stream utilities for gRPC
-- **csv** (1.3): Simple CSV parsing (NO Apache Arrow needed!)
-- **serde**: Serialization/deserialization
+- **polars** (~0.44): Columnar DataFrame operations (CRITICAL for performance!)
+- **rustson** (0.1.14): TSON parsing (Tercen's binary format)
+- **serde** / **serde_json**: Serialization/deserialization
 - **thiserror**: Error handling
 - **anyhow**: Error context
+- **base64** (0.22): PNG encoding for result upload
 - **tikv-jemallocator** (optional): Memory allocator for performance
-- **ggrs-core** (Phase 6+): Plot generation library (local path dependency to sibling GGRS project)
+- **ggrs-core**: Plot generation library (local path dependency to sibling GGRS project at `../ggrs/crates/ggrs-core`)
 
 ### Build System
 Proto files are automatically compiled at build time using `tonic-build` in `build.rs`:
@@ -248,7 +361,20 @@ pub mod proto {
 
 ## Implementation Status
 
-**Current Phase**: Phase 4 ✅ COMPLETED → Starting Phase 5
+**Current Phase**: Phase 6 COMPLETE + Columnar Migration ✅ - Ready for Phase 7 (plot generation) and Phase 8 (result upload)
+
+**✅ Working (Columnar Architecture)**:
+1. Pure Polars columnar operations - NO Record construction
+2. TSON → Polars DataFrame conversion (schema-based limiting)
+3. Polars lazy filtering with predicate pushdown: `col().eq().and()`
+4. Chunked streaming with `vstack_mut()` concatenation
+5. Quantized coordinates: `.xs`/`.ys` (uint16 as i64) with auto i64→f64 conversion
+6. Axis range pre-computation with 5% padding
+7. Workflow/step-based context (like Python OperatorContextDev)
+8. Configuration system (operator_config.json)
+9. Test validation: 475K rows in 5.6s, ~60MB memory
+
+**📋 See**: Latest performance metrics in memory_usage_chunk_8096.csv/.png
 
 ### Completed Phases
 
@@ -274,21 +400,56 @@ pub mod proto {
 - ✅ Verified chunking works correctly
 
 #### Phase 4: Data Parsing and Filtering ✅
-- ✅ `DataRow` struct with `.ci`, `.ri`, `.x`, `.y` fields
-- ✅ `ParsedData::from_csv()` for CSV parsing
+- ✅ Switched from CSV to TSON (Tercen's binary format)
+- ✅ `tson_to_dataframe()` for TSON parsing using rustson library
+- ✅ Fixed infinite loop in data streaming (schema-based limiting)
 - ✅ `filter_by_facet()` for filtering by column/row indices
-- ✅ `DataSummary` with statistics (min/max for x/y axes)
+- ✅ Synthetic x-value generation with global offsets
 - ✅ `TercenLogger` for sending logs to Tercen
 
-### Next Steps (Phase 5)
-**Goal**: Load and parse facet metadata tables (column.csv, row.csv)
+#### Phase 5: Configuration & Facet Metadata ✅
+- ✅ Created `operator_config.json` for centralized configuration
+- ✅ Unified chunk_size across all modules
+- ✅ Loaded facet metadata (FacetInfo)
+- ✅ Pre-computed axis ranges for all facet cells
+- ✅ Schema querying (handles TableSchema, ComputedTableSchema, CubeQueryTableSchema)
 
-**Key tasks**:
-1. Extract table IDs from ComputationTask query relation
-2. Identify column and row facet table IDs from CrosstabSpec
-3. Load small facet tables (`column.csv`, `row.csv`)
-4. Parse facet metadata to determine facet structure
-5. Calculate total number of facet cells (n_col_facets × n_row_facets)
+#### Phase 6: GGRS Integration + Columnar Migration ✅
+- ✅ Implemented `StreamGenerator` trait for `TercenStreamGenerator`
+- ✅ **COLUMNAR MIGRATION**: Eliminated all Record construction, pure Polars operations
+- ✅ Fixed TSON parsing infinite loop (schema-based row limiting)
+- ✅ Implemented workflow/step-based context loading
+- ✅ Facet metadata loading (column.csv, row.csv)
+- ✅ Axis range pre-computation with 5% padding
+- ✅ Polars lazy filtering with predicate pushdown: `col(".ci").eq().and(col(".ri").eq())`
+- ✅ Quantized coordinates: `.xs`/`.ys` (uint16 as i64) instead of synthetic `.x`
+- ✅ Auto i64→f64 conversion in GGRS `column_as_f64()`
+- ✅ Configuration system (operator_config.json)
+- ✅ Standalone test binary (test_stream_generator)
+- ✅ Generated plot: `plot.png` (800x600, ~60KB)
+- ✅ Performance: 475K rows in 5.6s, memory stable at ~60MB
+
+### Next Steps
+
+**Phase 7: Plot Generation and Rendering** 📋 READY
+1. Create `EnginePlotSpec` from operator properties
+2. Instantiate `PlotGenerator` with stream generator
+3. Call `ImageRenderer::render_to_bytes()` for PNG output
+4. Test with single facet cell, then multi-facet grids
+
+**Phase 8: Result Upload to Tercen** 📋 READY
+1. Encode PNG to base64
+2. Create result DataFrame with `.content`, `filename`, `mimetype` columns
+3. Wrap in `OperatorResult` JSON structure
+4. Upload via `FileService.uploadTable()`
+5. Update task with `fileResultId`
+
+**Phase 9: Production Polish**
+1. Operator properties support (read from task)
+2. Better legend support (color mappings)
+3. Accurate `n_data_rows()` per facet
+4. Error handling improvements
+5. Progress reporting during long operations
 
 ### Complete Roadmap
 
@@ -297,9 +458,9 @@ See `docs/10_IMPLEMENTATION_PHASES.md` for details:
 - Phase 2: gRPC Connection and Simple Call ✅
 - Phase 3: Streaming Data - Test Chunking ✅
 - Phase 4: Data Parsing and Filtering ✅
-- Phase 5: Load Facet Metadata ⏭️ NEXT
-- Phase 6: First GGRS Plot
-- Phase 7: Output to Tercen Table
+- Phase 5: Load Facet Metadata ✅
+- Phase 6: First GGRS Plot ✅
+- Phase 7: Output to Tercen Table 📋 NEXT
 - Phase 8: Full Faceting Support
 - Phase 9: Production Polish
 
@@ -314,35 +475,82 @@ src/tercen/              # ⭐ Future tercen-rust crate
 ├── error.rs             # TercenError type (COMPLETE)
 ├── logger.rs            # TercenLogger for logs/progress (COMPLETE)
 ├── table.rs             # TableStreamer for data streaming (COMPLETE)
-├── data.rs              # DataRow, ParsedData, CSV parsing (COMPLETE)
-└── README.md            # Extraction plan
+├── data.rs              # DataRow, ParsedData structures (COMPLETE)
+├── tson_convert.rs      # TSON → DataFrame conversion (COMPLETE)
+├── facets.rs            # Facet metadata loading (COMPLETE)
+└── arrow_convert.rs     # Arrow format support (unused, CSV preferred)
 
 src/ggrs_integration/    # GGRS-specific (stays in this project)
-├── mod.rs               # Module stub (TODO)
-├── stream_generator.rs  # TercenStreamGenerator impl (Phase 6)
-├── plot_builder.rs      # EnginePlotSpec builder (Phase 6)
-└── renderer.rs          # ImageRenderer wrapper (Phase 6)
+├── mod.rs               # Module exports
+└── stream_generator.rs  # TercenStreamGenerator impl (COMPLETE)
+
+src/bin/
+└── test_stream_generator.rs  # Standalone test binary (COMPLETE)
 ```
 
 **Design benefits**: Clear separation, no GGRS deps in `tercen/`, easy extraction. See `src/tercen/README.md` for details.
 
 ## Development Workflow
 
-### Testing with Environment Variables
+### Testing with Workflow/Step IDs (Recommended)
 
-The operator requires these environment variables to connect to Tercen:
+Like Python's `OperatorContextDev`, you can test with workflow and step IDs:
 
 ```bash
-# Required for connection
+# Use the test script (has hardcoded test values)
+./test_local.sh
+
+# Or manually:
+export TERCEN_URI="http://127.0.0.1:50051"
+export TERCEN_TOKEN="your_token_here"
+export WORKFLOW_ID="workflow_id_here"
+export STEP_ID="step_id_here"
+
+# Run test binary
+cargo run --bin test_stream_generator
+```
+
+### Testing with Task ID (Alternative)
+
+For testing the full operator with an existing task:
+
+```bash
 export TERCEN_URI=https://tercen.com:5400
 export TERCEN_TOKEN=your_token_here
-
-# Required for task processing
 export TERCEN_TASK_ID=your_task_id_here
 
-# Run the operator
+# Run main operator
 cargo run
 ```
+
+### Important Development Principles
+
+#### ⚠️ CRITICAL: NO FALLBACK STRATEGIES ⚠️
+
+**NEVER implement fallback logic, alternative approaches, or "try this if that fails" patterns unless EXPLICITLY instructed by the user.**
+
+This is a critical design principle that prevents:
+- Unnecessary complexity
+- Masking underlying issues
+- Performance degradation from checking multiple code paths
+- Ambiguous behavior that's hard to debug
+
+**Examples**:
+- ❌ **BAD**: `if data.has_column(".ys") { use_ys() } else { use_y() }`
+- ✅ **GOOD**: `data.column(".ys")` (when user says `.ys` exists)
+- ❌ **BAD**: `let x = try_method_a().or_else(|| try_method_b()).or_else(|| try_method_c())`
+- ✅ **GOOD**: `let x = the_correct_method()`
+
+**When to use fallbacks** (ONLY these cases):
+1. User explicitly requests handling multiple scenarios
+2. User explicitly requests backward compatibility
+3. You are implementing error recovery at well-defined boundaries (e.g., user input validation)
+
+**When the user says something exists** (e.g., "use `.xs` column", "TSON format is used"):
+- Trust that specification completely
+- Implement the direct solution
+- Do NOT add checks for alternative formats or columns "just in case"
+- If something doesn't work, it's a bug to fix, not a reason to add fallbacks
 
 ### Local Development
 
@@ -366,26 +574,47 @@ cargo test
 cargo run
 ```
 
-### Implemented Architecture (Phase 4)
+### Implemented Architecture (Phase 6 Complete)
 
 The current implementation includes:
 
 **TercenClient** (`src/tercen/client.rs`):
 - `from_env()`: Create client from environment variables
 - `connect(uri, token)`: Connect with explicit credentials
-- `task_service()`, `table_service()`, `event_service()`: Get authenticated service clients
+- `task_service()`, `table_service()`, `event_service()`, `workflow_service()`: Get authenticated service clients
 - `AuthInterceptor`: Injects Bearer token into all gRPC requests
 
 **TableStreamer** (`src/tercen/table.rs`):
-- `stream_csv(table_id, columns, offset, limit)`: Stream a chunk of data as CSV
-- `stream_table_chunked(table_id, columns, chunk_size, callback)`: Stream entire table in chunks
+- `stream_tson(table_id, columns, offset, limit)`: Stream a chunk of TSON data
+- `stream_csv(table_id, columns, offset, limit)`: Stream a chunk of CSV data (legacy)
+- `get_schema(table_id)`: Get table schema with row count
+- Schema-based row limiting prevents infinite loops with zero-padded data
 
-**Data Types** (`src/tercen/data.rs`):
-- `DataRow`: Represents a row with `.ci`, `.ri`, `.x`, `.y`, and extra fields
-- `ParsedData`: Collection of rows with column names
-- `from_csv()`: Parse CSV bytes into structured data
-- `filter_by_facet()`: Filter rows by facet indices
-- `summary()`: Get statistics (min/max for axes)
+**TSON Conversion** (`src/tercen/tson_convert.rs`):
+- `tson_to_dataframe()`: Parse TSON bytes to Polars DataFrame (STAY COLUMNAR!)
+- Converts TSON columnar arrays directly to Polars `Series` → `Column`
+- Handles numeric (i64, f64) and string columns
+- NO row-by-row Record construction - pure columnar operations
+
+**Facet Support** (`src/tercen/facets.rs`):
+- `FacetMetadata`: Parses multi-column facet definitions
+- `FacetInfo`: Manages both column and row facets
+- Loads facet metadata from small tables (column.csv, row.csv)
+
+**TercenStreamGenerator** (`src/ggrs_integration/stream_generator.rs`):
+- Implements GGRS `StreamGenerator` trait for lazy data loading
+- `from_workflow_step()`: Creates generator from workflow/step IDs (like Python OperatorContextDev)
+- `compute_axis_ranges()`: Pre-computes axis ranges with 5% padding for all facet cells
+- `stream_bulk_data()`: Streams TSON chunks and converts to DataFrame (COLUMNAR!)
+- `stream_facet_data()`: Streams chunks, concatenates with `vstack_mut()` (columnar append)
+- `filter_dataframe_by_facet()`: Pure Polars lazy filtering with `col().eq().and()`
+- Uses quantized coordinates `.xs`/`.ys` directly (NO synthetic `.x` generation)
+- Uses `tokio::task::block_in_place()` for async/sync trait compatibility
+
+**Configuration** (`src/config.rs`):
+- `OperatorConfig`: Centralized configuration from `operator_config.json`
+- `chunk_size`, `max_chunks`, `default_plot_width`, `default_plot_height`
+- Falls back to sensible defaults if config missing
 
 **Logger** (`src/tercen/logger.rs`):
 - `log(message)`: Send log message to Tercen
@@ -405,6 +634,8 @@ pub enum TercenError {
     Config(String),
     #[error("Connection error: {0}")]
     Connection(String),
+    #[error("Data error: {0}")]
+    Data(String),
 }
 ```
 
@@ -466,51 +697,35 @@ Tercen organizes data as a crosstab with:
 
 ## Critical Implementation Notes
 
-### Current Implementation (Phase 4)
+### Current Implementation Status (Columnar Architecture)
 
-1. **Authentication**: `AuthInterceptor` injects Bearer token from `TERCEN_TOKEN` env var into all gRPC requests
-2. **TLS Configuration**: `ClientTlsConfig` is configured for secure connections in `TercenClient::connect()`
-3. **Streaming Architecture**: `TableStreamer` uses chunked streaming with offset/limit - never loads entire datasets into memory
-4. **CSV Parsing**: Simple `csv` crate parsing into `DataRow` structs - NO Apache Arrow complexity
-5. **Facet Filtering**: `ParsedData::filter_by_facet()` filters data by `.ci` and `.ri` indices
-6. **Logging**: `TercenLogger` sends log messages and progress to Tercen via EventService
-7. **Error Handling**: `TercenError` enum with proper error context using `thiserror`
-
-### Main Entry Point (`src/main.rs`)
-
-The main function follows this flow:
-1. Print version and phase info
-2. Check for environment variables (`TERCEN_URI`, `TERCEN_TOKEN`, `TERCEN_TASK_ID`)
-3. Connect to Tercen using `TercenClient::from_env()`
-4. If `TERCEN_TASK_ID` is set:
-   - Create `TercenLogger` for the task
-   - Call `process_task()` to handle the task
-   - Send logs to Tercen showing progress
-5. Exit with status code
-
-The `process_task()` function (Phase 4 implementation):
-- Fetches task using `TaskService.get()`
-- Extracts `ComputationTask` from task object
-- Logs task structure (query, relation, settings)
-- **Phase 5 will add**: Extract table IDs and load facet metadata
-- **Phase 6 will add**: Generate plots using GGRS
-- **Phase 7 will add**: Upload results to Tercen
-
-### Future Implementation (Phase 6+)
-
-8. **GGRS Integration**: Implement `StreamGenerator` trait for lazy data loading
-9. **Progress Reporting**: Send incremental progress updates during long operations
-10. **Resource Cleanup**: Ensure proper cleanup on errors (no partial uploads or leaked connections)
+1. **Authentication**: ✅ `AuthInterceptor` injects Bearer token from `TERCEN_TOKEN` env var
+2. **TLS Configuration**: ✅ `ClientTlsConfig` configured for secure connections
+3. **Streaming Architecture**: ✅ `TableStreamer` uses chunked streaming with schema-based limiting
+4. **TSON Parsing**: ✅ `tson_to_dataframe()` converts Tercen TSON to Polars DataFrame (COLUMNAR!)
+5. **Facet Filtering**: ✅ `filter_dataframe_by_facet()` uses Polars lazy API with predicate pushdown
+6. **Quantized Coordinates**: ✅ Uses `.xs`/`.ys` (uint16 as i64) with auto i64→f64 conversion
+7. **Logging**: ✅ `TercenLogger` sends log messages and progress to Tercen
+8. **Error Handling**: ✅ `TercenError` enum with proper error context using `thiserror`
+9. **GGRS Integration**: ✅ `TercenStreamGenerator` implements `StreamGenerator` trait (pure columnar)
+10. **Configuration**: ✅ Centralized config system with JSON file
+11. **Testing**: ✅ Standalone test binary, validated with 475K rows
+12. **Performance**: ✅ 5.6s for 475K rows, memory stable at ~60MB
 
 ## Documentation References
 
 ### Primary Documentation (Read These First)
 - **`docs/09_FINAL_DESIGN.md`** ⭐⭐⭐ - Complete architecture and final design
 - **`docs/10_IMPLEMENTATION_PHASES.md`** - Current implementation roadmap
-- **`docs/03_GRPC_INTEGRATION.md`** - gRPC API specs and examples
+- **`docs/SESSION_2025-01-05.md`** - Latest session notes with debugging details
+- **`IMPLEMENTATION_COMPLETE.md`** - Phase 6 completion status
+- **`TESTING_STATUS.md`** - Testing phase status and instructions
+- **`TEST_LOCAL.md`** - Local testing guide
+- **`WORKFLOW_TEST_INSTRUCTIONS.md`** - Workflow/step-based testing
 - **`BUILD.md`** - Comprehensive build and deployment guide
 
 ### Supporting Documentation
+- `docs/03_GRPC_INTEGRATION.md` - gRPC API specs and examples
 - `docs/08_SIMPLE_STREAMING_DESIGN.md` - Streaming architecture concepts
 - `docs/01_ARCHITECTURE.md` - Initial architecture design
 - `docs/04_DOCKER_AND_CICD.md` - Docker and CI/CD details

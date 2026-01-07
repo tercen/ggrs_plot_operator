@@ -15,7 +15,7 @@ impl<'a> TableStreamer<'a> {
         TableStreamer { client }
     }
 
-    /// Stream table data as CSV chunks
+    /// Stream table data as TSON format
     ///
     /// # Arguments
     /// * `table_id` - The Tercen table ID to stream
@@ -24,8 +24,26 @@ impl<'a> TableStreamer<'a> {
     /// * `limit` - Maximum number of rows to fetch
     ///
     /// # Returns
-    /// Vector of CSV data chunks as bytes
-    pub async fn stream_csv(
+    /// Vector of TSON binary data chunks as bytes
+    /// Get the schema for a table to retrieve metadata like row count
+    pub async fn get_schema(&self, table_id: &str) -> Result<super::client::proto::ESchema> {
+        use super::client::proto::GetRequest;
+
+        let mut table_service = self.client.table_service()?;
+        let request = tonic::Request::new(GetRequest {
+            id: table_id.to_string(),
+            ..Default::default()
+        });
+
+        let response = table_service
+            .get(request)
+            .await
+            .map_err(|e| TercenError::Grpc(Box::new(e)))?;
+
+        Ok(response.into_inner())
+    }
+
+    pub async fn stream_tson(
         &self,
         table_id: &str,
         columns: Option<Vec<String>>,
@@ -34,12 +52,14 @@ impl<'a> TableStreamer<'a> {
     ) -> Result<Vec<u8>> {
         let mut table_service = self.client.table_service()?;
 
+        eprintln!("TERCEN: Requesting offset={}, limit={}", offset, limit);
+
         let request = tonic::Request::new(ReqStreamTable {
             table_id: table_id.to_string(),
             cnames: columns.unwrap_or_default(),
             offset,
             limit,
-            binary_format: String::new(), // Empty = CSV format
+            binary_format: String::new(), // Empty = TSON format (default)
         });
 
         let mut stream = table_service
@@ -49,16 +69,28 @@ impl<'a> TableStreamer<'a> {
             .into_inner();
 
         let mut all_data = Vec::new();
+        let mut chunk_count = 0;
 
         while let Some(chunk_result) = stream.next().await {
             match chunk_result {
                 Ok(chunk) => {
+                    chunk_count += 1;
+                    eprintln!(
+                        "TERCEN: Received chunk #{} with {} bytes",
+                        chunk_count,
+                        chunk.result.len()
+                    );
                     all_data.extend_from_slice(&chunk.result);
                 }
                 Err(e) => return Err(TercenError::Grpc(Box::new(e))),
             }
         }
 
+        eprintln!(
+            "TERCEN: Total {} bytes in {} chunks",
+            all_data.len(),
+            chunk_count
+        );
         Ok(all_data)
     }
 
@@ -68,7 +100,7 @@ impl<'a> TableStreamer<'a> {
     /// * `table_id` - The Tercen table ID to stream
     /// * `columns` - Optional list of columns to fetch
     /// * `chunk_size` - Number of rows per chunk
-    /// * `callback` - Function to call with each CSV chunk
+    /// * `callback` - Function to call with each TSON chunk
     pub async fn stream_table_chunked<F>(
         &self,
         table_id: &str,
@@ -83,7 +115,7 @@ impl<'a> TableStreamer<'a> {
 
         loop {
             let chunk = self
-                .stream_csv(table_id, columns.clone(), offset, chunk_size)
+                .stream_tson(table_id, columns.clone(), offset, chunk_size)
                 .await?;
 
             if chunk.is_empty() {

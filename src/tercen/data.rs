@@ -1,30 +1,26 @@
-#![allow(dead_code)]
-use super::error::{Result, TercenError};
-use csv::ReaderBuilder;
-use serde::Deserialize;
+#![allow(dead_code, unused_imports)]
+//! DEPRECATED: This module is being replaced by tson_convert.rs
+//! CSV parsing is no longer used - Tercen returns TSON format directly.
+
+use super::error::Result;
 use std::collections::HashMap;
 
 /// Represents a row of data from Tercen table
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct DataRow {
     /// Column facet index
-    #[serde(rename = ".ci")]
     pub ci: Option<i32>,
 
     /// Row facet index
-    #[serde(rename = ".ri")]
     pub ri: Option<i32>,
 
     /// X-axis value
-    #[serde(rename = ".x")]
     pub x: Option<f64>,
 
     /// Y-axis value
-    #[serde(rename = ".y")]
     pub y: Option<f64>,
 
     /// Additional columns (colors, labels, etc.)
-    #[serde(flatten)]
     pub extra: HashMap<String, String>,
 }
 
@@ -36,25 +32,11 @@ pub struct ParsedData {
 }
 
 impl ParsedData {
-    /// Parse CSV data from Tercen into structured rows
-    pub fn from_csv(csv_data: &[u8]) -> Result<Self> {
-        let mut reader = ReaderBuilder::new().has_headers(true).from_reader(csv_data);
-
-        // Get column names
-        let headers = reader
-            .headers()
-            .map_err(|e| TercenError::Other(format!("Failed to read CSV headers: {}", e)))?;
-        let columns: Vec<String> = headers.iter().map(|s| s.to_string()).collect();
-
-        // Parse rows
-        let mut rows = Vec::new();
-        for result in reader.deserialize() {
-            let row: DataRow = result
-                .map_err(|e| TercenError::Other(format!("Failed to parse CSV row: {}", e)))?;
-            rows.push(row);
-        }
-
-        Ok(ParsedData { rows, columns })
+    /// DEPRECATED: CSV parsing no longer used - Tercen returns Arrow format
+    #[allow(dead_code)]
+    pub fn from_csv(_csv_data: &[u8]) -> Result<Self> {
+        // This function is obsolete - use arrow_to_dataframe instead
+        unimplemented!("CSV parsing replaced by Arrow - use arrow_to_dataframe")
     }
 
     /// Filter data by facet indices

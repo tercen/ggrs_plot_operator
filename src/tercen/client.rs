@@ -15,10 +15,12 @@ pub mod proto {
     tonic::include_proto!("tercen");
 }
 
+use proto::document_service_client::DocumentServiceClient;
 use proto::event_service_client::EventServiceClient;
 use proto::table_schema_service_client::TableSchemaServiceClient;
 use proto::task_service_client::TaskServiceClient;
 use proto::user_service_client::UserServiceClient;
+use proto::workflow_service_client::WorkflowServiceClient;
 
 /// Type alias for authenticated TaskService client
 pub type AuthTaskServiceClient =
@@ -39,6 +41,18 @@ pub type AuthTableSchemaServiceClient = TableSchemaServiceClient<
     tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>,
 >;
 
+/// Type alias for authenticated WorkflowService client
+#[allow(dead_code)]
+pub type AuthWorkflowServiceClient = WorkflowServiceClient<
+    tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>,
+>;
+
+/// Type alias for authenticated DocumentService client
+#[allow(dead_code)]
+pub type AuthDocumentServiceClient = DocumentServiceClient<
+    tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>,
+>;
+
 /// Interceptor that adds Bearer token authentication to all requests
 #[derive(Clone)]
 pub struct AuthInterceptor {
@@ -47,7 +61,8 @@ pub struct AuthInterceptor {
 
 impl AuthInterceptor {
     fn new(token: String) -> Result<Self> {
-        let token = format!("Bearer {}", token)
+        // gRPC expects token without "Bearer" prefix (unlike REST APIs)
+        let token = token
             .parse()
             .map_err(|e| TercenError::Auth(format!("Invalid token format: {}", e)))?;
 
@@ -73,21 +88,24 @@ pub struct TercenClient {
 impl TercenClient {
     /// Create a new TercenClient by connecting to the specified endpoint with a token
     pub async fn connect(endpoint: String, token: String) -> Result<Self> {
-        // Configure TLS
-        let tls = ClientTlsConfig::new();
+        // Configure TLS only for https:// endpoints
+        let use_tls = endpoint.starts_with("https://");
 
         // Parse and connect to the endpoint
-        let channel = Channel::from_shared(endpoint.clone())
-            .map_err(|e| TercenError::Config(format!("Invalid endpoint '{}': {}", endpoint, e)))?
-            .tls_config(tls)
-            .map_err(|e| {
+        let mut channel_builder = Channel::from_shared(endpoint.clone())
+            .map_err(|e| TercenError::Config(format!("Invalid endpoint '{}': {}", endpoint, e)))?;
+
+        // Add TLS config only for HTTPS
+        if use_tls {
+            let tls = ClientTlsConfig::new();
+            channel_builder = channel_builder.tls_config(tls).map_err(|e| {
                 TercenError::Config(format!("Failed to configure TLS for '{}': {}", endpoint, e))
-            })?
-            .connect()
-            .await
-            .map_err(|e| {
-                TercenError::Connection(format!("Failed to connect to '{}': {}", endpoint, e))
             })?;
+        }
+
+        let channel = channel_builder.connect().await.map_err(|e| {
+            TercenError::Connection(format!("Failed to connect to '{}': {}", endpoint, e))
+        })?;
 
         Ok(TercenClient { channel, token })
     }
@@ -140,6 +158,26 @@ impl TercenClient {
     pub fn table_service(&self) -> Result<AuthTableSchemaServiceClient> {
         let interceptor = AuthInterceptor::new(self.token.clone())?;
         Ok(TableSchemaServiceClient::with_interceptor(
+            self.channel.clone(),
+            interceptor,
+        ))
+    }
+
+    /// Get a WorkflowService client with authentication
+    #[allow(dead_code)]
+    pub fn workflow_service(&self) -> Result<AuthWorkflowServiceClient> {
+        let interceptor = AuthInterceptor::new(self.token.clone())?;
+        Ok(WorkflowServiceClient::with_interceptor(
+            self.channel.clone(),
+            interceptor,
+        ))
+    }
+
+    /// Get a DocumentService client with authentication
+    #[allow(dead_code)]
+    pub fn document_service(&self) -> Result<AuthDocumentServiceClient> {
+        let interceptor = AuthInterceptor::new(self.token.clone())?;
+        Ok(DocumentServiceClient::with_interceptor(
             self.channel.clone(),
             interceptor,
         ))

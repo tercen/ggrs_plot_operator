@@ -7,10 +7,8 @@
 //! - `plot_builder.rs`: Helper to build GGRS plot specs from operator properties
 //! - `renderer.rs`: Wrapper around GGRS ImageRenderer
 
-// Module declarations will be added as we implement phases
-// pub mod stream_generator;
-// pub mod plot_builder;
-// pub mod renderer;
+// Module declarations
+pub mod stream_generator;
 
 // Re-exports
-// pub use stream_generator::TercenStreamGenerator;
+pub use stream_generator::TercenStreamGenerator;

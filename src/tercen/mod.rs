@@ -19,6 +19,10 @@ pub mod logger;
 // Data modules (Phase 4)
 pub mod data;
 pub mod table;
+pub mod tson_convert;
+
+// Facet modules (Phase 5)
+pub mod facets;
 
 // Re-exports for convenience
 pub use client::TercenClient;
@@ -26,6 +30,9 @@ pub use client::TercenClient;
 pub use data::{DataRow, DataSummary, ParsedData};
 #[allow(unused_imports)]
 pub use error::{Result, TercenError};
+#[allow(unused_imports)]
+pub use facets::{FacetGroup, FacetInfo, FacetMetadata};
 pub use logger::TercenLogger;
 #[allow(unused_imports)]
 pub use table::TableStreamer;
+pub use tson_convert::tson_to_dataframe;

@@ -469,7 +469,7 @@ Phase 3 completed successfully!
        pub y: f64,
        pub ci: usize,
        pub ri: usize,
-       // Additional fields as needed
+    // Additional fields as needed
    }
 
    pub fn parse_csv_to_points(csv_data: &[u8]) -> Result<Vec<Point>> {
