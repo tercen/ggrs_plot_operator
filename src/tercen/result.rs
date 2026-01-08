@@ -194,16 +194,53 @@ fn serialize_operator_result(
             // Add kind
             col_map.insert("kind".to_string(), TsonValue::STR("Column".to_string()));
 
-            // Add column metadata
+            // Add id (from IdObject parent)
+            col_map.insert("id".to_string(), TsonValue::STR(col.id.clone()));
+
+            // Add column metadata (from ColumnSchema parent)
             col_map.insert("name".to_string(), TsonValue::STR(col.name.clone()));
             col_map.insert("type".to_string(), TsonValue::STR(col.r#type.clone()));
             col_map.insert("nRows".to_string(), TsonValue::I32(col.n_rows));
+            col_map.insert("size".to_string(), TsonValue::I32(col.size));
 
-            // Decode the TSON-encoded column values to get the data array
-            let col_data = rustson::decode_bytes(&col.values).map_err(|e| {
+            // Add metaData (empty if not set)
+            if let Some(ref meta) = col.meta_data {
+                let mut meta_map = HashMap::new();
+                meta_map.insert(
+                    "kind".to_string(),
+                    TsonValue::STR("ColumnSchemaMetaData".to_string()),
+                );
+                meta_map.insert(
+                    "sort".to_string(),
+                    TsonValue::LST(
+                        meta.sort
+                            .iter()
+                            .map(|s| TsonValue::STR(s.clone()))
+                            .collect(),
+                    ),
+                );
+                meta_map.insert("ascending".to_string(), TsonValue::BOOL(meta.ascending));
+                meta_map.insert(
+                    "quartiles".to_string(),
+                    TsonValue::LST(
+                        meta.quartiles
+                            .iter()
+                            .map(|q| TsonValue::STR(q.clone()))
+                            .collect(),
+                    ),
+                );
+                col_map.insert("metaData".to_string(), TsonValue::MAP(meta_map));
+            }
+
+            // Add cValues (from Column) - usually null/empty for result tables
+            // Since our dataframe_to_table doesn't set cValues, we can skip this
+            // The Python client also typically leaves this as the default empty CValues()
+
+            // Decode the TSON-encoded column values to get the values array
+            let col_values = rustson::decode_bytes(&col.values).map_err(|e| {
                 format!("Failed to decode column values for '{}': {:?}", col.name, e)
             })?;
-            col_map.insert("data".to_string(), col_data);
+            col_map.insert("values".to_string(), col_values);
 
             columns_list.push(TsonValue::MAP(col_map));
         }
