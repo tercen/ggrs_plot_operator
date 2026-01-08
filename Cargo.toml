@@ -18,17 +18,18 @@ path = "src/main.rs"
 name = "test_stream_generator"
 path = "src/bin/test_stream_generator.rs"
 
-[[bin]]
-name = "test_api_exploration"
-path = "src/bin/test_api_exploration.rs"
-
-[[bin]]
-name = "test_facet_counts"
-path = "src/bin/test_facet_counts.rs"
-
-[[bin]]
-name = "explore_schemas"
-path = "src/bin/explore_schemas.rs"
+# Disabled test binaries (outdated, need updating)
+# [[bin]]
+# name = "test_api_exploration"
+# path = "src/bin/test_api_exploration.rs"
+#
+# [[bin]]
+# name = "test_facet_counts"
+# path = "src/bin/test_facet_counts.rs"
+#
+# [[bin]]
+# name = "explore_schemas"
+# path = "src/bin/explore_schemas.rs"
 
 [dependencies]
 # Async runtime

@@ -231,7 +231,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 if df.nrow() > 0 {
                                     println!("        First row values:");
                                     for col_name in &columns {
-                                        if let Ok(val) = df.get_value(0, &col_name) {
+                                        if let Ok(val) = df.get_value(0, col_name) {
                                             println!("          {} = {:?}", col_name, val);
                                         }
                                     }
@@ -478,9 +478,7 @@ async fn get_cube_query(
     // Unwrap EWorkflow to get Workflow
     let workflow = e_workflow.object.ok_or("No workflow object")?;
 
-    let workflow = match workflow {
-        e_workflow::Object::Workflow(w) => w,
-    };
+    let e_workflow::Object::Workflow(workflow) = workflow;
 
     println!("  Workflow name: {}", workflow.name);
 

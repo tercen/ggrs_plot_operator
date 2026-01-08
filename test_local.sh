@@ -53,18 +53,18 @@ echo ""
 
 # Clean old binaries and plot to ensure fresh build
 echo "Cleaning old binaries and plot..."
-rm -f target/debug/test_stream_generator_v2 plot.png
+rm -f target/debug/test_stream_generator plot.png
 echo ""
 
 # Build first to avoid compilation time in measurements
 echo "Building test binary..."
-cargo build --bin test_stream_generator_v2 2>&1 | tail -10
+cargo build --bin test_stream_generator 2>&1 | tail -10
 BUILD_EXIT=$?
 if [ $BUILD_EXIT -ne 0 ]; then
     echo ""
     echo "ERROR: Build failed with exit code $BUILD_EXIT"
     echo "Showing full build output:"
-    cargo build --bin test_stream_generator_v2 2>&1
+    cargo build --bin test_stream_generator 2>&1
     exit $BUILD_EXIT
 fi
 echo ""
@@ -75,7 +75,7 @@ CSV_OUTPUT="memory_usage_backend_${BACKEND}.csv"
 
 # Start the test process and immediately get its PID
 echo "Starting test process and memory tracker..."
-./target/debug/test_stream_generator_v2 2>&1 &
+./target/debug/test_stream_generator 2>&1 &
 TEST_PID=$!
 
 # Start memory tracker immediately

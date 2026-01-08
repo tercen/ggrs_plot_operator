@@ -144,10 +144,10 @@ impl TercenStreamGenerator {
     ///
     /// This is the primary constructor used by the operator.
     pub async fn from_workflow_step(
-        client: Arc<TercenClient>,
-        workflow_id: &str,
-        step_id: &str,
-        chunk_size: usize,
+        _client: Arc<TercenClient>,
+        _workflow_id: &str,
+        _step_id: &str,
+        _chunk_size: usize,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         // Implementation would go here - loading workflow/step data
         // For now, placeholder error
@@ -607,7 +607,7 @@ impl TercenStreamGenerator {
     ///
     /// This transformation is backend-agnostic and must happen BEFORE data reaches renderers.
     /// Uses the pre-computed axis ranges for this specific facet cell.
-
+    ///
     /// Filter DataFrame to only include rows for a specific facet cell
     ///
     /// For single facet: Returns data as-is (no filtering needed)
