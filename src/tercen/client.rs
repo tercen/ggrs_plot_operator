@@ -17,6 +17,7 @@ pub mod proto {
 
 use proto::document_service_client::DocumentServiceClient;
 use proto::event_service_client::EventServiceClient;
+use proto::file_service_client::FileServiceClient;
 use proto::table_schema_service_client::TableSchemaServiceClient;
 use proto::task_service_client::TaskServiceClient;
 use proto::user_service_client::UserServiceClient;
@@ -52,6 +53,10 @@ pub type AuthWorkflowServiceClient = WorkflowServiceClient<
 pub type AuthDocumentServiceClient = DocumentServiceClient<
     tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>,
 >;
+
+/// Type alias for authenticated FileService client
+pub type AuthFileServiceClient =
+    FileServiceClient<tonic::service::interceptor::InterceptedService<Channel, AuthInterceptor>>;
 
 /// Interceptor that adds Bearer token authentication to all requests
 #[derive(Clone)]
@@ -178,6 +183,15 @@ impl TercenClient {
     pub fn document_service(&self) -> Result<AuthDocumentServiceClient> {
         let interceptor = AuthInterceptor::new(self.token.clone())?;
         Ok(DocumentServiceClient::with_interceptor(
+            self.channel.clone(),
+            interceptor,
+        ))
+    }
+
+    /// Get a FileService client with authentication
+    pub fn file_service(&self) -> Result<AuthFileServiceClient> {
+        let interceptor = AuthInterceptor::new(self.token.clone())?;
+        Ok(FileServiceClient::with_interceptor(
             self.channel.clone(),
             interceptor,
         ))

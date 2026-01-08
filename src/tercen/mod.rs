@@ -24,6 +24,10 @@ pub mod tson_convert;
 // Facet modules (Phase 5)
 pub mod facets;
 
+// Result upload modules (Phase 8)
+pub mod result;
+pub mod table_convert;
+
 // Re-exports for convenience
 pub use client::TercenClient;
 #[allow(unused_imports)]
