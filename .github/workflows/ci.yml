@@ -52,6 +52,11 @@ jobs:
             libssl-dev \
             protobuf-compiler \
             libjemalloc-dev
+            libglib2.0-dev \
+            libcairo2-dev \
+            libpango1.0-dev \
+            libfontconfig1-dev \
+            libfreetype6-dev
 
       - name: Check formatting
         run: cargo fmt -- --check
