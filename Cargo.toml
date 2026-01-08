@@ -56,7 +56,8 @@ polars = { version = "0.44", default-features = false, features = ["lazy", "dtyp
 base64 = "0.22"
 
 # GGRS plotting library with WebGPU backend
-ggrs-core = { path = "/home/thiago/workspaces/tercen/main/ggrs/crates/ggrs-core", features = ["webgpu-backend", "cairo-backend"] }
+# Cargo will automatically find ggrs-core in the ggrs workspace (crates/ggrs-core)
+ggrs-core = { git = "https://github.com/tercen/ggrs", branch = "main", features = ["webgpu-backend", "cairo-backend"] }
 
 [features]
 jemalloc = ["tikv-jemallocator"]
