@@ -227,10 +227,7 @@ fn extract_cube_query(
 ) -> Result<(CubeQuery, tercen::client::proto::ComputationTask), Box<dyn std::error::Error>> {
     use tercen::client::proto::e_task;
 
-    let task_obj = task
-        .object
-        .as_ref()
-        .ok_or("Task has no object")?;
+    let task_obj = task.object.as_ref().ok_or("Task has no object")?;
 
     match task_obj {
         e_task::Object::Computationtask(ct) => {
@@ -238,7 +235,10 @@ fn extract_cube_query(
             Ok((query.clone().into(), ct.clone()))
         }
         e_task::Object::Runcomputationtask(rct) => {
-            let query = rct.query.as_ref().ok_or("RunComputationTask has no query")?;
+            let query = rct
+                .query
+                .as_ref()
+                .ok_or("RunComputationTask has no query")?;
 
             // Convert RunComputationTask to ComputationTask for result upload
             // (they have the same structure)
@@ -288,9 +288,7 @@ async fn find_y_axis_table(
 
     // Find the extra table (not qt, column, or row)
     let cube_query = match task.object.as_ref() {
-        Some(e_task::Object::Cubequerytask(cqt)) => {
-            cqt.query.as_ref().ok_or("No query in task")?
-        }
+        Some(e_task::Object::Cubequerytask(cqt)) => cqt.query.as_ref().ok_or("No query in task")?,
         _ => return Err("Task is not a CubeQueryTask".into()),
     };
 
