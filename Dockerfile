@@ -7,7 +7,7 @@
 # ============================================================================
 # Builder Stage - Rust toolchain (not included in final image)
 # ============================================================================
-FROM rust:1.83-slim-bookworm AS builder
+FROM rust:1.84-slim-bookworm AS builder
 
 # Install build dependencies (including git for private dependencies)
 RUN apt-get update && apt-get install -y \
