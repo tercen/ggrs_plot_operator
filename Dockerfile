@@ -9,17 +9,26 @@
 # ============================================================================
 FROM rust:1.83-slim-bookworm AS builder
 
-# Install build dependencies
+# Install build dependencies (including git for private dependencies)
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     protobuf-compiler \
     libjemalloc-dev \
     make \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
 WORKDIR /app
+
+# Configure git to use build secret for authentication
+# This allows cargo to fetch private git dependencies
+RUN --mount=type=secret,id=gh_pat \
+    if [ -f /run/secrets/gh_pat ]; then \
+      GH_PAT=$(cat /run/secrets/gh_pat) && \
+      git config --global url."https://${GH_PAT}@github.com/".insteadOf "https://github.com/"; \
+    fi
 
 # Copy manifests
 COPY Cargo.toml ./

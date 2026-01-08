@@ -22,6 +22,10 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Configure git for private dependencies
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
@@ -101,6 +105,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          secrets: |
+            gh_pat=${{ secrets.GH_PAT }}
 
       # Generate artifact attestation
       - name: Generate artifact attestation
