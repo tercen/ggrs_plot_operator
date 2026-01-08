@@ -66,11 +66,8 @@ RUN apt-get update && apt-get install -y \
     libfreetype6 \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN groupadd -f -g 1000 operator && \
-    useradd -m -u 1000 -g operator operator && \
-    mkdir -p /app && \
-    chown -R operator:operator /app
+# Create app directory
+RUN mkdir -p /app
 
 WORKDIR /app
 
@@ -80,8 +77,7 @@ COPY --from=builder /app/target/dev-release/ggrs_plot_operator /usr/local/bin/gg
 # Set permissions
 RUN chmod +x /usr/local/bin/ggrs_plot_operator
 
-# Switch to non-root user
-USER operator
+# NOTE: Running as root (Tercen will set --user 0:0 or 1000:1000 as needed)
 
 # Configure jemalloc environment variables for optimal memory management
 ENV LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
