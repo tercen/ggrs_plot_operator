@@ -17,18 +17,15 @@ RUN apt-get update && apt-get install -y \
     libjemalloc-dev \
     make \
     git \
+    libglib2.0-dev \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libfontconfig1-dev \
+    libfreetype6-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
 WORKDIR /app
-
-# Configure git to use build secret for authentication
-# This allows cargo to fetch private git dependencies
-RUN --mount=type=secret,id=gh_pat \
-    if [ -f /run/secrets/gh_pat ]; then \
-      GH_PAT=$(cat /run/secrets/gh_pat) && \
-      git config --global url."https://${GH_PAT}@github.com/".insteadOf "https://github.com/"; \
-    fi
 
 # Copy manifests
 COPY Cargo.toml ./
@@ -44,7 +41,13 @@ COPY src ./src
 
 # Build with jemalloc feature enabled
 # Release mode with optimizations
-RUN cargo build --release --features jemalloc
+# Configure git auth in same RUN to access private dependencies
+RUN --mount=type=secret,id=gh_pat \
+    if [ -f /run/secrets/gh_pat ]; then \
+      GH_PAT=$(cat /run/secrets/gh_pat) && \
+      git config --global url."https://${GH_PAT}@github.com/".insteadOf "https://github.com/"; \
+    fi && \
+    cargo build --release --features jemalloc
 
 # ============================================================================
 # Runtime Stage - Minimal runtime environment (no Rust toolchain)
@@ -57,6 +60,9 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     libjemalloc2 \
     libssl3 \
+    libcairo2 \
+    libfontconfig1 \
+    libfreetype6 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
