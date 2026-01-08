@@ -153,7 +153,7 @@ async fn process_task(
     });
 
     let response = task_service.get(request).await?;
-    let task = response.into_inner();
+    let mut task = response.into_inner();
 
     println!("✓ Task retrieved");
 
@@ -213,10 +213,17 @@ async fn process_task(
     let png_buffer = renderer.render_to_bytes()?;
     println!("✓ Plot generated ({} bytes)", png_buffer.len());
 
-    // Step 5: Upload result
+    // Step 5: Upload result and update task
     println!("\n[5/5] Uploading result to Tercen...");
-    tercen::result::save_result(client_arc, &project_id, png_buffer).await?;
+    tercen::result::save_result(client_arc.clone(), &project_id, png_buffer, &mut task).await?;
     println!("✓ Result uploaded successfully");
+
+    // Step 6: Update task with result file ID
+    println!("\n[6/6] Linking result to task...");
+    let mut task_service = client_arc.task_service()?;
+    let update_response = task_service.update(task).await?;
+    let _updated_task = update_response.into_inner();
+    println!("✓ Task updated with result file");
 
     println!("\n=== Task Processing Complete ===");
     Ok(())

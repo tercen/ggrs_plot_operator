@@ -22,12 +22,13 @@ use std::sync::Arc;
 /// Save a PNG plot result back to Tercen
 ///
 /// Takes the generated PNG buffer, converts it to Tercen's result format,
-/// and uploads it via the FileService.
+/// uploads it via the FileService, and updates the task with the file ID.
 ///
 /// # Arguments
 /// * `client` - Tercen client for gRPC calls
 /// * `project_id` - Project ID to upload the result to
 /// * `png_buffer` - Raw PNG bytes from the renderer
+/// * `task` - Mutable reference to the task (will be updated with fileResultId)
 ///
 /// # Returns
 /// Result indicating success or error during upload
@@ -35,6 +36,7 @@ pub async fn save_result(
     client: Arc<TercenClient>,
     project_id: &str,
     png_buffer: Vec<u8>,
+    task: &mut proto::ETask,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use base64::Engine;
 
@@ -78,10 +80,14 @@ pub async fn save_result(
     println!("Creating FileDocument...");
     let file_doc = create_file_document(project_id, result_bytes.len() as i32);
 
-    // 7. Upload via FileService
-    println!("Uploading result...");
-    let uploaded_doc = upload_result(&client, file_doc, result_bytes).await?;
-    println!("  Uploaded with ID: {}", uploaded_doc.id);
+    // 7. Upload via TableSchemaService.uploadTable() (NOT FileService.upload()!)
+    println!("Uploading result table...");
+    let schema_id = upload_result_table(&client, file_doc, result_bytes).await?;
+    println!("  Uploaded table with schema ID: {}", schema_id);
+
+    // 8. Update task with fileResultId (use schema_id as the file result ID)
+    update_task_file_result_id(task, &schema_id)?;
+    println!("  Task fileResultId set to: {}", schema_id);
 
     println!("Result saved successfully!");
     Ok(())
@@ -195,48 +201,97 @@ fn create_file_document(project_id: &str, size: i32) -> proto::FileDocument {
     }
 }
 
-/// Upload result via FileService
-async fn upload_result(
+/// Upload result table via TableSchemaService.uploadTable()
+///
+/// This is the correct method for uploading operator results.
+/// FileService.upload() is for regular files, but operator results
+/// must use TableSchemaService.uploadTable() to properly set the dataUri.
+async fn upload_result_table(
     client: &TercenClient,
     file_doc: proto::FileDocument,
     result_bytes: Vec<u8>,
-) -> Result<proto::FileDocument, Box<dyn std::error::Error>> {
-    use futures::stream;
-
-    let mut file_service = client.file_service()?;
+) -> Result<String, Box<dyn std::error::Error>> {
+    let mut table_service = client.table_service()?;
 
     // Create EFileDocument wrapper
     let e_file_doc = proto::EFileDocument {
         object: Some(proto::e_file_document::Object::Filedocument(file_doc)),
     };
 
-    // Create upload request stream
-    // First message: file metadata
-    let first_msg = proto::ReqUpload {
+    // Create upload request (single message in a stream)
+    let request = proto::ReqUploadTable {
         file: Some(e_file_doc),
-        bytes: vec![],
-    };
-
-    // Second message: data bytes
-    let second_msg = proto::ReqUpload {
-        file: None,
         bytes: result_bytes,
     };
 
-    let request_stream = stream::iter(vec![first_msg, second_msg]);
+    // Wrap in stream (even though it's just one message)
+    use futures::stream;
+    let request_stream = stream::iter(vec![request]);
 
-    // Send streaming request
-    let response = file_service.upload(request_stream).await?;
+    // Send request
+    let response = table_service.upload_table(request_stream).await?;
     let resp_upload = response.into_inner();
 
-    // Extract FileDocument from response
-    let uploaded_doc = resp_upload
-        .result
-        .and_then(|e| match e.object {
-            Some(proto::e_file_document::Object::Filedocument(doc)) => Some(doc),
-            _ => None,
-        })
-        .ok_or("Upload response missing FileDocument")?;
+    // Extract schema ID from response
+    let e_schema = resp_upload.result.ok_or("Upload response missing schema")?;
 
-    Ok(uploaded_doc)
+    // Extract the actual schema from the wrapper
+    use proto::e_schema;
+    let schema_obj = e_schema.object.ok_or("ESchema has no object")?;
+
+    let schema_id = match schema_obj {
+        e_schema::Object::Tableschema(ts) => ts.id,
+        e_schema::Object::Computedtableschema(cts) => cts.id,
+        e_schema::Object::Cubequerytableschema(cqts) => cqts.id,
+        e_schema::Object::Schema(s) => s.id,
+    };
+
+    Ok(schema_id)
+}
+
+/// Update the task's fileResultId field
+///
+/// Operators always run as RunComputationTask, so we only handle that type.
+fn update_task_file_result_id(
+    task: &mut proto::ETask,
+    file_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use proto::e_task;
+
+    let task_obj = task.object.as_mut().ok_or("Task has no object field")?;
+
+    match task_obj {
+        e_task::Object::Runcomputationtask(rct) => {
+            rct.file_result_id = file_id.to_string();
+            Ok(())
+        }
+        other => {
+            let type_name = match other {
+                e_task::Object::Computationtask(_) => "ComputationTask",
+                e_task::Object::Cubequerytask(_) => "CubeQueryTask",
+                e_task::Object::Csvtask(_) => "CSVTask",
+                e_task::Object::Creategitoperatortask(_) => "CreateGitOperatorTask",
+                e_task::Object::Exporttabletask(_) => "ExportTableTask",
+                e_task::Object::Exportworkflowtask(_) => "ExportWorkflowTask",
+                e_task::Object::Gitprojecttask(_) => "GitProjectTask",
+                e_task::Object::Gltask(_) => "GlTask",
+                e_task::Object::Importgitdatasettask(_) => "ImportGitDatasetTask",
+                e_task::Object::Importgitworkflowtask(_) => "ImportGitWorkflowTask",
+                e_task::Object::Importworkflowtask(_) => "ImportWorkflowTask",
+                e_task::Object::Librarytask(_) => "LibraryTask",
+                e_task::Object::Projecttask(_) => "ProjectTask",
+                e_task::Object::Runwebapptask(_) => "RunWebAppTask",
+                e_task::Object::Runworkflowtask(_) => "RunWorkflowTask",
+                e_task::Object::Savecomputationresulttask(_) => "SaveComputationResultTask",
+                e_task::Object::Task(_) => "Task",
+                e_task::Object::Testoperatortask(_) => "TestOperatorTask",
+                _ => "Unknown",
+            };
+            Err(format!(
+                "Expected RunComputationTask but got {}. Operators should always run as RunComputationTask.",
+                type_name
+            )
+            .into())
+        }
+    }
 }
