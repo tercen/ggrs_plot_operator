@@ -18,6 +18,7 @@ Plot operator using ggrs
 - [ ] Scatter plot with multiple facets
 - [ ] Add plot legend
 - [ ] Add support for colors
+- [ ] Review and optimize dependencies
 
 ### 0.0.3
 - [ ] Add operator properties - Plot width and height
