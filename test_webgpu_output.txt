@@ -1,1165 +1,0 @@
-Setting chunk_size to 16192 in operator_config.json...
-
-============================================
-Running test with chunk_size=16192
-============================================
-
-Building test binary...
-warning: `ggrs-core` (lib) generated 24 warnings (run `cargo fix --lib -p ggrs-core` to apply 15 suggestions)
-warning: `ggrs_plot_operator` (lib) generated 1 warning (run `cargo fix --lib -p ggrs_plot_operator` to apply 1 suggestion)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 13.82s
-
-Starting test process and memory tracker...
-Monitoring process 149514 with interval 5ms
-Duration: until process exits
-Time: 0.0s | Memory: 1920 KB (1.88 MB)[PHASE @0.000s] START: Test initialization
-=== TercenStreamGenerator Test ===
-
-✓ Loaded configuration from operator_config.json
-Configuration:
-  URI: http://127.0.0.1:50051
-  Token: eyJ0eXAiOi...
-  Workflow ID: 28e3c9888e9935f667aed6f07c007c7c
-  Step ID: b9659735-27db-4480-b398-4e391431480f
-  Chunk size: 16192
-
-[PHASE @0.000s] PHASE 1: Connecting to Tercen
-Connecting to Tercen...
-✓ Connected successfully
-
-[PHASE @0.001s] PHASE 2: Fetching CubeQuery
-Fetching CubeQuery from workflow step...
-  Getting workflow...
-  Calling WorkflowService.get()...
-Time: 0.0s | Memory: 25600 KB (25.00 MB)  Workflow name: Scatter Simple Large
-  Step name: Data step
-  Has crosstab model: true
-  CubeQueryTask ID from crosstab model: '28e3c9888e9935f667aed6f07c009276'
-  State task ID (for comparison): ''
-  Getting CubeQuery from existing task: 28e3c9888e9935f667aed6f07c009276
-Time: 0.0s | Memory: 26112 KB (25.50 MB)  DEBUG: ETask received
-    Has object: true
-    ✓ Task type: CubeQueryTask
-      ID: 28e3c9888e9935f667aed6f07c009276
-      Owner: test
-      Has query: true
-      Schema IDs (generated tables): 4 tables
-        Table 0: 28e3c9888e9935f667aed6f07c009c6e
-        Table 1: 28e3c9888e9935f667aed6f07c00a194
-        Table 2: 28e3c9888e9935f667aed6f07c00a4dc
-        Table 3: 28e3c9888e9935f667aed6f07c00a846
-      === CubeQuery from CubeQueryTask ===
-      Axis queries: 1
-      Main table (qt): 28e3c9888e9935f667aed6f07c009c6e
-      Column table: 28e3c9888e9935f667aed6f07c00a194
-      Row table: 28e3c9888e9935f667aed6f07c00a4dc
-        Axis query 0: chart_type=point
-          Y-axis settings meta pairs: 0
-          X-axis settings meta pairs: 0
-✓ CubeQuery retrieved
-  Main table (qt_hash): 28e3c9888e9935f667aed6f07c009c6e
-  Column table (column_hash): 28e3c9888e9935f667aed6f07c00a194
-  Row table (row_hash): 28e3c9888e9935f667aed6f07c00a4dc
-
-  DEBUG: Full CubeQuery details:
-    Axis queries: 1
-    Col columns (factors): 0
-    Row columns (factors): 0
-    Has relation: YES
-    Relation type: Some(Renamerelation(RenameRelation { id: "bab46ec0-e996-4863-bfc1-ce0fd769536c", in_names: ["Gender", "First Name", "Last Name", "City", "State", "Country", "Age", "Annual Vacation Days", "Average Monthly Spend on Entertainment", "Number of Online Purchases in Last Month", "Number of Charity Donations in Last Year", "Average Weekly Exercise Hours", "Investment Portfolio Value", "Health Consciousness Rating", "Education Level", "Average Daily Screen Time", "Environmental Awareness Rating", "Social Media Influence Score", "Risk Tolerance in Investments", "Number of Professional Trainings Attended", "Tech-Savviness Score", "Financial Wellness Index", "Lifestyle Balance Score", "Entertainment Engagement Factor", "Social Responsibility Index", "Work-Life Balance Indicator", "Investment Risk Appetite", "Eco-Consciousness Metric", "Stress Management Score", "Time Management Skill", "Lifestyle Choice", "28e3c9888e9935f667aed6f07c0028d1._rids"], out_names: ["Gender", "First Name", "Last Name", "City", "State", "Country", "Age", "Annual Vacation Days", "Average Monthly Spend on Entertainment", "Number of Online Purchases in Last Month", "Number of Charity Donations in Last Year", "Average Weekly Exercise Hours", "Investment Portfolio Value", "Health Consciousness Rating", "Education Level", "Average Daily Screen Time", "Environmental Awareness Rating", "Social Media Influence Score", "Risk Tolerance in Investments", "Number of Professional Trainings Attended", "Tech-Savviness Score", "Financial Wellness Index", "Lifestyle Balance Score", "Entertainment Engagement Factor", "Social Responsibility Index", "Work-Life Balance Indicator", "Investment Risk Appetite", "Eco-Consciousness Metric", "Stress Management Score", "Time Management Skill", "Lifestyle Choice", "rowId"], relation: Some(ERelation { object: Some(Simplerelation(SimpleRelation { id: "28e3c9888e9935f667aed6f07c0028d1", index: 0 })) }) }))
-    Has operator settings: YES
-    Namespace: ds1
-    Environment pairs: 0
-
-    Axis query 0:
-      Chart type: point
-      Point size: 4
-      Y-axis factor: name='Average Weekly Exercise Hours', type='double'
-      X-axis factor: name='', type='string'
-      Y-axis settings meta pairs: 0
-      X-axis settings meta pairs: 0
-      Colors: 0
-      Labels: 0
-      Errors: 0
-
-[PHASE @0.009s] PHASE 2.5: Investigating axis range tables
-
-  DEBUG: Found 4 schema tables from CubeQueryTask
-  Found extra table 3: 28e3c9888e9935f667aed6f07c00a846
-    This might be the axis ranges table!
-    Fetching schema...
-Time: 0.0s | Memory: 26624 KB (26.00 MB)      Table type: CubeQueryTableSchema
-      Query table type: y
-      Columns: 4
-        Column 0: name='.ri', type='int32'
-        Column 1: name='.ticks', type='double'
-        Column 2: name='.minY', type='double'
-        Column 3: name='.maxY', type='double'
-      Fetching first 5 rows (all columns)...
-TERCEN: Requesting offset=0, limit=5
-Time: 0.0s | Memory: 26752 KB (26.12 MB)Time: 0.0s | Memory: 26752 KB (26.12 MB)Time: 0.0s | Memory: 26752 KB (26.12 MB)Time: 0.0s | Memory: 26752 KB (26.12 MB)Time: 0.0s | Memory: 26752 KB (26.12 MB)Time: 0.0s | Memory: 26752 KB (26.12 MB)TERCEN: Received chunk #1 with 23 bytes
-TERCEN: Total 23 bytes in 1 chunks
-        Got 23 bytes of data
-        Parsed 0 rows
-        Columns: []
-      Fetching first row with specific columns [.ri, .minY, .maxY]...
-TERCEN: Requesting offset=0, limit=1
-Time: 0.1s | Memory: 29568 KB (28.88 MB)Time: 0.1s | Memory: 29568 KB (28.88 MB)Time: 0.1s | Memory: 29568 KB (28.88 MB)TERCEN: Received chunk #1 with 161 bytes
-TERCEN: Total 161 bytes in 1 chunks
-        Got 161 bytes of data
-TSON: Parsed table with 3 columns, 1 rows
-        Parsed 1 rows
-        Columns: [".ri", ".minY", ".maxY"]
-        First row values:
-          .ri = Int(0)
-          .minY = Float(0.0)
-          .maxY = Float(9.5)
-
-  DEBUG: Checking main table schema for column statistics...
-Time: 0.1s | Memory: 35200 KB (34.38 MB)    Table has 14 columns
-    Column 0: name='.cri', type='uint64'
-      Quartiles: []
-      Properties: 0 pairs
-    Column 1: name='.ci', type='int32'
-      Quartiles: []
-      Properties: 0 pairs
-    Column 2: name='.y', type='double'
-      Quartiles: []
-      Properties: 0 pairs
-    Column 3: name='.sids', type='int32'
-      Quartiles: []
-      Properties: 0 pairs
-    Column 4: name='.axisIndex', type='int32'
-      Quartiles: []
-      Properties: 0 pairs
-
-Time: 0.1s | Memory: 35200 KB (34.38 MB)  Found Y-axis table: 28e3c9888e9935f667aed6f07c00a846
-[PHASE @0.072s] PHASE 3: Creating StreamGenerator (loads facets + axis ranges from table)
-Creating TercenStreamGenerator...
-TERCEN: Requesting offset=0, limit=10000
-TERCEN: Requesting offset=0, limit=10000
-Time: 0.1s | Memory: 35200 KB (34.38 MB)Time: 0.1s | Memory: 35200 KB (34.38 MB)Time: 0.1s | Memory: 35200 KB (34.38 MB)Time: 0.1s | Memory: 35200 KB (34.38 MB)Time: 0.1s | Memory: 35200 KB (34.38 MB)Time: 0.1s | Memory: 35200 KB (34.38 MB)TERCEN: Received chunk #1 with 23 bytes
-TERCEN: Total 23 bytes in 1 chunks
-TERCEN: Received chunk #1 with 23 bytes
-TERCEN: Total 23 bytes in 1 chunks
-Loaded facets: 1 columns × 1 rows = 1 cells
-Loading axis ranges from Y-axis table: 28e3c9888e9935f667aed6f07c00a846
-  Fetching Y-axis table schema...
-Time: 0.1s | Memory: 35200 KB (34.38 MB)  Y-axis table columns: [".ri", ".ticks", ".minY", ".maxY"]
-  Fetching Y-axis ranges from table (expecting 1 rows = 1 cols × 1 rows)...
-TERCEN: Requesting offset=0, limit=1
-Time: 0.1s | Memory: 35200 KB (34.38 MB)Time: 0.1s | Memory: 35200 KB (34.38 MB)Time: 0.1s | Memory: 35200 KB (34.38 MB)TERCEN: Received chunk #1 with 161 bytes
-TERCEN: Total 161 bytes in 1 chunks
-  Got 161 bytes, parsing...
-TSON: Parsed table with 3 columns, 1 rows
-  Parsed 1 rows
-  Columns: [".ri", ".minY", ".maxY"]
-  Getting total row count from main table schema...
-Time: 0.1s | Memory: 35200 KB (34.38 MB)  Total rows in main table: 475688
-  Facet (0, 0): Y range [0, 9.5] (using total row count 475688 for X-axis)
-  Loaded axis ranges for 1 facet cells
-[PHASE @0.127s] PHASE 3 COMPLETE: StreamGenerator created
-✓ Stream generator created successfully
-
-=== Facet Information ===
-Column facets: 1
-Row facets: 1
-Total facet cells: 1
-
-=== Testing Axis Ranges ===
-Facet cell (0, 0):
-  X-axis: [0.00, 475688.00] (data: [0.00, 475688.00])
-  Y-axis: [0.00, 9.50] (data: [0.00, 9.50])
-
-[PHASE @0.127s] PHASE 4: Testing data query (100 rows)
-=== Testing Data Query ===
-Querying data chunk for facet (0, 0), range 0-100...
-DEBUG: GGRS requesting facet (0, 0) rows 0-100 (len=100)
-DEBUG:   Fetching chunk: offset=0, limit=100
-TERCEN: Requesting offset=0, limit=100
-Time: 0.1s | Memory: 35584 KB (34.75 MB)Time: 0.1s | Memory: 35584 KB (34.75 MB)Time: 0.1s | Memory: 35584 KB (34.75 MB)Time: 0.1s | Memory: 35584 KB (34.75 MB)TERCEN: Received chunk #1 with 499 bytes
-TERCEN: Total 499 bytes in 1 chunks
-TSON: Parsed table with 2 columns, 100 rows
-DEBUG:   Fetched 100 rows from table
-DEBUG:   Filtered to 100 rows for facet (0, 0)
-DEBUG: Total accumulated 1 chunks for facet (0, 0)
-DEBUG: Final DataFrame has 100 rows
-DEBUG:   X range: Float64(0.0) to Float64(99.0)
-[PHASE @0.148s] PHASE 4 COMPLETE: Data query finished
-✓ Received 100 rows
-  Columns: [".xs", ".ys", ".x"]
-
-First 5 rows:
-  Row 0: .x=Float(0.0) 
-  Row 1: .x=Float(1.0) 
-  Row 2: .x=Float(2.0) 
-  Row 3: .x=Float(3.0) 
-  Row 4: .x=Float(4.0) 
-[PHASE @0.148s] PHASE 5: Starting plot generation
-
-=== Generating Plot ===
-Creating plot specification...
-[PHASE @0.148s] PHASE 5.1: Creating PlotGenerator
-Creating plot generator...
-DEBUG: Bulk streaming rows 0-10000 (len=10000) with facet indices
-TERCEN: Requesting offset=0, limit=10000
-Time: 0.2s | Memory: 36352 KB (35.50 MB)Time: 0.2s | Memory: 36352 KB (35.50 MB)Time: 0.2s | Memory: 36352 KB (35.50 MB)Time: 0.2s | Memory: 36352 KB (35.50 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.2s | Memory: 41088 KB (40.12 MB)DEBUG: Bulk streaming rows 10000-20000 (len=10000) with facet indices
-TERCEN: Requesting offset=10000, limit=10000
-Time: 0.2s | Memory: 53064 KB (51.82 MB)Time: 0.2s | Memory: 53064 KB (51.82 MB)Time: 0.2s | Memory: 53064 KB (51.82 MB)Time: 0.2s | Memory: 53064 KB (51.82 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 20000-30000 (len=10000) with facet indices
-TERCEN: Requesting offset=20000, limit=10000
-Time: 0.2s | Memory: 52888 KB (51.65 MB)Time: 0.2s | Memory: 52888 KB (51.65 MB)Time: 0.2s | Memory: 52888 KB (51.65 MB)Time: 0.2s | Memory: 52888 KB (51.65 MB)Time: 0.2s | Memory: 52888 KB (51.65 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.2s | Memory: 53272 KB (52.02 MB)DEBUG: Bulk streaming rows 30000-40000 (len=10000) with facet indices
-TERCEN: Requesting offset=30000, limit=10000
-Time: 0.2s | Memory: 53016 KB (51.77 MB)Time: 0.2s | Memory: 53016 KB (51.77 MB)Time: 0.2s | Memory: 53016 KB (51.77 MB)Time: 0.2s | Memory: 53016 KB (51.77 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.3s | Memory: 53272 KB (52.02 MB)DEBUG: Bulk streaming rows 40000-50000 (len=10000) with facet indices
-TERCEN: Requesting offset=40000, limit=10000
-Time: 0.3s | Memory: 53144 KB (51.90 MB)Time: 0.3s | Memory: 53144 KB (51.90 MB)Time: 0.3s | Memory: 53144 KB (51.90 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 50000-60000 (len=10000) with facet indices
-TERCEN: Requesting offset=50000, limit=10000
-Time: 0.3s | Memory: 53356 KB (52.11 MB)Time: 0.3s | Memory: 53356 KB (52.11 MB)Time: 0.3s | Memory: 53356 KB (52.11 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.3s | Memory: 53484 KB (52.23 MB)DEBUG: Bulk streaming rows 60000-70000 (len=10000) with facet indices
-TERCEN: Requesting offset=60000, limit=10000
-Time: 0.3s | Memory: 53428 KB (52.18 MB)Time: 0.3s | Memory: 53428 KB (52.18 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-Time: 0.3s | Memory: 53428 KB (52.18 MB)TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 70000-80000 (len=10000) with facet indices
-TERCEN: Requesting offset=70000, limit=10000
-Time: 0.3s | Memory: 53428 KB (52.18 MB)Time: 0.3s | Memory: 53428 KB (52.18 MB)Time: 0.3s | Memory: 53428 KB (52.18 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 80000-90000 (len=10000) with facet indices
-TERCEN: Requesting offset=80000, limit=10000
-Time: 0.3s | Memory: 53428 KB (52.18 MB)Time: 0.3s | Memory: 53428 KB (52.18 MB)Time: 0.3s | Memory: 53428 KB (52.18 MB)Time: 0.3s | Memory: 53428 KB (52.18 MB)Time: 0.3s | Memory: 53428 KB (52.18 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.3s | Memory: 53812 KB (52.55 MB)DEBUG: Bulk streaming rows 90000-100000 (len=10000) with facet indices
-TERCEN: Requesting offset=90000, limit=10000
-Time: 0.4s | Memory: 53428 KB (52.18 MB)Time: 0.4s | Memory: 53428 KB (52.18 MB)Time: 0.4s | Memory: 53428 KB (52.18 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.4s | Memory: 53812 KB (52.55 MB)DEBUG: Bulk streaming rows 100000-110000 (len=10000) with facet indices
-TERCEN: Requesting offset=100000, limit=10000
-Time: 0.4s | Memory: 53460 KB (52.21 MB)Time: 0.4s | Memory: 53460 KB (52.21 MB)Time: 0.4s | Memory: 53460 KB (52.21 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-Time: 0.4s | Memory: 53460 KB (52.21 MB)TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 110000-120000 (len=10000) with facet indices
-TERCEN: Requesting offset=110000, limit=10000
-Time: 0.4s | Memory: 53424 KB (52.17 MB)Time: 0.4s | Memory: 53424 KB (52.17 MB)Time: 0.4s | Memory: 53424 KB (52.17 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-Time: 0.4s | Memory: 53424 KB (52.17 MB)TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 120000-130000 (len=10000) with facet indices
-TERCEN: Requesting offset=120000, limit=10000
-Time: 0.4s | Memory: 53428 KB (52.18 MB)Time: 0.4s | Memory: 53428 KB (52.18 MB)Time: 0.4s | Memory: 53428 KB (52.18 MB)Time: 0.4s | Memory: 53428 KB (52.18 MB)Time: 0.4s | Memory: 53428 KB (52.18 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 130000-140000 (len=10000) with facet indices
-TERCEN: Requesting offset=130000, limit=10000
-Time: 0.4s | Memory: 53476 KB (52.22 MB)Time: 0.4s | Memory: 53476 KB (52.22 MB)Time: 0.5s | Memory: 53476 KB (52.22 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-Time: 0.5s | Memory: 53732 KB (52.47 MB)TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 140000-150000 (len=10000) with facet indices
-TERCEN: Requesting offset=140000, limit=10000
-Time: 0.5s | Memory: 53640 KB (52.38 MB)Time: 0.5s | Memory: 53640 KB (52.38 MB)Time: 0.5s | Memory: 53640 KB (52.38 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.5s | Memory: 54024 KB (52.76 MB)DEBUG: Bulk streaming rows 150000-160000 (len=10000) with facet indices
-TERCEN: Requesting offset=150000, limit=10000
-Time: 0.5s | Memory: 53596 KB (52.34 MB)Time: 0.5s | Memory: 53596 KB (52.34 MB)Time: 0.5s | Memory: 53596 KB (52.34 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 160000-170000 (len=10000) with facet indices
-TERCEN: Requesting offset=160000, limit=10000
-Time: 0.5s | Memory: 53608 KB (52.35 MB)Time: 0.5s | Memory: 53608 KB (52.35 MB)Time: 0.5s | Memory: 53608 KB (52.35 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.5s | Memory: 53992 KB (52.73 MB)DEBUG: Bulk streaming rows 170000-180000 (len=10000) with facet indices
-TERCEN: Requesting offset=170000, limit=10000
-Time: 0.5s | Memory: 53572 KB (52.32 MB)Time: 0.5s | Memory: 53572 KB (52.32 MB)Time: 0.5s | Memory: 53572 KB (52.32 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.5s | Memory: 53828 KB (52.57 MB)DEBUG: Bulk streaming rows 180000-190000 (len=10000) with facet indices
-TERCEN: Requesting offset=180000, limit=10000
-Time: 0.5s | Memory: 53528 KB (52.27 MB)Time: 0.5s | Memory: 53528 KB (52.27 MB)Time: 0.5s | Memory: 53528 KB (52.27 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.6s | Memory: 53912 KB (52.65 MB)DEBUG: Bulk streaming rows 190000-200000 (len=10000) with facet indices
-TERCEN: Requesting offset=190000, limit=10000
-Time: 0.6s | Memory: 53644 KB (52.39 MB)Time: 0.6s | Memory: 53644 KB (52.39 MB)Time: 0.6s | Memory: 53644 KB (52.39 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.6s | Memory: 53900 KB (52.64 MB)DEBUG: Bulk streaming rows 200000-210000 (len=10000) with facet indices
-TERCEN: Requesting offset=200000, limit=10000
-Time: 0.6s | Memory: 53648 KB (52.39 MB)Time: 0.6s | Memory: 53648 KB (52.39 MB)Time: 0.6s | Memory: 53648 KB (52.39 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 210000-220000 (len=10000) with facet indices
-TERCEN: Requesting offset=210000, limit=10000
-Time: 0.6s | Memory: 53648 KB (52.39 MB)Time: 0.6s | Memory: 53648 KB (52.39 MB)Time: 0.6s | Memory: 53648 KB (52.39 MB)Time: 0.6s | Memory: 53648 KB (52.39 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.6s | Memory: 54032 KB (52.77 MB)DEBUG: Bulk streaming rows 220000-230000 (len=10000) with facet indices
-TERCEN: Requesting offset=220000, limit=10000
-Time: 0.6s | Memory: 53648 KB (52.39 MB)Time: 0.6s | Memory: 53648 KB (52.39 MB)Time: 0.6s | Memory: 53648 KB (52.39 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.6s | Memory: 53776 KB (52.52 MB)DEBUG: Bulk streaming rows 230000-240000 (len=10000) with facet indices
-TERCEN: Requesting offset=230000, limit=10000
-Time: 0.6s | Memory: 53600 KB (52.34 MB)Time: 0.6s | Memory: 53600 KB (52.34 MB)Time: 0.7s | Memory: 53600 KB (52.34 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-Time: 0.7s | Memory: 53600 KB (52.34 MB)TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 240000-250000 (len=10000) with facet indices
-TERCEN: Requesting offset=240000, limit=10000
-Time: 0.7s | Memory: 53612 KB (52.36 MB)Time: 0.7s | Memory: 53612 KB (52.36 MB)Time: 0.7s | Memory: 53612 KB (52.36 MB)Time: 0.7s | Memory: 53612 KB (52.36 MB)Time: 0.7s | Memory: 53612 KB (52.36 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.7s | Memory: 53996 KB (52.73 MB)DEBUG: Bulk streaming rows 250000-260000 (len=10000) with facet indices
-TERCEN: Requesting offset=250000, limit=10000
-Time: 0.7s | Memory: 53668 KB (52.41 MB)Time: 0.7s | Memory: 53668 KB (52.41 MB)Time: 0.7s | Memory: 53668 KB (52.41 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.7s | Memory: 54052 KB (52.79 MB)DEBUG: Bulk streaming rows 260000-270000 (len=10000) with facet indices
-TERCEN: Requesting offset=260000, limit=10000
-Time: 0.7s | Memory: 53692 KB (52.43 MB)Time: 0.7s | Memory: 53692 KB (52.43 MB)Time: 0.7s | Memory: 53692 KB (52.43 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 270000-280000 (len=10000) with facet indices
-TERCEN: Requesting offset=270000, limit=10000
-Time: 0.7s | Memory: 53692 KB (52.43 MB)Time: 0.7s | Memory: 53692 KB (52.43 MB)Time: 0.7s | Memory: 53692 KB (52.43 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.7s | Memory: 54204 KB (52.93 MB)DEBUG: Bulk streaming rows 280000-290000 (len=10000) with facet indices
-TERCEN: Requesting offset=280000, limit=10000
-Time: 0.7s | Memory: 53692 KB (52.43 MB)Time: 0.8s | Memory: 53692 KB (52.43 MB)Time: 0.8s | Memory: 53692 KB (52.43 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-Time: 0.8s | Memory: 53820 KB (52.56 MB)TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 290000-300000 (len=10000) with facet indices
-TERCEN: Requesting offset=290000, limit=10000
-Time: 0.8s | Memory: 53740 KB (52.48 MB)Time: 0.8s | Memory: 53740 KB (52.48 MB)Time: 0.8s | Memory: 53740 KB (52.48 MB)Time: 0.8s | Memory: 53740 KB (52.48 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 300000-310000 (len=10000) with facet indices
-TERCEN: Requesting offset=300000, limit=10000
-Time: 0.8s | Memory: 53820 KB (52.56 MB)Time: 0.8s | Memory: 53820 KB (52.56 MB)Time: 0.8s | Memory: 53820 KB (52.56 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.8s | Memory: 53820 KB (52.56 MB)DEBUG: Bulk streaming rows 310000-320000 (len=10000) with facet indices
-TERCEN: Requesting offset=310000, limit=10000
-Time: 0.8s | Memory: 53820 KB (52.56 MB)Time: 0.8s | Memory: 53820 KB (52.56 MB)Time: 0.8s | Memory: 53820 KB (52.56 MB)Time: 0.8s | Memory: 53820 KB (52.56 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.8s | Memory: 53820 KB (52.56 MB)Time: 0.8s | Memory: 54204 KB (52.93 MB)DEBUG: Bulk streaming rows 320000-330000 (len=10000) with facet indices
-TERCEN: Requesting offset=320000, limit=10000
-Time: 0.8s | Memory: 53820 KB (52.56 MB)Time: 0.8s | Memory: 53820 KB (52.56 MB)Time: 0.9s | Memory: 53820 KB (52.56 MB)Time: 0.9s | Memory: 53820 KB (52.56 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 330000-340000 (len=10000) with facet indices
-TERCEN: Requesting offset=330000, limit=10000
-Time: 0.9s | Memory: 53820 KB (52.56 MB)Time: 0.9s | Memory: 53820 KB (52.56 MB)Time: 0.9s | Memory: 53820 KB (52.56 MB)Time: 0.9s | Memory: 53820 KB (52.56 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.9s | Memory: 54204 KB (52.93 MB)DEBUG: Bulk streaming rows 340000-350000 (len=10000) with facet indices
-TERCEN: Requesting offset=340000, limit=10000
-Time: 0.9s | Memory: 53820 KB (52.56 MB)Time: 0.9s | Memory: 53820 KB (52.56 MB)Time: 0.9s | Memory: 53820 KB (52.56 MB)Time: 0.9s | Memory: 53820 KB (52.56 MB)Time: 0.9s | Memory: 53820 KB (52.56 MB)Time: 0.9s | Memory: 53820 KB (52.56 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-Time: 0.9s | Memory: 53948 KB (52.68 MB)TSON: Parsed table with 4 columns, 10000 rows
-Time: 0.9s | Memory: 54076 KB (52.81 MB)Time: 0.9s | Memory: 54204 KB (52.93 MB)DEBUG: Bulk streaming rows 350000-360000 (len=10000) with facet indices
-TERCEN: Requesting offset=350000, limit=10000
-Time: 0.9s | Memory: 53784 KB (52.52 MB)Time: 0.9s | Memory: 53784 KB (52.52 MB)Time: 0.9s | Memory: 53784 KB (52.52 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-Time: 1.0s | Memory: 53784 KB (52.52 MB)TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 360000-370000 (len=10000) with facet indices
-TERCEN: Requesting offset=360000, limit=10000
-Time: 1.0s | Memory: 53764 KB (52.50 MB)Time: 1.0s | Memory: 53764 KB (52.50 MB)Time: 1.0s | Memory: 53764 KB (52.50 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 1.0s | Memory: 54020 KB (52.75 MB)DEBUG: Bulk streaming rows 370000-380000 (len=10000) with facet indices
-TERCEN: Requesting offset=370000, limit=10000
-Time: 1.0s | Memory: 53896 KB (52.63 MB)Time: 1.0s | Memory: 53896 KB (52.63 MB)Time: 1.0s | Memory: 53896 KB (52.63 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 380000-390000 (len=10000) with facet indices
-TERCEN: Requesting offset=380000, limit=10000
-Time: 1.0s | Memory: 53896 KB (52.63 MB)Time: 1.0s | Memory: 53896 KB (52.63 MB)Time: 1.0s | Memory: 53896 KB (52.63 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 1.0s | Memory: 54024 KB (52.76 MB)Time: 1.0s | Memory: 54408 KB (53.13 MB)DEBUG: Bulk streaming rows 390000-400000 (len=10000) with facet indices
-TERCEN: Requesting offset=390000, limit=10000
-Time: 1.0s | Memory: 53924 KB (52.66 MB)Time: 1.0s | Memory: 53924 KB (52.66 MB)Time: 1.0s | Memory: 53924 KB (52.66 MB)Time: 1.0s | Memory: 53924 KB (52.66 MB)Time: 1.0s | Memory: 53924 KB (52.66 MB)Time: 1.0s | Memory: 53924 KB (52.66 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 1.0s | Memory: 54180 KB (52.91 MB)DEBUG: Bulk streaming rows 400000-410000 (len=10000) with facet indices
-TERCEN: Requesting offset=400000, limit=10000
-Time: 1.1s | Memory: 53972 KB (52.71 MB)Time: 1.1s | Memory: 53972 KB (52.71 MB)Time: 1.1s | Memory: 53972 KB (52.71 MB)Time: 1.1s | Memory: 53972 KB (52.71 MB)Time: 1.1s | Memory: 53972 KB (52.71 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 1.1s | Memory: 54484 KB (53.21 MB)DEBUG: Bulk streaming rows 410000-420000 (len=10000) with facet indices
-TERCEN: Requesting offset=410000, limit=10000
-Time: 1.1s | Memory: 53972 KB (52.71 MB)Time: 1.1s | Memory: 53972 KB (52.71 MB)Time: 1.1s | Memory: 53972 KB (52.71 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 1.1s | Memory: 54356 KB (53.08 MB)DEBUG: Bulk streaming rows 420000-430000 (len=10000) with facet indices
-TERCEN: Requesting offset=420000, limit=10000
-Time: 1.1s | Memory: 53936 KB (52.67 MB)Time: 1.1s | Memory: 53936 KB (52.67 MB)Time: 1.1s | Memory: 53936 KB (52.67 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 1.1s | Memory: 54320 KB (53.05 MB)DEBUG: Bulk streaming rows 430000-440000 (len=10000) with facet indices
-TERCEN: Requesting offset=430000, limit=10000
-Time: 1.1s | Memory: 53940 KB (52.68 MB)Time: 1.1s | Memory: 53940 KB (52.68 MB)Time: 1.1s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 440000-450000 (len=10000) with facet indices
-TERCEN: Requesting offset=440000, limit=10000
-Time: 1.1s | Memory: 53988 KB (52.72 MB)Time: 1.1s | Memory: 53988 KB (52.72 MB)Time: 1.2s | Memory: 53988 KB (52.72 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 450000-460000 (len=10000) with facet indices
-TERCEN: Requesting offset=450000, limit=10000
-Time: 1.2s | Memory: 53988 KB (52.72 MB)Time: 1.2s | Memory: 53988 KB (52.72 MB)Time: 1.2s | Memory: 53988 KB (52.72 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 1.2s | Memory: 54244 KB (52.97 MB)DEBUG: Bulk streaming rows 460000-470000 (len=10000) with facet indices
-TERCEN: Requesting offset=460000, limit=10000
-Time: 1.2s | Memory: 54036 KB (52.77 MB)Time: 1.2s | Memory: 54036 KB (52.77 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-Time: 1.2s | Memory: 54036 KB (52.77 MB)TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 470000-475688 (len=5688) with facet indices
-TERCEN: Requesting offset=470000, limit=5688
-Time: 1.2s | Memory: 53988 KB (52.72 MB)Time: 1.2s | Memory: 53988 KB (52.72 MB)Time: 1.2s | Memory: 53988 KB (52.72 MB)TERCEN: Received chunk #1 with 68431 bytes
-TERCEN: Total 68431 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 5688 rows
-Time: 1.2s | Memory: 53988 KB (52.72 MB)DEBUG: Bulk streaming rows 0-10000 (len=10000) with facet indices
-TERCEN: Requesting offset=0, limit=10000
-Time: 1.2s | Memory: 53988 KB (52.72 MB)Time: 1.2s | Memory: 53988 KB (52.72 MB)Time: 1.2s | Memory: 53988 KB (52.72 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 10000-20000 (len=10000) with facet indices
-TERCEN: Requesting offset=10000, limit=10000
-Time: 1.2s | Memory: 53940 KB (52.68 MB)Time: 1.2s | Memory: 53940 KB (52.68 MB)Time: 1.2s | Memory: 53940 KB (52.68 MB)Time: 1.2s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 20000-30000 (len=10000) with facet indices
-TERCEN: Requesting offset=20000, limit=10000
-Time: 1.2s | Memory: 53940 KB (52.68 MB)Time: 1.3s | Memory: 53940 KB (52.68 MB)Time: 1.3s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 1.3s | Memory: 54196 KB (52.93 MB)DEBUG: Bulk streaming rows 30000-40000 (len=10000) with facet indices
-TERCEN: Requesting offset=30000, limit=10000
-Time: 1.3s | Memory: 53940 KB (52.68 MB)Time: 1.3s | Memory: 53940 KB (52.68 MB)Time: 1.3s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 40000-50000 (len=10000) with facet indices
-TERCEN: Requesting offset=40000, limit=10000
-Time: 1.3s | Memory: 53940 KB (52.68 MB)Time: 1.3s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 1.3s | Memory: 53940 KB (52.68 MB)DEBUG: Bulk streaming rows 50000-60000 (len=10000) with facet indices
-TERCEN: Requesting offset=50000, limit=10000
-Time: 1.3s | Memory: 53940 KB (52.68 MB)Time: 1.3s | Memory: 53940 KB (52.68 MB)Time: 1.3s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 60000-70000 (len=10000) with facet indices
-TERCEN: Requesting offset=60000, limit=10000
-Time: 1.3s | Memory: 53940 KB (52.68 MB)Time: 1.3s | Memory: 53940 KB (52.68 MB)Time: 1.3s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 1.3s | Memory: 53940 KB (52.68 MB)DEBUG: Bulk streaming rows 70000-80000 (len=10000) with facet indices
-TERCEN: Requesting offset=70000, limit=10000
-Time: 1.3s | Memory: 53940 KB (52.68 MB)Time: 1.3s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 1.3s | Memory: 53940 KB (52.68 MB)DEBUG: Bulk streaming rows 80000-90000 (len=10000) with facet indices
-TERCEN: Requesting offset=80000, limit=10000
-Time: 1.4s | Memory: 53940 KB (52.68 MB)Time: 1.4s | Memory: 53940 KB (52.68 MB)Time: 1.4s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 90000-100000 (len=10000) with facet indices
-TERCEN: Requesting offset=90000, limit=10000
-Time: 1.4s | Memory: 53940 KB (52.68 MB)Time: 1.4s | Memory: 53940 KB (52.68 MB)Time: 1.4s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 100000-110000 (len=10000) with facet indices
-TERCEN: Requesting offset=100000, limit=10000
-Time: 1.4s | Memory: 53940 KB (52.68 MB)Time: 1.4s | Memory: 53940 KB (52.68 MB)Time: 1.4s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 110000-120000 (len=10000) with facet indices
-TERCEN: Requesting offset=110000, limit=10000
-Time: 1.4s | Memory: 53940 KB (52.68 MB)Time: 1.4s | Memory: 53940 KB (52.68 MB)Time: 1.4s | Memory: 53940 KB (52.68 MB)Time: 1.4s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 120000-130000 (len=10000) with facet indices
-TERCEN: Requesting offset=120000, limit=10000
-Time: 1.4s | Memory: 53940 KB (52.68 MB)Time: 1.4s | Memory: 53940 KB (52.68 MB)Time: 1.4s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 130000-140000 (len=10000) with facet indices
-TERCEN: Requesting offset=130000, limit=10000
-Time: 1.4s | Memory: 53940 KB (52.68 MB)Time: 1.4s | Memory: 53940 KB (52.68 MB)Time: 1.4s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 140000-150000 (len=10000) with facet indices
-TERCEN: Requesting offset=140000, limit=10000
-Time: 1.4s | Memory: 53940 KB (52.68 MB)Time: 1.5s | Memory: 53940 KB (52.68 MB)Time: 1.5s | Memory: 53940 KB (52.68 MB)Time: 1.5s | Memory: 53940 KB (52.68 MB)Time: 1.5s | Memory: 53940 KB (52.68 MB)Time: 1.5s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 150000-160000 (len=10000) with facet indices
-TERCEN: Requesting offset=150000, limit=10000
-Time: 1.5s | Memory: 53940 KB (52.68 MB)Time: 1.5s | Memory: 53940 KB (52.68 MB)Time: 1.5s | Memory: 53940 KB (52.68 MB)Time: 1.5s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 160000-170000 (len=10000) with facet indices
-TERCEN: Requesting offset=160000, limit=10000
-Time: 1.5s | Memory: 53940 KB (52.68 MB)Time: 1.5s | Memory: 53940 KB (52.68 MB)Time: 1.5s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 170000-180000 (len=10000) with facet indices
-TERCEN: Requesting offset=170000, limit=10000
-Time: 1.5s | Memory: 53940 KB (52.68 MB)Time: 1.5s | Memory: 53940 KB (52.68 MB)Time: 1.5s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 180000-190000 (len=10000) with facet indices
-TERCEN: Requesting offset=180000, limit=10000
-Time: 1.5s | Memory: 53940 KB (52.68 MB)Time: 1.5s | Memory: 53940 KB (52.68 MB)Time: 1.5s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 190000-200000 (len=10000) with facet indices
-TERCEN: Requesting offset=190000, limit=10000
-Time: 1.5s | Memory: 53940 KB (52.68 MB)Time: 1.6s | Memory: 53940 KB (52.68 MB)Time: 1.6s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 200000-210000 (len=10000) with facet indices
-TERCEN: Requesting offset=200000, limit=10000
-Time: 1.6s | Memory: 53940 KB (52.68 MB)Time: 1.6s | Memory: 53940 KB (52.68 MB)Time: 1.6s | Memory: 53940 KB (52.68 MB)Time: 1.6s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 210000-220000 (len=10000) with facet indices
-TERCEN: Requesting offset=210000, limit=10000
-Time: 1.6s | Memory: 53940 KB (52.68 MB)Time: 1.6s | Memory: 53940 KB (52.68 MB)Time: 1.6s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 220000-230000 (len=10000) with facet indices
-TERCEN: Requesting offset=220000, limit=10000
-Time: 1.6s | Memory: 53940 KB (52.68 MB)Time: 1.6s | Memory: 53940 KB (52.68 MB)Time: 1.6s | Memory: 53940 KB (52.68 MB)Time: 1.6s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 230000-240000 (len=10000) with facet indices
-TERCEN: Requesting offset=230000, limit=10000
-Time: 1.6s | Memory: 53940 KB (52.68 MB)Time: 1.6s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 240000-250000 (len=10000) with facet indices
-TERCEN: Requesting offset=240000, limit=10000
-Time: 1.6s | Memory: 53940 KB (52.68 MB)Time: 1.6s | Memory: 53940 KB (52.68 MB)Time: 1.6s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 1.6s | Memory: 54196 KB (52.93 MB)DEBUG: Bulk streaming rows 250000-260000 (len=10000) with facet indices
-TERCEN: Requesting offset=250000, limit=10000
-Time: 1.6s | Memory: 53940 KB (52.68 MB)Time: 1.7s | Memory: 53940 KB (52.68 MB)Time: 1.7s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 260000-270000 (len=10000) with facet indices
-TERCEN: Requesting offset=260000, limit=10000
-Time: 1.7s | Memory: 53940 KB (52.68 MB)Time: 1.7s | Memory: 53940 KB (52.68 MB)Time: 1.7s | Memory: 53940 KB (52.68 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 270000-280000 (len=10000) with facet indices
-TERCEN: Requesting offset=270000, limit=10000
-Time: 1.7s | Memory: 54040 KB (52.77 MB)Time: 1.7s | Memory: 54040 KB (52.77 MB)Time: 1.7s | Memory: 54040 KB (52.77 MB)Time: 1.7s | Memory: 54040 KB (52.77 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 280000-290000 (len=10000) with facet indices
-TERCEN: Requesting offset=280000, limit=10000
-Time: 1.7s | Memory: 54040 KB (52.77 MB)Time: 1.7s | Memory: 54040 KB (52.77 MB)Time: 1.7s | Memory: 54040 KB (52.77 MB)Time: 1.7s | Memory: 54040 KB (52.77 MB)Time: 1.7s | Memory: 54040 KB (52.77 MB)Time: 1.7s | Memory: 54040 KB (52.77 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 290000-300000 (len=10000) with facet indices
-TERCEN: Requesting offset=290000, limit=10000
-Time: 1.7s | Memory: 54092 KB (52.82 MB)Time: 1.7s | Memory: 54092 KB (52.82 MB)Time: 1.7s | Memory: 54092 KB (52.82 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 1.7s | Memory: 54220 KB (52.95 MB)DEBUG: Bulk streaming rows 300000-310000 (len=10000) with facet indices
-TERCEN: Requesting offset=300000, limit=10000
-Time: 1.8s | Memory: 54092 KB (52.82 MB)Time: 1.8s | Memory: 54092 KB (52.82 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 310000-320000 (len=10000) with facet indices
-TERCEN: Requesting offset=310000, limit=10000
-Time: 1.8s | Memory: 54092 KB (52.82 MB)Time: 1.8s | Memory: 54092 KB (52.82 MB)Time: 1.8s | Memory: 54092 KB (52.82 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 320000-330000 (len=10000) with facet indices
-TERCEN: Requesting offset=320000, limit=10000
-Time: 1.8s | Memory: 54092 KB (52.82 MB)Time: 1.8s | Memory: 54092 KB (52.82 MB)Time: 1.8s | Memory: 54092 KB (52.82 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 330000-340000 (len=10000) with facet indices
-TERCEN: Requesting offset=330000, limit=10000
-Time: 1.8s | Memory: 54092 KB (52.82 MB)Time: 1.8s | Memory: 54092 KB (52.82 MB)Time: 1.8s | Memory: 54092 KB (52.82 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 340000-350000 (len=10000) with facet indices
-TERCEN: Requesting offset=340000, limit=10000
-Time: 1.8s | Memory: 54140 KB (52.87 MB)Time: 1.8s | Memory: 54140 KB (52.87 MB)Time: 1.8s | Memory: 54140 KB (52.87 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 350000-360000 (len=10000) with facet indices
-TERCEN: Requesting offset=350000, limit=10000
-Time: 1.8s | Memory: 54140 KB (52.87 MB)Time: 1.8s | Memory: 54140 KB (52.87 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-Time: 1.8s | Memory: 54140 KB (52.87 MB)TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 360000-370000 (len=10000) with facet indices
-TERCEN: Requesting offset=360000, limit=10000
-Time: 1.8s | Memory: 54140 KB (52.87 MB)Time: 1.8s | Memory: 54140 KB (52.87 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-Time: 1.8s | Memory: 54140 KB (52.87 MB)DEBUG: Bulk streaming rows 370000-380000 (len=10000) with facet indices
-TERCEN: Requesting offset=370000, limit=10000
-Time: 1.9s | Memory: 54140 KB (52.87 MB)Time: 1.9s | Memory: 54140 KB (52.87 MB)Time: 1.9s | Memory: 54140 KB (52.87 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 380000-390000 (len=10000) with facet indices
-TERCEN: Requesting offset=380000, limit=10000
-Time: 1.9s | Memory: 54140 KB (52.87 MB)Time: 1.9s | Memory: 54140 KB (52.87 MB)Time: 1.9s | Memory: 54140 KB (52.87 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 390000-400000 (len=10000) with facet indices
-TERCEN: Requesting offset=390000, limit=10000
-Time: 1.9s | Memory: 54140 KB (52.87 MB)Time: 1.9s | Memory: 54140 KB (52.87 MB)Time: 1.9s | Memory: 54140 KB (52.87 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 400000-410000 (len=10000) with facet indices
-TERCEN: Requesting offset=400000, limit=10000
-Time: 1.9s | Memory: 54140 KB (52.87 MB)Time: 1.9s | Memory: 54140 KB (52.87 MB)Time: 1.9s | Memory: 54140 KB (52.87 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 410000-420000 (len=10000) with facet indices
-TERCEN: Requesting offset=410000, limit=10000
-Time: 1.9s | Memory: 54188 KB (52.92 MB)Time: 1.9s | Memory: 54188 KB (52.92 MB)Time: 1.9s | Memory: 54188 KB (52.92 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 420000-430000 (len=10000) with facet indices
-TERCEN: Requesting offset=420000, limit=10000
-Time: 1.9s | Memory: 54188 KB (52.92 MB)Time: 1.9s | Memory: 54188 KB (52.92 MB)Time: 1.9s | Memory: 54188 KB (52.92 MB)Time: 1.9s | Memory: 54188 KB (52.92 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 430000-440000 (len=10000) with facet indices
-TERCEN: Requesting offset=430000, limit=10000
-Time: 2.0s | Memory: 54188 KB (52.92 MB)Time: 2.0s | Memory: 54188 KB (52.92 MB)Time: 2.0s | Memory: 54188 KB (52.92 MB)Time: 2.0s | Memory: 54188 KB (52.92 MB)Time: 2.0s | Memory: 54188 KB (52.92 MB)Time: 2.0s | Memory: 54188 KB (52.92 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 440000-450000 (len=10000) with facet indices
-TERCEN: Requesting offset=440000, limit=10000
-Time: 2.0s | Memory: 54188 KB (52.92 MB)Time: 2.0s | Memory: 54188 KB (52.92 MB)Time: 2.0s | Memory: 54188 KB (52.92 MB)Time: 2.0s | Memory: 54188 KB (52.92 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 450000-460000 (len=10000) with facet indices
-TERCEN: Requesting offset=450000, limit=10000
-Time: 2.0s | Memory: 54188 KB (52.92 MB)Time: 2.0s | Memory: 54188 KB (52.92 MB)Time: 2.0s | Memory: 54188 KB (52.92 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-Time: 2.0s | Memory: 54188 KB (52.92 MB)TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 460000-470000 (len=10000) with facet indices
-TERCEN: Requesting offset=460000, limit=10000
-Time: 2.0s | Memory: 54188 KB (52.92 MB)Time: 2.0s | Memory: 54188 KB (52.92 MB)Time: 2.0s | Memory: 54188 KB (52.92 MB)Time: 2.0s | Memory: 54188 KB (52.92 MB)TERCEN: Received chunk #1 with 120175 bytes
-TERCEN: Total 120175 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 10000 rows
-DEBUG: Bulk streaming rows 470000-475688 (len=5688) with facet indices
-TERCEN: Requesting offset=470000, limit=5688
-Time: 2.0s | Memory: 54188 KB (52.92 MB)Time: 2.0s | Memory: 54188 KB (52.92 MB)Time: 2.1s | Memory: 54188 KB (52.92 MB)TERCEN: Received chunk #1 with 68431 bytes
-TERCEN: Total 68431 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 5688 rows
-[PHASE @2.051s] PHASE 5.2: Creating ImageRenderer
-Creating image renderer...
-[PHASE @2.051s] PHASE 5.3: Rendering plot (GGRS queries data here)
-Rendering plot...
-Time: 2.1s | Memory: 57644 KB (56.29 MB)Time: 2.1s | Memory: 59692 KB (58.29 MB)Time: 2.1s | Memory: 59948 KB (58.54 MB)Time: 2.1s | Memory: 60588 KB (59.17 MB)DEBUG: Bulk streaming rows 0-16192 (len=16192) with facet indices
-TERCEN: Requesting offset=0, limit=16192
-Time: 2.1s | Memory: 62012 KB (60.56 MB)Time: 2.1s | Memory: 62012 KB (60.56 MB)Time: 2.1s | Memory: 62012 KB (60.56 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-Time: 2.1s | Memory: 63292 KB (61.81 MB)DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 0 -> 0
-DEBUG: Sample conversion [1]: 0 -> 0
-DEBUG: Sample conversion [2]: 0 -> 0
-DEBUG: Sample conversion [3]: 0 -> 0
-DEBUG: Sample conversion [4]: 0 -> 0
-Time: 2.1s | Memory: 65212 KB (63.68 MB)Time: 2.1s | Memory: 79292 KB (77.43 MB)Time: 2.1s | Memory: 89916 KB (87.81 MB)Time: 2.1s | Memory: 128444 KB (125.43 MB)Time: 2.1s | Memory: 134468 KB (131.32 MB)Time: 2.1s | Memory: 137284 KB (134.07 MB)Time: 2.1s | Memory: 140740 KB (137.44 MB)Time: 2.1s | Memory: 142532 KB (139.19 MB)Time: 2.1s | Memory: 142848 KB (139.50 MB)Time: 2.1s | Memory: 147840 KB (144.38 MB)Time: 2.2s | Memory: 157440 KB (153.75 MB)Time: 2.2s | Memory: 158464 KB (154.75 MB)Time: 2.2s | Memory: 158592 KB (154.88 MB)Time: 2.2s | Memory: 162640 KB (158.83 MB)Time: 2.2s | Memory: 163792 KB (159.95 MB)Time: 2.2s | Memory: 164304 KB (160.45 MB)Time: 2.2s | Memory: 164304 KB (160.45 MB)Time: 2.2s | Memory: 164688 KB (160.83 MB)Time: 2.2s | Memory: 165456 KB (161.58 MB)Time: 2.2s | Memory: 165456 KB (161.58 MB)Time: 2.2s | Memory: 165456 KB (161.58 MB)Time: 2.2s | Memory: 165456 KB (161.58 MB)Time: 2.2s | Memory: 165456 KB (161.58 MB)Time: 2.2s | Memory: 166224 KB (162.33 MB)Time: 2.2s | Memory: 166224 KB (162.33 MB)Time: 2.2s | Memory: 166224 KB (162.33 MB)Time: 2.2s | Memory: 167504 KB (163.58 MB)Time: 2.2s | Memory: 167632 KB (163.70 MB)Time: 2.2s | Memory: 169936 KB (165.95 MB)Time: 2.2s | Memory: 170704 KB (166.70 MB)Time: 2.3s | Memory: 171472 KB (167.45 MB)Time: 2.3s | Memory: 171472 KB (167.45 MB)Time: 2.3s | Memory: 172368 KB (168.33 MB)Time: 2.3s | Memory: 172368 KB (168.33 MB)Time: 2.3s | Memory: 172368 KB (168.33 MB)Time: 2.3s | Memory: 173648 KB (169.58 MB)Time: 2.3s | Memory: 174544 KB (170.45 MB)Time: 2.3s | Memory: 175184 KB (171.08 MB)Time: 2.3s | Memory: 177360 KB (173.20 MB)Time: 2.3s | Memory: 178128 KB (173.95 MB)Time: 2.3s | Memory: 178512 KB (174.33 MB)Time: 2.3s | Memory: 178512 KB (174.33 MB)Time: 2.3s | Memory: 178512 KB (174.33 MB)Time: 2.3s | Memory: 179664 KB (175.45 MB)Time: 2.3s | Memory: 182480 KB (178.20 MB)Time: 2.3s | Memory: 191184 KB (186.70 MB)Time: 2.3s | Memory: 207440 KB (202.58 MB)Time: 2.3s | Memory: 214992 KB (209.95 MB)Time: 2.3s | Memory: 215760 KB (210.70 MB)Time: 2.3s | Memory: 215760 KB (210.70 MB)Time: 2.4s | Memory: 215760 KB (210.70 MB)Time: 2.4s | Memory: 215760 KB (210.70 MB)Time: 2.4s | Memory: 215760 KB (210.70 MB)Time: 2.4s | Memory: 346832 KB (338.70 MB)Time: 2.4s | Memory: 346960 KB (338.83 MB)Time: 2.4s | Memory: 357456 KB (349.08 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 2.4s | Memory: 220116 KB (214.96 MB)Time: 2.4s | Memory: 220116 KB (214.96 MB)Time: 2.4s | Memory: 219324 KB (214.18 MB)Time: 2.4s | Memory: 218940 KB (213.81 MB)Time: 2.4s | Memory: 217028 KB (211.94 MB)Time: 2.4s | Memory: 217028 KB (211.94 MB)Time: 2.4s | Memory: 196328 KB (191.73 MB)DEBUG: Bulk streaming rows 16192-32384 (len=16192) with facet indices
-TERCEN: Requesting offset=16192, limit=16192
-Time: 2.4s | Memory: 167944 KB (164.01 MB)Time: 2.4s | Memory: 167944 KB (164.01 MB)Time: 2.4s | Memory: 167944 KB (164.01 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 0 -> 0
-DEBUG: Sample conversion [1]: 0 -> 0
-DEBUG: Sample conversion [2]: 0 -> 0
-DEBUG: Sample conversion [3]: 0 -> 0
-DEBUG: Sample conversion [4]: 0 -> 0
-Time: 2.4s | Memory: 168200 KB (164.26 MB)Time: 2.4s | Memory: 175752 KB (171.63 MB)Time: 2.4s | Memory: 179592 KB (175.38 MB)Time: 2.5s | Memory: 181896 KB (177.63 MB)Time: 2.5s | Memory: 185608 KB (181.26 MB)Time: 2.5s | Memory: 186120 KB (181.76 MB)Time: 2.5s | Memory: 189896 KB (185.45 MB)Time: 2.5s | Memory: 191688 KB (187.20 MB)Time: 2.5s | Memory: 193352 KB (188.82 MB)Time: 2.5s | Memory: 193352 KB (188.82 MB)Time: 2.5s | Memory: 193352 KB (188.82 MB)Time: 2.5s | Memory: 193352 KB (188.82 MB)Time: 2.5s | Memory: 193352 KB (188.82 MB)Time: 2.5s | Memory: 193480 KB (188.95 MB)Time: 2.5s | Memory: 193736 KB (189.20 MB)Time: 2.5s | Memory: 194888 KB (190.32 MB)Time: 2.5s | Memory: 194888 KB (190.32 MB)Time: 2.5s | Memory: 195400 KB (190.82 MB)Time: 2.5s | Memory: 195400 KB (190.82 MB)Time: 2.5s | Memory: 196552 KB (191.95 MB)Time: 2.5s | Memory: 196552 KB (191.95 MB)Time: 2.5s | Memory: 197960 KB (193.32 MB)Time: 2.5s | Memory: 199112 KB (194.45 MB)Time: 2.6s | Memory: 200264 KB (195.57 MB)Time: 2.6s | Memory: 200264 KB (195.57 MB)Time: 2.6s | Memory: 200264 KB (195.57 MB)Time: 2.6s | Memory: 200264 KB (195.57 MB)Time: 2.6s | Memory: 201288 KB (196.57 MB)Time: 2.6s | Memory: 204232 KB (199.45 MB)Time: 2.6s | Memory: 205512 KB (200.70 MB)Time: 2.6s | Memory: 205512 KB (200.70 MB)Time: 2.6s | Memory: 205512 KB (200.70 MB)Time: 2.6s | Memory: 205512 KB (200.70 MB)Time: 2.6s | Memory: 205512 KB (200.70 MB)Time: 2.6s | Memory: 279496 KB (272.95 MB)Time: 2.6s | Memory: 336840 KB (328.95 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 2.6s | Memory: 206004 KB (201.18 MB)Time: 2.6s | Memory: 206004 KB (201.18 MB)Time: 2.6s | Memory: 206132 KB (201.30 MB)Time: 2.6s | Memory: 204700 KB (199.90 MB)Time: 2.6s | Memory: 202788 KB (198.04 MB)Time: 2.6s | Memory: 202788 KB (198.04 MB)Time: 2.6s | Memory: 194412 KB (189.86 MB)DEBUG: Bulk streaming rows 32384-48576 (len=16192) with facet indices
-TERCEN: Requesting offset=32384, limit=16192
-Time: 2.7s | Memory: 170432 KB (166.44 MB)Time: 2.7s | Memory: 170432 KB (166.44 MB)Time: 2.7s | Memory: 170432 KB (166.44 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-Time: 2.7s | Memory: 170432 KB (166.44 MB)DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 0 -> 0
-DEBUG: Sample conversion [1]: 0 -> 0
-DEBUG: Sample conversion [2]: 0 -> 0
-DEBUG: Sample conversion [3]: 0 -> 0
-DEBUG: Sample conversion [4]: 0 -> 0
-Time: 2.7s | Memory: 174784 KB (170.69 MB)Time: 2.7s | Memory: 179520 KB (175.31 MB)Time: 2.7s | Memory: 181696 KB (177.44 MB)Time: 2.7s | Memory: 185664 KB (181.31 MB)Time: 2.7s | Memory: 186048 KB (181.69 MB)Time: 2.7s | Memory: 189772 KB (185.32 MB)Time: 2.7s | Memory: 192588 KB (188.07 MB)Time: 2.7s | Memory: 193612 KB (189.07 MB)Time: 2.7s | Memory: 194124 KB (189.57 MB)Time: 2.7s | Memory: 194892 KB (190.32 MB)Time: 2.7s | Memory: 194892 KB (190.32 MB)Time: 2.7s | Memory: 195532 KB (190.95 MB)Time: 2.7s | Memory: 195532 KB (190.95 MB)Time: 2.7s | Memory: 196684 KB (192.07 MB)Time: 2.7s | Memory: 196684 KB (192.07 MB)Time: 2.8s | Memory: 197708 KB (193.07 MB)Time: 2.8s | Memory: 198092 KB (193.45 MB)Time: 2.8s | Memory: 199500 KB (194.82 MB)Time: 2.8s | Memory: 200268 KB (195.57 MB)Time: 2.8s | Memory: 200268 KB (195.57 MB)Time: 2.8s | Memory: 200268 KB (195.57 MB)Time: 2.8s | Memory: 201292 KB (196.57 MB)Time: 2.8s | Memory: 201292 KB (196.57 MB)Time: 2.8s | Memory: 204236 KB (199.45 MB)Time: 2.8s | Memory: 205516 KB (200.70 MB)Time: 2.8s | Memory: 205516 KB (200.70 MB)Time: 2.8s | Memory: 205516 KB (200.70 MB)Time: 2.8s | Memory: 205516 KB (200.70 MB)Time: 2.8s | Memory: 205516 KB (200.70 MB)Time: 2.8s | Memory: 336588 KB (328.70 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 2.8s | Memory: 337012 KB (329.11 MB)Time: 2.8s | Memory: 206004 KB (201.18 MB)Time: 2.8s | Memory: 206004 KB (201.18 MB)Time: 2.8s | Memory: 204700 KB (199.90 MB)Time: 2.8s | Memory: 204700 KB (199.90 MB)Time: 2.9s | Memory: 202788 KB (198.04 MB)Time: 2.9s | Memory: 202788 KB (198.04 MB)Time: 2.9s | Memory: 194412 KB (189.86 MB)DEBUG: Bulk streaming rows 48576-64768 (len=16192) with facet indices
-TERCEN: Requesting offset=48576, limit=16192
-Time: 2.9s | Memory: 170432 KB (166.44 MB)Time: 2.9s | Memory: 170432 KB (166.44 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-Time: 2.9s | Memory: 170432 KB (166.44 MB)TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 0 -> 0
-DEBUG: Sample conversion [1]: 0 -> 0
-DEBUG: Sample conversion [2]: 0 -> 0
-DEBUG: Sample conversion [3]: 0 -> 0
-DEBUG: Sample conversion [4]: 0 -> 0
-Time: 2.9s | Memory: 170432 KB (166.44 MB)Time: 2.9s | Memory: 178496 KB (174.31 MB)Time: 2.9s | Memory: 180032 KB (175.81 MB)Time: 2.9s | Memory: 183872 KB (179.56 MB)Time: 2.9s | Memory: 185920 KB (181.56 MB)Time: 2.9s | Memory: 186444 KB (182.07 MB)Time: 2.9s | Memory: 190668 KB (186.20 MB)Time: 2.9s | Memory: 193612 KB (189.07 MB)Time: 2.9s | Memory: 193740 KB (189.20 MB)Time: 2.9s | Memory: 194252 KB (189.70 MB)Time: 2.9s | Memory: 195020 KB (190.45 MB)Time: 2.9s | Memory: 195020 KB (190.45 MB)Time: 2.9s | Memory: 195660 KB (191.07 MB)Time: 3.0s | Memory: 195660 KB (191.07 MB)Time: 3.0s | Memory: 196812 KB (192.20 MB)Time: 3.0s | Memory: 196812 KB (192.20 MB)Time: 3.0s | Memory: 197836 KB (193.20 MB)Time: 3.0s | Memory: 198348 KB (193.70 MB)Time: 3.0s | Memory: 200396 KB (195.70 MB)Time: 3.0s | Memory: 200396 KB (195.70 MB)Time: 3.0s | Memory: 200396 KB (195.70 MB)Time: 3.0s | Memory: 200396 KB (195.70 MB)Time: 3.0s | Memory: 201420 KB (196.70 MB)Time: 3.0s | Memory: 204364 KB (199.57 MB)Time: 3.0s | Memory: 205644 KB (200.82 MB)Time: 3.0s | Memory: 205644 KB (200.82 MB)Time: 3.0s | Memory: 205644 KB (200.82 MB)Time: 3.0s | Memory: 205644 KB (200.82 MB)Time: 3.0s | Memory: 205644 KB (200.82 MB)Time: 3.0s | Memory: 205644 KB (200.82 MB)Time: 3.0s | Memory: 336844 KB (328.95 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 3.0s | Memory: 337140 KB (329.24 MB)Time: 3.0s | Memory: 206132 KB (201.30 MB)Time: 3.1s | Memory: 206132 KB (201.30 MB)Time: 3.1s | Memory: 206132 KB (201.30 MB)Time: 3.1s | Memory: 204700 KB (199.90 MB)Time: 3.1s | Memory: 203316 KB (198.55 MB)Time: 3.1s | Memory: 202788 KB (198.04 MB)Time: 3.1s | Memory: 202788 KB (198.04 MB)Time: 3.1s | Memory: 194436 KB (189.88 MB)Time: 3.1s | Memory: 194436 KB (189.88 MB)Time: 3.1s | Memory: 194436 KB (189.88 MB)Time: 3.1s | Memory: 194436 KB (189.88 MB)DEBUG: Bulk streaming rows 64768-80960 (len=16192) with facet indices
-TERCEN: Requesting offset=64768, limit=16192
-Time: 3.1s | Memory: 170392 KB (166.40 MB)Time: 3.1s | Memory: 170392 KB (166.40 MB)Time: 3.1s | Memory: 170392 KB (166.40 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-Time: 3.1s | Memory: 170392 KB (166.40 MB)DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 0 -> 0
-DEBUG: Sample conversion [1]: 0 -> 0
-DEBUG: Sample conversion [2]: 0 -> 0
-DEBUG: Sample conversion [3]: 0 -> 0
-DEBUG: Sample conversion [4]: 0 -> 0
-Time: 3.1s | Memory: 170392 KB (166.40 MB)Time: 3.1s | Memory: 178456 KB (174.27 MB)Time: 3.1s | Memory: 179992 KB (175.77 MB)Time: 3.1s | Memory: 183832 KB (179.52 MB)Time: 3.1s | Memory: 185880 KB (181.52 MB)Time: 3.1s | Memory: 186272 KB (181.91 MB)Time: 3.2s | Memory: 190496 KB (186.03 MB)Time: 3.2s | Memory: 193440 KB (188.91 MB)Time: 3.2s | Memory: 193440 KB (188.91 MB)Time: 3.2s | Memory: 193568 KB (189.03 MB)Time: 3.2s | Memory: 193696 KB (189.16 MB)Time: 3.2s | Memory: 194848 KB (190.28 MB)Time: 3.2s | Memory: 194848 KB (190.28 MB)Time: 3.2s | Memory: 194976 KB (190.41 MB)Time: 3.2s | Memory: 195488 KB (190.91 MB)Time: 3.2s | Memory: 195488 KB (190.91 MB)Time: 3.2s | Memory: 196640 KB (192.03 MB)Time: 3.2s | Memory: 197152 KB (192.53 MB)Time: 3.2s | Memory: 198048 KB (193.41 MB)Time: 3.2s | Memory: 199456 KB (194.78 MB)Time: 3.2s | Memory: 200224 KB (195.53 MB)Time: 3.2s | Memory: 200224 KB (195.53 MB)Time: 3.2s | Memory: 200224 KB (195.53 MB)Time: 3.2s | Memory: 201248 KB (196.53 MB)Time: 3.2s | Memory: 201248 KB (196.53 MB)Time: 3.3s | Memory: 204192 KB (199.41 MB)Time: 3.3s | Memory: 205472 KB (200.66 MB)Time: 3.3s | Memory: 205472 KB (200.66 MB)Time: 3.3s | Memory: 205472 KB (200.66 MB)Time: 3.3s | Memory: 205472 KB (200.66 MB)Time: 3.3s | Memory: 205472 KB (200.66 MB)Time: 3.3s | Memory: 336544 KB (328.66 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 3.3s | Memory: 336968 KB (329.07 MB)Time: 3.3s | Memory: 205960 KB (201.13 MB)Time: 3.3s | Memory: 205960 KB (201.13 MB)Time: 3.3s | Memory: 204656 KB (199.86 MB)Time: 3.3s | Memory: 204656 KB (199.86 MB)Time: 3.3s | Memory: 202744 KB (197.99 MB)Time: 3.3s | Memory: 200720 KB (196.02 MB)Time: 3.3s | Memory: 180940 KB (176.70 MB)DEBUG: Bulk streaming rows 80960-97152 (len=16192) with facet indices
-TERCEN: Requesting offset=80960, limit=16192
-Time: 3.3s | Memory: 170304 KB (166.31 MB)Time: 3.3s | Memory: 170304 KB (166.31 MB)Time: 3.3s | Memory: 170304 KB (166.31 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-Time: 3.3s | Memory: 170304 KB (166.31 MB)DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 0 -> 0
-DEBUG: Sample conversion [1]: 0 -> 0
-DEBUG: Sample conversion [2]: 0 -> 0
-DEBUG: Sample conversion [3]: 0 -> 0
-DEBUG: Sample conversion [4]: 0 -> 0
-Time: 3.3s | Memory: 174272 KB (170.19 MB)Time: 3.4s | Memory: 179392 KB (175.19 MB)Time: 3.4s | Memory: 181440 KB (177.19 MB)Time: 3.4s | Memory: 184896 KB (180.56 MB)Time: 3.4s | Memory: 185920 KB (181.56 MB)Time: 3.4s | Memory: 186700 KB (182.32 MB)Time: 3.4s | Memory: 191436 KB (186.95 MB)Time: 3.4s | Memory: 193356 KB (188.82 MB)Time: 3.4s | Memory: 193612 KB (189.07 MB)Time: 3.4s | Memory: 194764 KB (190.20 MB)Time: 3.4s | Memory: 194764 KB (190.20 MB)Time: 3.4s | Memory: 195276 KB (190.70 MB)Time: 3.4s | Memory: 195276 KB (190.70 MB)Time: 3.4s | Memory: 196428 KB (191.82 MB)Time: 3.4s | Memory: 196428 KB (191.82 MB)Time: 3.4s | Memory: 197452 KB (192.82 MB)Time: 3.4s | Memory: 197964 KB (193.32 MB)Time: 3.4s | Memory: 200140 KB (195.45 MB)Time: 3.4s | Memory: 200140 KB (195.45 MB)Time: 3.4s | Memory: 200140 KB (195.45 MB)Time: 3.5s | Memory: 200140 KB (195.45 MB)Time: 3.5s | Memory: 201292 KB (196.57 MB)Time: 3.5s | Memory: 204108 KB (199.32 MB)Time: 3.5s | Memory: 205388 KB (200.57 MB)Time: 3.5s | Memory: 205388 KB (200.57 MB)Time: 3.5s | Memory: 205388 KB (200.57 MB)Time: 3.5s | Memory: 205388 KB (200.57 MB)Time: 3.5s | Memory: 205388 KB (200.57 MB)Time: 3.5s | Memory: 320460 KB (312.95 MB)Time: 3.5s | Memory: 345036 KB (336.95 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 3.5s | Memory: 205888 KB (201.06 MB)Time: 3.5s | Memory: 205888 KB (201.06 MB)Time: 3.5s | Memory: 204456 KB (199.66 MB)Time: 3.5s | Memory: 204456 KB (199.66 MB)Time: 3.5s | Memory: 202544 KB (197.80 MB)Time: 3.5s | Memory: 201432 KB (196.71 MB)Time: 3.5s | Memory: 194168 KB (189.62 MB)DEBUG: Bulk streaming rows 97152-113344 (len=16192) with facet indices
-TERCEN: Requesting offset=97152, limit=16192
-Time: 3.5s | Memory: 170124 KB (166.14 MB)Time: 3.5s | Memory: 170124 KB (166.14 MB)Time: 3.5s | Memory: 170124 KB (166.14 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 0 -> 0
-DEBUG: Sample conversion [1]: 0 -> 0
-DEBUG: Sample conversion [2]: 0 -> 0
-DEBUG: Sample conversion [3]: 0 -> 0
-DEBUG: Sample conversion [4]: 0 -> 0
-Time: 3.6s | Memory: 170124 KB (166.14 MB)Time: 3.6s | Memory: 178060 KB (173.89 MB)Time: 3.6s | Memory: 179724 KB (175.51 MB)Time: 3.6s | Memory: 182796 KB (178.51 MB)Time: 3.6s | Memory: 185356 KB (181.01 MB)Time: 3.6s | Memory: 186008 KB (181.65 MB)Time: 3.6s | Memory: 189464 KB (185.02 MB)Time: 3.6s | Memory: 193304 KB (188.77 MB)Time: 3.6s | Memory: 193304 KB (188.77 MB)Time: 3.6s | Memory: 193304 KB (188.77 MB)Time: 3.6s | Memory: 193560 KB (189.02 MB)Time: 3.6s | Memory: 193560 KB (189.02 MB)Time: 3.6s | Memory: 194712 KB (190.15 MB)Time: 3.6s | Memory: 194712 KB (190.15 MB)Time: 3.6s | Memory: 194712 KB (190.15 MB)Time: 3.6s | Memory: 195352 KB (190.77 MB)Time: 3.6s | Memory: 195352 KB (190.77 MB)Time: 3.6s | Memory: 196504 KB (191.90 MB)Time: 3.6s | Memory: 196888 KB (192.27 MB)Time: 3.6s | Memory: 197784 KB (193.15 MB)Time: 3.7s | Memory: 199064 KB (194.40 MB)Time: 3.7s | Memory: 199960 KB (195.27 MB)Time: 3.7s | Memory: 200088 KB (195.40 MB)Time: 3.7s | Memory: 200088 KB (195.40 MB)Time: 3.7s | Memory: 201112 KB (196.40 MB)Time: 3.7s | Memory: 201112 KB (196.40 MB)Time: 3.7s | Memory: 203928 KB (199.15 MB)Time: 3.7s | Memory: 205336 KB (200.52 MB)Time: 3.7s | Memory: 205336 KB (200.52 MB)Time: 3.7s | Memory: 205336 KB (200.52 MB)Time: 3.7s | Memory: 205336 KB (200.52 MB)Time: 3.7s | Memory: 205336 KB (200.52 MB)Time: 3.7s | Memory: 336408 KB (328.52 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 3.7s | Memory: 336736 KB (328.84 MB)Time: 3.7s | Memory: 205728 KB (200.91 MB)Time: 3.7s | Memory: 205728 KB (200.91 MB)Time: 3.7s | Memory: 204424 KB (199.63 MB)Time: 3.7s | Memory: 204424 KB (199.63 MB)Time: 3.7s | Memory: 202512 KB (197.77 MB)Time: 3.8s | Memory: 201400 KB (196.68 MB)Time: 3.8s | Memory: 194168 KB (189.62 MB)DEBUG: Bulk streaming rows 113344-129536 (len=16192) with facet indices
-TERCEN: Requesting offset=113344, limit=16192
-Time: 3.8s | Memory: 170124 KB (166.14 MB)Time: 3.8s | Memory: 170124 KB (166.14 MB)Time: 3.8s | Memory: 170124 KB (166.14 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-Time: 3.8s | Memory: 170124 KB (166.14 MB)DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 0 -> 0
-DEBUG: Sample conversion [1]: 0 -> 0
-DEBUG: Sample conversion [2]: 0 -> 0
-DEBUG: Sample conversion [3]: 0 -> 0
-DEBUG: Sample conversion [4]: 0 -> 0
-Time: 3.8s | Memory: 174220 KB (170.14 MB)Time: 3.8s | Memory: 179212 KB (175.01 MB)Time: 3.8s | Memory: 179724 KB (175.51 MB)Time: 3.8s | Memory: 183052 KB (178.76 MB)Time: 3.8s | Memory: 185356 KB (181.01 MB)Time: 3.8s | Memory: 185868 KB (181.51 MB)Time: 3.8s | Memory: 189568 KB (185.12 MB)Time: 3.8s | Memory: 191360 KB (186.88 MB)Time: 3.8s | Memory: 193152 KB (188.62 MB)Time: 3.8s | Memory: 193280 KB (188.75 MB)Time: 3.8s | Memory: 193408 KB (188.88 MB)Time: 3.8s | Memory: 194560 KB (190.00 MB)Time: 3.8s | Memory: 194560 KB (190.00 MB)Time: 3.8s | Memory: 194560 KB (190.00 MB)Time: 3.9s | Memory: 195200 KB (190.62 MB)Time: 3.9s | Memory: 195200 KB (190.62 MB)Time: 3.9s | Memory: 196352 KB (191.75 MB)Time: 3.9s | Memory: 196736 KB (192.12 MB)Time: 3.9s | Memory: 197632 KB (193.00 MB)Time: 3.9s | Memory: 198784 KB (194.12 MB)Time: 3.9s | Memory: 199936 KB (195.25 MB)Time: 3.9s | Memory: 199936 KB (195.25 MB)Time: 3.9s | Memory: 200064 KB (195.38 MB)Time: 3.9s | Memory: 200064 KB (195.38 MB)Time: 3.9s | Memory: 201216 KB (196.50 MB)Time: 3.9s | Memory: 201216 KB (196.50 MB)Time: 3.9s | Memory: 205184 KB (200.38 MB)Time: 3.9s | Memory: 205312 KB (200.50 MB)Time: 3.9s | Memory: 205312 KB (200.50 MB)Time: 3.9s | Memory: 205312 KB (200.50 MB)Time: 3.9s | Memory: 205312 KB (200.50 MB)Time: 3.9s | Memory: 205312 KB (200.50 MB)Time: 3.9s | Memory: 336384 KB (328.50 MB)Time: 4.0s | Memory: 336780 KB (328.89 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 4.0s | Memory: 205772 KB (200.95 MB)Time: 4.0s | Memory: 205772 KB (200.95 MB)Time: 4.0s | Memory: 205900 KB (201.07 MB)Time: 4.0s | Memory: 204468 KB (199.68 MB)Time: 4.0s | Memory: 202556 KB (197.81 MB)Time: 4.0s | Memory: 202556 KB (197.81 MB)Time: 4.0s | Memory: 194188 KB (189.64 MB)DEBUG: Bulk streaming rows 129536-145728 (len=16192) with facet indices
-TERCEN: Requesting offset=129536, limit=16192
-Time: 4.0s | Memory: 170136 KB (166.15 MB)Time: 4.0s | Memory: 170136 KB (166.15 MB)Time: 4.0s | Memory: 170136 KB (166.15 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-Time: 4.0s | Memory: 170136 KB (166.15 MB)DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 37 -> 0.005363546196688793
-DEBUG: Sample conversion [1]: 37 -> 0.005363546196688793
-DEBUG: Sample conversion [2]: 37 -> 0.005363546196688793
-DEBUG: Sample conversion [3]: 37 -> 0.005363546196688793
-DEBUG: Sample conversion [4]: 37 -> 0.005363546196688793
-Time: 4.0s | Memory: 171288 KB (167.27 MB)Time: 4.0s | Memory: 179224 KB (175.02 MB)Time: 4.0s | Memory: 181144 KB (176.90 MB)Time: 4.0s | Memory: 184856 KB (180.52 MB)Time: 4.0s | Memory: 185752 KB (181.40 MB)Time: 4.0s | Memory: 186284 KB (181.92 MB)Time: 4.0s | Memory: 191148 KB (186.67 MB)Time: 4.0s | Memory: 193068 KB (188.54 MB)Time: 4.1s | Memory: 193068 KB (188.54 MB)Time: 4.1s | Memory: 193196 KB (188.67 MB)Time: 4.1s | Memory: 193196 KB (188.67 MB)Time: 4.1s | Memory: 193196 KB (188.67 MB)Time: 4.1s | Memory: 193196 KB (188.67 MB)Time: 4.1s | Memory: 193196 KB (188.67 MB)Time: 4.1s | Memory: 193196 KB (188.67 MB)Time: 4.1s | Memory: 193196 KB (188.67 MB)Time: 4.1s | Memory: 193324 KB (188.79 MB)Time: 4.1s | Memory: 193452 KB (188.92 MB)Time: 4.1s | Memory: 194604 KB (190.04 MB)Time: 4.1s | Memory: 194604 KB (190.04 MB)Time: 4.1s | Memory: 194604 KB (190.04 MB)Time: 4.1s | Memory: 195116 KB (190.54 MB)Time: 4.1s | Memory: 195116 KB (190.54 MB)Time: 4.1s | Memory: 196396 KB (191.79 MB)Time: 4.1s | Memory: 196780 KB (192.17 MB)Time: 4.1s | Memory: 197292 KB (192.67 MB)Time: 4.1s | Memory: 197676 KB (193.04 MB)Time: 4.1s | Memory: 198828 KB (194.17 MB)Time: 4.2s | Memory: 199852 KB (195.17 MB)Time: 4.2s | Memory: 199852 KB (195.17 MB)Time: 4.2s | Memory: 199980 KB (195.29 MB)Time: 4.2s | Memory: 199980 KB (195.29 MB)Time: 4.2s | Memory: 201004 KB (196.29 MB)Time: 4.2s | Memory: 201004 KB (196.29 MB)Time: 4.2s | Memory: 203820 KB (199.04 MB)Time: 4.2s | Memory: 205228 KB (200.42 MB)Time: 4.2s | Memory: 205228 KB (200.42 MB)Time: 4.2s | Memory: 205228 KB (200.42 MB)Time: 4.2s | Memory: 205228 KB (200.42 MB)Time: 4.2s | Memory: 205228 KB (200.42 MB)Time: 4.2s | Memory: 205228 KB (200.42 MB)Time: 4.2s | Memory: 336300 KB (328.42 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 4.2s | Memory: 298008 KB (291.02 MB)Time: 4.2s | Memory: 205648 KB (200.83 MB)Time: 4.2s | Memory: 205648 KB (200.83 MB)Time: 4.2s | Memory: 204216 KB (199.43 MB)Time: 4.2s | Memory: 204216 KB (199.43 MB)Time: 4.3s | Memory: 202304 KB (197.56 MB)Time: 4.3s | Memory: 202304 KB (197.56 MB)Time: 4.3s | Memory: 193984 KB (189.44 MB)DEBUG: Bulk streaming rows 145728-161920 (len=16192) with facet indices
-TERCEN: Requesting offset=145728, limit=16192
-Time: 4.3s | Memory: 169932 KB (165.95 MB)Time: 4.3s | Memory: 169932 KB (165.95 MB)Time: 4.3s | Memory: 169932 KB (165.95 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-Time: 4.3s | Memory: 169932 KB (165.95 MB)DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 91 -> 0.013191424429694057
-DEBUG: Sample conversion [1]: 91 -> 0.013191424429694057
-DEBUG: Sample conversion [2]: 91 -> 0.013191424429694057
-DEBUG: Sample conversion [3]: 91 -> 0.013191424429694057
-DEBUG: Sample conversion [4]: 91 -> 0.013191424429694057
-Time: 4.3s | Memory: 169932 KB (165.95 MB)Time: 4.3s | Memory: 178124 KB (173.95 MB)Time: 4.3s | Memory: 179660 KB (175.45 MB)Time: 4.3s | Memory: 183372 KB (179.07 MB)Time: 4.3s | Memory: 185164 KB (180.82 MB)Time: 4.3s | Memory: 186048 KB (181.69 MB)Time: 4.3s | Memory: 189504 KB (185.06 MB)Time: 4.3s | Memory: 193088 KB (188.56 MB)Time: 4.3s | Memory: 193088 KB (188.56 MB)Time: 4.3s | Memory: 193088 KB (188.56 MB)Time: 4.3s | Memory: 193088 KB (188.56 MB)Time: 4.3s | Memory: 193088 KB (188.56 MB)Time: 4.3s | Memory: 193088 KB (188.56 MB)Time: 4.4s | Memory: 193088 KB (188.56 MB)Time: 4.4s | Memory: 193216 KB (188.69 MB)Time: 4.4s | Memory: 193344 KB (188.81 MB)Time: 4.4s | Memory: 194496 KB (189.94 MB)Time: 4.4s | Memory: 194496 KB (189.94 MB)Time: 4.4s | Memory: 194496 KB (189.94 MB)Time: 4.4s | Memory: 195008 KB (190.44 MB)Time: 4.4s | Memory: 195008 KB (190.44 MB)Time: 4.4s | Memory: 196032 KB (191.44 MB)Time: 4.4s | Memory: 196160 KB (191.56 MB)Time: 4.4s | Memory: 197184 KB (192.56 MB)Time: 4.4s | Memory: 197568 KB (192.94 MB)Time: 4.4s | Memory: 199104 KB (194.44 MB)Time: 4.4s | Memory: 199872 KB (195.19 MB)Time: 4.4s | Memory: 199872 KB (195.19 MB)Time: 4.4s | Memory: 199872 KB (195.19 MB)Time: 4.4s | Memory: 199872 KB (195.19 MB)Time: 4.4s | Memory: 201024 KB (196.31 MB)Time: 4.4s | Memory: 203840 KB (199.06 MB)Time: 4.5s | Memory: 204992 KB (200.19 MB)Time: 4.5s | Memory: 205120 KB (200.31 MB)Time: 4.5s | Memory: 205120 KB (200.31 MB)Time: 4.5s | Memory: 205120 KB (200.31 MB)Time: 4.5s | Memory: 205120 KB (200.31 MB)Time: 4.5s | Memory: 205120 KB (200.31 MB)Time: 4.5s | Memory: 336192 KB (328.31 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 4.5s | Memory: 336600 KB (328.71 MB)Time: 4.5s | Memory: 205592 KB (200.77 MB)Time: 4.5s | Memory: 205592 KB (200.77 MB)Time: 4.5s | Memory: 204160 KB (199.38 MB)Time: 4.5s | Memory: 204160 KB (199.38 MB)Time: 4.5s | Memory: 202248 KB (197.51 MB)Time: 4.5s | Memory: 201136 KB (196.42 MB)Time: 4.5s | Memory: 193884 KB (189.34 MB)DEBUG: Bulk streaming rows 161920-178112 (len=16192) with facet indices
-TERCEN: Requesting offset=161920, limit=16192
-Time: 4.5s | Memory: 169892 KB (165.91 MB)Time: 4.5s | Memory: 169892 KB (165.91 MB)Time: 4.5s | Memory: 169892 KB (165.91 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 143 -> 0.020729381246662088
-DEBUG: Sample conversion [1]: 143 -> 0.020729381246662088
-DEBUG: Sample conversion [2]: 143 -> 0.020729381246662088
-DEBUG: Sample conversion [3]: 143 -> 0.020729381246662088
-DEBUG: Sample conversion [4]: 143 -> 0.020729381246662088
-Time: 4.5s | Memory: 169892 KB (165.91 MB)Time: 4.5s | Memory: 177956 KB (173.79 MB)Time: 4.6s | Memory: 178980 KB (174.79 MB)Time: 4.6s | Memory: 181284 KB (177.04 MB)Time: 4.6s | Memory: 184612 KB (180.29 MB)Time: 4.6s | Memory: 185508 KB (181.16 MB)Time: 4.6s | Memory: 189064 KB (184.63 MB)Time: 4.6s | Memory: 191240 KB (186.76 MB)Time: 4.6s | Memory: 193032 KB (188.51 MB)Time: 4.6s | Memory: 193032 KB (188.51 MB)Time: 4.6s | Memory: 193032 KB (188.51 MB)Time: 4.6s | Memory: 193032 KB (188.51 MB)Time: 4.6s | Memory: 193032 KB (188.51 MB)Time: 4.6s | Memory: 193032 KB (188.51 MB)Time: 4.6s | Memory: 193032 KB (188.51 MB)Time: 4.6s | Memory: 193032 KB (188.51 MB)Time: 4.6s | Memory: 193160 KB (188.63 MB)Time: 4.6s | Memory: 193288 KB (188.76 MB)Time: 4.6s | Memory: 193288 KB (188.76 MB)Time: 4.6s | Memory: 193672 KB (189.13 MB)Time: 4.6s | Memory: 194440 KB (189.88 MB)Time: 4.7s | Memory: 194440 KB (189.88 MB)Time: 4.7s | Memory: 195080 KB (190.51 MB)Time: 4.7s | Memory: 195080 KB (190.51 MB)Time: 4.7s | Memory: 196104 KB (191.51 MB)Time: 4.7s | Memory: 196232 KB (191.63 MB)Time: 4.7s | Memory: 197256 KB (192.63 MB)Time: 4.7s | Memory: 197640 KB (193.01 MB)Time: 4.7s | Memory: 198920 KB (194.26 MB)Time: 4.7s | Memory: 199944 KB (195.26 MB)Time: 4.7s | Memory: 199944 KB (195.26 MB)Time: 4.7s | Memory: 199944 KB (195.26 MB)Time: 4.7s | Memory: 199944 KB (195.26 MB)Time: 4.7s | Memory: 200968 KB (196.26 MB)Time: 4.7s | Memory: 203912 KB (199.13 MB)Time: 4.7s | Memory: 205192 KB (200.38 MB)Time: 4.7s | Memory: 205192 KB (200.38 MB)Time: 4.7s | Memory: 205192 KB (200.38 MB)Time: 4.7s | Memory: 205192 KB (200.38 MB)Time: 4.7s | Memory: 205192 KB (200.38 MB)Time: 4.7s | Memory: 305800 KB (298.63 MB)Time: 4.8s | Memory: 344840 KB (336.76 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 4.8s | Memory: 205676 KB (200.86 MB)Time: 4.8s | Memory: 205676 KB (200.86 MB)Time: 4.8s | Memory: 205804 KB (200.98 MB)Time: 4.8s | Memory: 204372 KB (199.58 MB)Time: 4.8s | Memory: 202460 KB (197.71 MB)Time: 4.8s | Memory: 202460 KB (197.71 MB)Time: 4.8s | Memory: 194092 KB (189.54 MB)DEBUG: Bulk streaming rows 178112-194304 (len=16192) with facet indices
-TERCEN: Requesting offset=178112, limit=16192
-Time: 4.8s | Memory: 170036 KB (166.05 MB)Time: 4.8s | Memory: 170036 KB (166.05 MB)Time: 4.8s | Memory: 170036 KB (166.05 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-Time: 4.8s | Memory: 170036 KB (166.05 MB)DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 195 -> 0.028267338063630118
-DEBUG: Sample conversion [1]: 195 -> 0.028267338063630118
-DEBUG: Sample conversion [2]: 195 -> 0.028267338063630118
-DEBUG: Sample conversion [3]: 195 -> 0.028267338063630118
-DEBUG: Sample conversion [4]: 195 -> 0.028267338063630118
-Time: 4.8s | Memory: 170420 KB (166.43 MB)Time: 4.8s | Memory: 178100 KB (173.93 MB)Time: 4.8s | Memory: 179636 KB (175.43 MB)Time: 4.8s | Memory: 183604 KB (179.30 MB)Time: 4.8s | Memory: 185524 KB (181.18 MB)Time: 4.8s | Memory: 185932 KB (181.57 MB)Time: 4.8s | Memory: 190540 KB (186.07 MB)Time: 4.8s | Memory: 193228 KB (188.70 MB)Time: 4.9s | Memory: 193228 KB (188.70 MB)Time: 4.9s | Memory: 193228 KB (188.70 MB)Time: 4.9s | Memory: 193228 KB (188.70 MB)Time: 4.9s | Memory: 193228 KB (188.70 MB)Time: 4.9s | Memory: 193228 KB (188.70 MB)Time: 4.9s | Memory: 193228 KB (188.70 MB)Time: 4.9s | Memory: 193356 KB (188.82 MB)Time: 4.9s | Memory: 193484 KB (188.95 MB)Time: 4.9s | Memory: 194636 KB (190.07 MB)Time: 4.9s | Memory: 194636 KB (190.07 MB)Time: 4.9s | Memory: 194636 KB (190.07 MB)Time: 4.9s | Memory: 195276 KB (190.70 MB)Time: 4.9s | Memory: 195276 KB (190.70 MB)Time: 4.9s | Memory: 196428 KB (191.82 MB)Time: 4.9s | Memory: 196940 KB (192.32 MB)Time: 4.9s | Memory: 197836 KB (193.20 MB)Time: 4.9s | Memory: 198988 KB (194.32 MB)Time: 4.9s | Memory: 199244 KB (194.57 MB)Time: 4.9s | Memory: 199244 KB (194.57 MB)Time: 5.0s | Memory: 200012 KB (195.32 MB)Time: 5.0s | Memory: 200012 KB (195.32 MB)Time: 5.0s | Memory: 200012 KB (195.32 MB)Time: 5.0s | Memory: 200012 KB (195.32 MB)Time: 5.0s | Memory: 201036 KB (196.32 MB)Time: 5.0s | Memory: 201036 KB (196.32 MB)Time: 5.0s | Memory: 203980 KB (199.20 MB)Time: 5.0s | Memory: 205260 KB (200.45 MB)Time: 5.0s | Memory: 205260 KB (200.45 MB)Time: 5.0s | Memory: 205260 KB (200.45 MB)Time: 5.0s | Memory: 205260 KB (200.45 MB)Time: 5.0s | Memory: 205260 KB (200.45 MB)Time: 5.0s | Memory: 266316 KB (260.07 MB)Time: 5.0s | Memory: 344780 KB (336.70 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 5.0s | Memory: 205748 KB (200.93 MB)Time: 5.0s | Memory: 205748 KB (200.93 MB)Time: 5.0s | Memory: 205748 KB (200.93 MB)Time: 5.0s | Memory: 204316 KB (199.53 MB)Time: 5.0s | Memory: 202404 KB (197.66 MB)Time: 5.0s | Memory: 202404 KB (197.66 MB)Time: 5.1s | Memory: 194080 KB (189.53 MB)DEBUG: Bulk streaming rows 194304-210496 (len=16192) with facet indices
-TERCEN: Requesting offset=194304, limit=16192
-Time: 5.1s | Memory: 170024 KB (166.04 MB)Time: 5.1s | Memory: 170024 KB (166.04 MB)Time: 5.1s | Memory: 170024 KB (166.04 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-Time: 5.1s | Memory: 170024 KB (166.04 MB)DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 249 -> 0.03609521629663538
-DEBUG: Sample conversion [1]: 249 -> 0.03609521629663538
-DEBUG: Sample conversion [2]: 249 -> 0.03609521629663538
-DEBUG: Sample conversion [3]: 249 -> 0.03609521629663538
-DEBUG: Sample conversion [4]: 249 -> 0.03609521629663538
-Time: 5.1s | Memory: 170024 KB (166.04 MB)Time: 5.1s | Memory: 178216 KB (174.04 MB)Time: 5.1s | Memory: 179624 KB (175.41 MB)Time: 5.1s | Memory: 183336 KB (179.04 MB)Time: 5.1s | Memory: 185256 KB (180.91 MB)Time: 5.1s | Memory: 186016 KB (181.66 MB)Time: 5.1s | Memory: 189472 KB (185.03 MB)Time: 5.1s | Memory: 193184 KB (188.66 MB)Time: 5.1s | Memory: 193184 KB (188.66 MB)Time: 5.1s | Memory: 193184 KB (188.66 MB)Time: 5.1s | Memory: 193184 KB (188.66 MB)Time: 5.1s | Memory: 193184 KB (188.66 MB)Time: 5.1s | Memory: 193184 KB (188.66 MB)Time: 5.1s | Memory: 193184 KB (188.66 MB)Time: 5.2s | Memory: 193184 KB (188.66 MB)Time: 5.2s | Memory: 193184 KB (188.66 MB)Time: 5.2s | Memory: 193312 KB (188.78 MB)Time: 5.2s | Memory: 193440 KB (188.91 MB)Time: 5.2s | Memory: 194592 KB (190.03 MB)Time: 5.2s | Memory: 194592 KB (190.03 MB)Time: 5.2s | Memory: 194592 KB (190.03 MB)Time: 5.2s | Memory: 195104 KB (190.53 MB)Time: 5.2s | Memory: 195104 KB (190.53 MB)Time: 5.2s | Memory: 196256 KB (191.66 MB)Time: 5.2s | Memory: 196768 KB (192.16 MB)Time: 5.2s | Memory: 197664 KB (193.03 MB)Time: 5.2s | Memory: 198816 KB (194.16 MB)Time: 5.2s | Memory: 199840 KB (195.16 MB)Time: 5.2s | Memory: 199840 KB (195.16 MB)Time: 5.2s | Memory: 199840 KB (195.16 MB)Time: 5.2s | Memory: 199840 KB (195.16 MB)Time: 5.2s | Memory: 200864 KB (196.16 MB)Time: 5.2s | Memory: 203808 KB (199.03 MB)Time: 5.2s | Memory: 205088 KB (200.28 MB)Time: 5.3s | Memory: 205088 KB (200.28 MB)Time: 5.3s | Memory: 205088 KB (200.28 MB)Time: 5.3s | Memory: 205088 KB (200.28 MB)Time: 5.3s | Memory: 205088 KB (200.28 MB)Time: 5.3s | Memory: 205088 KB (200.28 MB)Time: 5.3s | Memory: 305568 KB (298.41 MB)Time: 5.3s | Memory: 344608 KB (336.53 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 5.3s | Memory: 205588 KB (200.77 MB)Time: 5.3s | Memory: 205588 KB (200.77 MB)Time: 5.3s | Memory: 205716 KB (200.89 MB)Time: 5.3s | Memory: 204284 KB (199.50 MB)Time: 5.3s | Memory: 203172 KB (198.41 MB)Time: 5.3s | Memory: 202372 KB (197.63 MB)Time: 5.3s | Memory: 200092 KB (195.40 MB)Time: 5.3s | Memory: 170652 KB (166.65 MB)DEBUG: Bulk streaming rows 210496-226688 (len=16192) with facet indices
-TERCEN: Requesting offset=210496, limit=16192
-Time: 5.3s | Memory: 170020 KB (166.04 MB)Time: 5.3s | Memory: 170020 KB (166.04 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-Time: 5.3s | Memory: 170020 KB (166.04 MB)TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 304 -> 0.04406805523765927
-DEBUG: Sample conversion [1]: 304 -> 0.04406805523765927
-DEBUG: Sample conversion [2]: 304 -> 0.04406805523765927
-DEBUG: Sample conversion [3]: 304 -> 0.04406805523765927
-DEBUG: Sample conversion [4]: 304 -> 0.04406805523765927
-Time: 5.3s | Memory: 170020 KB (166.04 MB)Time: 5.3s | Memory: 177828 KB (173.66 MB)Time: 5.4s | Memory: 179492 KB (175.29 MB)Time: 5.4s | Memory: 183332 KB (179.04 MB)Time: 5.4s | Memory: 185380 KB (181.04 MB)Time: 5.4s | Memory: 185916 KB (181.56 MB)Time: 5.4s | Memory: 190140 KB (185.68 MB)Time: 5.4s | Memory: 192956 KB (188.43 MB)Time: 5.4s | Memory: 192956 KB (188.43 MB)Time: 5.4s | Memory: 193084 KB (188.56 MB)Time: 5.4s | Memory: 193212 KB (188.68 MB)Time: 5.4s | Memory: 193212 KB (188.68 MB)Time: 5.4s | Memory: 194364 KB (189.81 MB)Time: 5.4s | Memory: 194364 KB (189.81 MB)Time: 5.4s | Memory: 194364 KB (189.81 MB)Time: 5.4s | Memory: 195004 KB (190.43 MB)Time: 5.4s | Memory: 195004 KB (190.43 MB)Time: 5.4s | Memory: 196156 KB (191.56 MB)Time: 5.4s | Memory: 196156 KB (191.56 MB)Time: 5.4s | Memory: 197180 KB (192.56 MB)Time: 5.4s | Memory: 197564 KB (192.93 MB)Time: 5.5s | Memory: 199868 KB (195.18 MB)Time: 5.5s | Memory: 199868 KB (195.18 MB)Time: 5.5s | Memory: 199868 KB (195.18 MB)Time: 5.5s | Memory: 199868 KB (195.18 MB)Time: 5.5s | Memory: 200892 KB (196.18 MB)Time: 5.5s | Memory: 200892 KB (196.18 MB)Time: 5.5s | Memory: 203964 KB (199.18 MB)Time: 5.5s | Memory: 205116 KB (200.31 MB)Time: 5.5s | Memory: 205116 KB (200.31 MB)Time: 5.5s | Memory: 205116 KB (200.31 MB)Time: 5.5s | Memory: 205116 KB (200.31 MB)Time: 5.5s | Memory: 205116 KB (200.31 MB)Time: 5.5s | Memory: 336188 KB (328.31 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 5.5s | Memory: 336612 KB (328.72 MB)Time: 5.5s | Memory: 205604 KB (200.79 MB)Time: 5.5s | Memory: 205604 KB (200.79 MB)Time: 5.5s | Memory: 205604 KB (200.79 MB)Time: 5.5s | Memory: 204172 KB (199.39 MB)Time: 5.5s | Memory: 202260 KB (197.52 MB)Time: 5.5s | Memory: 202260 KB (197.52 MB)Time: 5.6s | Memory: 193928 KB (189.38 MB)DEBUG: Bulk streaming rows 226688-242880 (len=16192) with facet indices
-TERCEN: Requesting offset=226688, limit=16192
-Time: 5.6s | Memory: 169936 KB (165.95 MB)Time: 5.6s | Memory: 169936 KB (165.95 MB)Time: 5.6s | Memory: 169936 KB (165.95 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-Time: 5.6s | Memory: 169936 KB (165.95 MB)DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 365 -> 0.05291065842679484
-DEBUG: Sample conversion [1]: 365 -> 0.05291065842679484
-DEBUG: Sample conversion [2]: 365 -> 0.05291065842679484
-DEBUG: Sample conversion [3]: 365 -> 0.05291065842679484
-DEBUG: Sample conversion [4]: 365 -> 0.05291065842679484
-Time: 5.6s | Memory: 171088 KB (167.08 MB)Time: 5.6s | Memory: 179152 KB (174.95 MB)Time: 5.6s | Memory: 181200 KB (176.95 MB)Time: 5.6s | Memory: 184784 KB (180.45 MB)Time: 5.6s | Memory: 185552 KB (181.20 MB)Time: 5.6s | Memory: 189156 KB (184.72 MB)Time: 5.6s | Memory: 191204 KB (186.72 MB)Time: 5.6s | Memory: 193124 KB (188.60 MB)Time: 5.6s | Memory: 193124 KB (188.60 MB)Time: 5.6s | Memory: 193252 KB (188.72 MB)Time: 5.6s | Memory: 193380 KB (188.85 MB)Time: 5.6s | Memory: 193892 KB (189.35 MB)Time: 5.6s | Memory: 194532 KB (189.97 MB)Time: 5.6s | Memory: 194532 KB (189.97 MB)Time: 5.6s | Memory: 195172 KB (190.60 MB)Time: 5.7s | Memory: 195172 KB (190.60 MB)Time: 5.7s | Memory: 196324 KB (191.72 MB)Time: 5.7s | Memory: 196324 KB (191.72 MB)Time: 5.7s | Memory: 197348 KB (192.72 MB)Time: 5.7s | Memory: 197860 KB (193.22 MB)Time: 5.7s | Memory: 199908 KB (195.22 MB)Time: 5.7s | Memory: 199908 KB (195.22 MB)Time: 5.7s | Memory: 199908 KB (195.22 MB)Time: 5.7s | Memory: 199908 KB (195.22 MB)Time: 5.7s | Memory: 200932 KB (196.22 MB)Time: 5.7s | Memory: 200932 KB (196.22 MB)Time: 5.7s | Memory: 204644 KB (199.85 MB)Time: 5.7s | Memory: 205156 KB (200.35 MB)Time: 5.7s | Memory: 205156 KB (200.35 MB)Time: 5.7s | Memory: 205156 KB (200.35 MB)Time: 5.7s | Memory: 205156 KB (200.35 MB)Time: 5.7s | Memory: 205156 KB (200.35 MB)Time: 5.7s | Memory: 336228 KB (328.35 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 5.7s | Memory: 336652 KB (328.76 MB)Time: 5.8s | Memory: 205644 KB (200.82 MB)Time: 5.8s | Memory: 205644 KB (200.82 MB)Time: 5.8s | Memory: 204212 KB (199.43 MB)Time: 5.8s | Memory: 204212 KB (199.43 MB)Time: 5.8s | Memory: 202300 KB (197.56 MB)Time: 5.8s | Memory: 200788 KB (196.08 MB)Time: 5.8s | Memory: 190620 KB (186.15 MB)DEBUG: Bulk streaming rows 242880-259072 (len=16192) with facet indices
-TERCEN: Requesting offset=242880, limit=16192
-Time: 5.8s | Memory: 169912 KB (165.93 MB)Time: 5.8s | Memory: 169912 KB (165.93 MB)Time: 5.8s | Memory: 169912 KB (165.93 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 433 -> 0.06276798657206073
-DEBUG: Sample conversion [1]: 433 -> 0.06276798657206073
-DEBUG: Sample conversion [2]: 433 -> 0.06276798657206073
-DEBUG: Sample conversion [3]: 433 -> 0.06276798657206073
-DEBUG: Sample conversion [4]: 433 -> 0.06276798657206073
-Time: 5.8s | Memory: 169912 KB (165.93 MB)Time: 5.8s | Memory: 177976 KB (173.80 MB)Time: 5.8s | Memory: 179640 KB (175.43 MB)Time: 5.8s | Memory: 182968 KB (178.68 MB)Time: 5.8s | Memory: 185272 KB (180.93 MB)Time: 5.8s | Memory: 186004 KB (181.64 MB)Time: 5.8s | Memory: 189332 KB (184.89 MB)Time: 5.8s | Memory: 193044 KB (188.52 MB)Time: 5.8s | Memory: 193044 KB (188.52 MB)Time: 5.8s | Memory: 193044 KB (188.52 MB)Time: 5.9s | Memory: 193300 KB (188.77 MB)Time: 5.9s | Memory: 193684 KB (189.14 MB)Time: 5.9s | Memory: 194452 KB (189.89 MB)Time: 5.9s | Memory: 194452 KB (189.89 MB)Time: 5.9s | Memory: 195092 KB (190.52 MB)Time: 5.9s | Memory: 195092 KB (190.52 MB)Time: 5.9s | Memory: 196244 KB (191.64 MB)Time: 5.9s | Memory: 196244 KB (191.64 MB)Time: 5.9s | Memory: 197268 KB (192.64 MB)Time: 5.9s | Memory: 197652 KB (193.02 MB)Time: 5.9s | Memory: 199956 KB (195.27 MB)Time: 5.9s | Memory: 199956 KB (195.27 MB)Time: 5.9s | Memory: 199956 KB (195.27 MB)Time: 5.9s | Memory: 199956 KB (195.27 MB)Time: 5.9s | Memory: 200980 KB (196.27 MB)Time: 5.9s | Memory: 200980 KB (196.27 MB)Time: 5.9s | Memory: 204052 KB (199.27 MB)Time: 5.9s | Memory: 205204 KB (200.39 MB)Time: 5.9s | Memory: 205204 KB (200.39 MB)Time: 5.9s | Memory: 205204 KB (200.39 MB)Time: 6.0s | Memory: 205204 KB (200.39 MB)Time: 6.0s | Memory: 205204 KB (200.39 MB)Time: 6.0s | Memory: 336276 KB (328.39 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 6.0s | Memory: 336620 KB (328.73 MB)Time: 6.0s | Memory: 205612 KB (200.79 MB)Time: 6.0s | Memory: 205612 KB (200.79 MB)Time: 6.0s | Memory: 204180 KB (199.39 MB)Time: 6.0s | Memory: 203068 KB (198.31 MB)Time: 6.0s | Memory: 202268 KB (197.53 MB)Time: 6.0s | Memory: 201012 KB (196.30 MB)Time: 6.0s | Memory: 180484 KB (176.25 MB)DEBUG: Bulk streaming rows 259072-275264 (len=16192) with facet indices
-TERCEN: Requesting offset=259072, limit=16192
-Time: 6.0s | Memory: 169836 KB (165.86 MB)Time: 6.0s | Memory: 169836 KB (165.86 MB)Time: 6.0s | Memory: 169836 KB (165.86 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 510 -> 0.07392996108949416
-DEBUG: Sample conversion [1]: 510 -> 0.07392996108949416
-DEBUG: Sample conversion [2]: 510 -> 0.07392996108949416
-DEBUG: Sample conversion [3]: 510 -> 0.07392996108949416
-DEBUG: Sample conversion [4]: 510 -> 0.07392996108949416
-Time: 6.0s | Memory: 169836 KB (165.86 MB)Time: 6.0s | Memory: 176108 KB (171.98 MB)Time: 6.0s | Memory: 179052 KB (174.86 MB)Time: 6.0s | Memory: 181356 KB (177.11 MB)Time: 6.0s | Memory: 185196 KB (180.86 MB)Time: 6.1s | Memory: 185708 KB (181.36 MB)Time: 6.1s | Memory: 189364 KB (184.93 MB)Time: 6.1s | Memory: 191924 KB (187.43 MB)Time: 6.1s | Memory: 193076 KB (188.55 MB)Time: 6.1s | Memory: 193076 KB (188.55 MB)Time: 6.1s | Memory: 193332 KB (188.80 MB)Time: 6.1s | Memory: 193460 KB (188.93 MB)Time: 6.1s | Memory: 194484 KB (189.93 MB)Time: 6.1s | Memory: 194484 KB (189.93 MB)Time: 6.1s | Memory: 195124 KB (190.55 MB)Time: 6.1s | Memory: 195124 KB (190.55 MB)Time: 6.1s | Memory: 195124 KB (190.55 MB)Time: 6.1s | Memory: 196276 KB (191.68 MB)Time: 6.1s | Memory: 196788 KB (192.18 MB)Time: 6.1s | Memory: 197684 KB (193.05 MB)Time: 6.1s | Memory: 199220 KB (194.55 MB)Time: 6.1s | Memory: 199988 KB (195.30 MB)Time: 6.1s | Memory: 199988 KB (195.30 MB)Time: 6.1s | Memory: 199988 KB (195.30 MB)Time: 6.1s | Memory: 199988 KB (195.30 MB)Time: 6.2s | Memory: 201012 KB (196.30 MB)Time: 6.2s | Memory: 203956 KB (199.18 MB)Time: 6.2s | Memory: 205236 KB (200.43 MB)Time: 6.2s | Memory: 205236 KB (200.43 MB)Time: 6.2s | Memory: 205236 KB (200.43 MB)Time: 6.2s | Memory: 205236 KB (200.43 MB)Time: 6.2s | Memory: 205236 KB (200.43 MB)Time: 6.2s | Memory: 336308 KB (328.43 MB)Time: 6.2s | Memory: 336732 KB (328.84 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 6.2s | Memory: 205724 KB (200.90 MB)Time: 6.2s | Memory: 205724 KB (200.90 MB)Time: 6.2s | Memory: 204420 KB (199.63 MB)Time: 6.2s | Memory: 204420 KB (199.63 MB)Time: 6.2s | Memory: 202508 KB (197.76 MB)Time: 6.2s | Memory: 202508 KB (197.76 MB)Time: 6.2s | Memory: 194132 KB (189.58 MB)DEBUG: Bulk streaming rows 275264-291456 (len=16192) with facet indices
-TERCEN: Requesting offset=275264, limit=16192
-Time: 6.2s | Memory: 170140 KB (166.15 MB)Time: 6.2s | Memory: 170140 KB (166.15 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-Time: 6.2s | Memory: 170140 KB (166.15 MB)TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 605 -> 0.08770122835126269
-DEBUG: Sample conversion [1]: 605 -> 0.08770122835126269
-DEBUG: Sample conversion [2]: 605 -> 0.08770122835126269
-DEBUG: Sample conversion [3]: 605 -> 0.08770122835126269
-DEBUG: Sample conversion [4]: 605 -> 0.08770122835126269
-Time: 6.3s | Memory: 170140 KB (166.15 MB)Time: 6.3s | Memory: 178204 KB (174.03 MB)Time: 6.3s | Memory: 179740 KB (175.53 MB)Time: 6.3s | Memory: 182684 KB (178.40 MB)Time: 6.3s | Memory: 185372 KB (181.03 MB)Time: 6.3s | Memory: 186268 KB (181.90 MB)Time: 6.3s | Memory: 189564 KB (185.12 MB)Time: 6.3s | Memory: 192124 KB (187.62 MB)Time: 6.3s | Memory: 193276 KB (188.75 MB)Time: 6.3s | Memory: 193532 KB (189.00 MB)Time: 6.3s | Memory: 193916 KB (189.37 MB)Time: 6.3s | Memory: 194684 KB (190.12 MB)Time: 6.3s | Memory: 194684 KB (190.12 MB)Time: 6.3s | Memory: 195324 KB (190.75 MB)Time: 6.3s | Memory: 195324 KB (190.75 MB)Time: 6.3s | Memory: 196476 KB (191.87 MB)Time: 6.3s | Memory: 196476 KB (191.87 MB)Time: 6.3s | Memory: 197500 KB (192.87 MB)Time: 6.3s | Memory: 197884 KB (193.25 MB)Time: 6.3s | Memory: 199164 KB (194.50 MB)Time: 6.4s | Memory: 199292 KB (194.62 MB)Time: 6.4s | Memory: 199292 KB (194.62 MB)Time: 6.4s | Memory: 200060 KB (195.37 MB)Time: 6.4s | Memory: 200060 KB (195.37 MB)Time: 6.4s | Memory: 200060 KB (195.37 MB)Time: 6.4s | Memory: 200060 KB (195.37 MB)Time: 6.4s | Memory: 201084 KB (196.37 MB)Time: 6.4s | Memory: 204028 KB (199.25 MB)Time: 6.4s | Memory: 205308 KB (200.50 MB)Time: 6.4s | Memory: 205308 KB (200.50 MB)Time: 6.4s | Memory: 205308 KB (200.50 MB)Time: 6.4s | Memory: 205308 KB (200.50 MB)Time: 6.4s | Memory: 205308 KB (200.50 MB)Time: 6.4s | Memory: 313212 KB (305.87 MB)Time: 6.4s | Memory: 344956 KB (336.87 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 6.4s | Memory: 205796 KB (200.97 MB)Time: 6.4s | Memory: 205796 KB (200.97 MB)Time: 6.4s | Memory: 204492 KB (199.70 MB)Time: 6.4s | Memory: 204492 KB (199.70 MB)Time: 6.4s | Memory: 202580 KB (197.83 MB)Time: 6.5s | Memory: 202580 KB (197.83 MB)Time: 6.5s | Memory: 194220 KB (189.67 MB)DEBUG: Bulk streaming rows 291456-307648 (len=16192) with facet indices
-TERCEN: Requesting offset=291456, limit=16192
-Time: 6.5s | Memory: 170228 KB (166.24 MB)Time: 6.5s | Memory: 170228 KB (166.24 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-Time: 6.5s | Memory: 170228 KB (166.24 MB)DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 731 -> 0.1059662775616083
-DEBUG: Sample conversion [1]: 731 -> 0.1059662775616083
-DEBUG: Sample conversion [2]: 731 -> 0.1059662775616083
-DEBUG: Sample conversion [3]: 731 -> 0.1059662775616083
-DEBUG: Sample conversion [4]: 731 -> 0.1059662775616083
-Time: 6.5s | Memory: 170228 KB (166.24 MB)Time: 6.5s | Memory: 178164 KB (173.99 MB)Time: 6.5s | Memory: 179828 KB (175.61 MB)Time: 6.5s | Memory: 183668 KB (179.36 MB)Time: 6.5s | Memory: 185716 KB (181.36 MB)Time: 6.5s | Memory: 186124 KB (181.76 MB)Time: 6.5s | Memory: 190348 KB (185.89 MB)Time: 6.5s | Memory: 193164 KB (188.64 MB)Time: 6.5s | Memory: 193164 KB (188.64 MB)Time: 6.5s | Memory: 193164 KB (188.64 MB)Time: 6.5s | Memory: 193164 KB (188.64 MB)Time: 6.5s | Memory: 193164 KB (188.64 MB)Time: 6.5s | Memory: 193420 KB (188.89 MB)Time: 6.5s | Memory: 193548 KB (189.01 MB)Time: 6.6s | Memory: 193548 KB (189.01 MB)Time: 6.6s | Memory: 193548 KB (189.01 MB)Time: 6.6s | Memory: 194316 KB (189.76 MB)Time: 6.6s | Memory: 194700 KB (190.14 MB)Time: 6.6s | Memory: 194700 KB (190.14 MB)Time: 6.6s | Memory: 195212 KB (190.64 MB)Time: 6.6s | Memory: 195212 KB (190.64 MB)Time: 6.6s | Memory: 196364 KB (191.76 MB)Time: 6.6s | Memory: 196364 KB (191.76 MB)Time: 6.6s | Memory: 197388 KB (192.76 MB)Time: 6.6s | Memory: 197900 KB (193.26 MB)Time: 6.6s | Memory: 200076 KB (195.39 MB)Time: 6.6s | Memory: 200076 KB (195.39 MB)Time: 6.6s | Memory: 200076 KB (195.39 MB)Time: 6.6s | Memory: 200076 KB (195.39 MB)Time: 6.6s | Memory: 201228 KB (196.51 MB)Time: 6.6s | Memory: 201228 KB (196.51 MB)Time: 6.6s | Memory: 205196 KB (200.39 MB)Time: 6.6s | Memory: 205324 KB (200.51 MB)Time: 6.6s | Memory: 205324 KB (200.51 MB)Time: 6.7s | Memory: 205324 KB (200.51 MB)Time: 6.7s | Memory: 205324 KB (200.51 MB)Time: 6.7s | Memory: 205324 KB (200.51 MB)Time: 6.7s | Memory: 336396 KB (328.51 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 6.7s | Memory: 314352 KB (306.98 MB)Time: 6.7s | Memory: 205808 KB (200.98 MB)Time: 6.7s | Memory: 205936 KB (201.11 MB)Time: 6.7s | Memory: 204608 KB (199.81 MB)Time: 6.7s | Memory: 203496 KB (198.73 MB)Time: 6.7s | Memory: 202696 KB (197.95 MB)Time: 6.7s | Memory: 201584 KB (196.86 MB)Time: 6.7s | Memory: 178032 KB (173.86 MB)DEBUG: Bulk streaming rows 307648-323840 (len=16192) with facet indices
-TERCEN: Requesting offset=307648, limit=16192
-Time: 6.7s | Memory: 170384 KB (166.39 MB)Time: 6.7s | Memory: 170384 KB (166.39 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-Time: 6.7s | Memory: 170384 KB (166.39 MB)DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 920 -> 0.13336385137712672
-DEBUG: Sample conversion [1]: 920 -> 0.13336385137712672
-DEBUG: Sample conversion [2]: 920 -> 0.13336385137712672
-DEBUG: Sample conversion [3]: 920 -> 0.13336385137712672
-DEBUG: Sample conversion [4]: 920 -> 0.13336385137712672
-Time: 6.7s | Memory: 170384 KB (166.39 MB)Time: 6.7s | Memory: 178448 KB (174.27 MB)Time: 6.7s | Memory: 179984 KB (175.77 MB)Time: 6.7s | Memory: 183824 KB (179.52 MB)Time: 6.8s | Memory: 185744 KB (181.39 MB)Time: 6.8s | Memory: 186408 KB (182.04 MB)Time: 6.8s | Memory: 190120 KB (185.66 MB)Time: 6.8s | Memory: 193448 KB (188.91 MB)Time: 6.8s | Memory: 193448 KB (188.91 MB)Time: 6.8s | Memory: 193576 KB (189.04 MB)Time: 6.8s | Memory: 193704 KB (189.16 MB)Time: 6.8s | Memory: 194216 KB (189.66 MB)Time: 6.8s | Memory: 194856 KB (190.29 MB)Time: 6.8s | Memory: 194856 KB (190.29 MB)Time: 6.8s | Memory: 195496 KB (190.91 MB)Time: 6.8s | Memory: 195496 KB (190.91 MB)Time: 6.8s | Memory: 196648 KB (192.04 MB)Time: 6.8s | Memory: 196648 KB (192.04 MB)Time: 6.8s | Memory: 197672 KB (193.04 MB)Time: 6.8s | Memory: 198056 KB (193.41 MB)Time: 6.8s | Memory: 200360 KB (195.66 MB)Time: 6.8s | Memory: 200360 KB (195.66 MB)Time: 6.8s | Memory: 200360 KB (195.66 MB)Time: 6.8s | Memory: 200360 KB (195.66 MB)Time: 6.9s | Memory: 201384 KB (196.66 MB)Time: 6.9s | Memory: 201384 KB (196.66 MB)Time: 6.9s | Memory: 205480 KB (200.66 MB)Time: 6.9s | Memory: 205608 KB (200.79 MB)Time: 6.9s | Memory: 205608 KB (200.79 MB)Time: 6.9s | Memory: 205608 KB (200.79 MB)Time: 6.9s | Memory: 205608 KB (200.79 MB)Time: 6.9s | Memory: 213800 KB (208.79 MB)Time: 6.9s | Memory: 336936 KB (329.04 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 6.9s | Memory: 210188 KB (205.26 MB)Time: 6.9s | Memory: 206092 KB (201.26 MB)Time: 6.9s | Memory: 206092 KB (201.26 MB)Time: 6.9s | Memory: 204660 KB (199.86 MB)Time: 6.9s | Memory: 202748 KB (198.00 MB)Time: 6.9s | Memory: 202748 KB (198.00 MB)Time: 6.9s | Memory: 194364 KB (189.81 MB)DEBUG: Bulk streaming rows 323840-340032 (len=16192) with facet indices
-TERCEN: Requesting offset=323840, limit=16192
-Time: 6.9s | Memory: 170308 KB (166.32 MB)Time: 6.9s | Memory: 170308 KB (166.32 MB)Time: 6.9s | Memory: 170308 KB (166.32 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-Time: 6.9s | Memory: 170308 KB (166.32 MB)DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 1216 -> 0.17627222095063708
-DEBUG: Sample conversion [1]: 1216 -> 0.17627222095063708
-DEBUG: Sample conversion [2]: 1216 -> 0.17627222095063708
-DEBUG: Sample conversion [3]: 1216 -> 0.17627222095063708
-DEBUG: Sample conversion [4]: 1216 -> 0.17627222095063708
-Time: 7.0s | Memory: 171972 KB (167.94 MB)Time: 7.0s | Memory: 179396 KB (175.19 MB)Time: 7.0s | Memory: 181572 KB (177.32 MB)Time: 7.0s | Memory: 185028 KB (180.69 MB)Time: 7.0s | Memory: 185924 KB (181.57 MB)Time: 7.0s | Memory: 189404 KB (184.96 MB)Time: 7.0s | Memory: 191580 KB (187.09 MB)Time: 7.0s | Memory: 193372 KB (188.84 MB)Time: 7.0s | Memory: 193628 KB (189.09 MB)Time: 7.0s | Memory: 194012 KB (189.46 MB)Time: 7.0s | Memory: 194780 KB (190.21 MB)Time: 7.0s | Memory: 194780 KB (190.21 MB)Time: 7.0s | Memory: 195292 KB (190.71 MB)Time: 7.0s | Memory: 195292 KB (190.71 MB)Time: 7.0s | Memory: 196444 KB (191.84 MB)Time: 7.0s | Memory: 196572 KB (191.96 MB)Time: 7.0s | Memory: 197468 KB (192.84 MB)Time: 7.0s | Memory: 197852 KB (193.21 MB)Time: 7.0s | Memory: 199260 KB (194.59 MB)Time: 7.1s | Memory: 200028 KB (195.34 MB)Time: 7.1s | Memory: 200028 KB (195.34 MB)Time: 7.1s | Memory: 200028 KB (195.34 MB)Time: 7.1s | Memory: 200028 KB (195.34 MB)Time: 7.1s | Memory: 201180 KB (196.46 MB)Time: 7.1s | Memory: 203996 KB (199.21 MB)Time: 7.1s | Memory: 205276 KB (200.46 MB)Time: 7.1s | Memory: 205276 KB (200.46 MB)Time: 7.1s | Memory: 205276 KB (200.46 MB)Time: 7.1s | Memory: 205276 KB (200.46 MB)Time: 7.1s | Memory: 205276 KB (200.46 MB)Time: 7.1s | Memory: 336348 KB (328.46 MB)Time: 7.1s | Memory: 344924 KB (336.84 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 7.1s | Memory: 205784 KB (200.96 MB)Time: 7.1s | Memory: 205784 KB (200.96 MB)Time: 7.1s | Memory: 205784 KB (200.96 MB)Time: 7.1s | Memory: 204472 KB (199.68 MB)Time: 7.1s | Memory: 202560 KB (197.81 MB)Time: 7.1s | Memory: 202560 KB (197.81 MB)Time: 7.1s | Memory: 194208 KB (189.66 MB)DEBUG: Bulk streaming rows 340032-356224 (len=16192) with facet indices
-TERCEN: Requesting offset=340032, limit=16192
-Time: 7.2s | Memory: 170216 KB (166.23 MB)Time: 7.2s | Memory: 170216 KB (166.23 MB)Time: 7.2s | Memory: 170216 KB (166.23 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-Time: 7.2s | Memory: 170216 KB (166.23 MB)DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 1716 -> 0.24875257495994507
-DEBUG: Sample conversion [1]: 1716 -> 0.24875257495994507
-DEBUG: Sample conversion [2]: 1716 -> 0.24875257495994507
-DEBUG: Sample conversion [3]: 1716 -> 0.24875257495994507
-DEBUG: Sample conversion [4]: 1716 -> 0.24875257495994507
-Time: 7.2s | Memory: 171368 KB (167.35 MB)Time: 7.2s | Memory: 179304 KB (175.10 MB)Time: 7.2s | Memory: 181096 KB (176.85 MB)Time: 7.2s | Memory: 184936 KB (180.60 MB)Time: 7.2s | Memory: 185832 KB (181.48 MB)Time: 7.2s | Memory: 186112 KB (181.75 MB)Time: 7.2s | Memory: 190976 KB (186.50 MB)Time: 7.2s | Memory: 193280 KB (188.75 MB)Time: 7.2s | Memory: 193280 KB (188.75 MB)Time: 7.2s | Memory: 193280 KB (188.75 MB)Time: 7.2s | Memory: 193280 KB (188.75 MB)Time: 7.2s | Memory: 193536 KB (189.00 MB)Time: 7.2s | Memory: 193536 KB (189.00 MB)Time: 7.2s | Memory: 193792 KB (189.25 MB)Time: 7.2s | Memory: 194560 KB (190.00 MB)Time: 7.2s | Memory: 194560 KB (190.00 MB)Time: 7.3s | Memory: 195200 KB (190.62 MB)Time: 7.3s | Memory: 195200 KB (190.62 MB)Time: 7.3s | Memory: 195200 KB (190.62 MB)Time: 7.3s | Memory: 196352 KB (191.75 MB)Time: 7.3s | Memory: 197376 KB (192.75 MB)Time: 7.3s | Memory: 197760 KB (193.12 MB)Time: 7.3s | Memory: 199168 KB (194.50 MB)Time: 7.3s | Memory: 199936 KB (195.25 MB)Time: 7.3s | Memory: 199936 KB (195.25 MB)Time: 7.3s | Memory: 199936 KB (195.25 MB)Time: 7.3s | Memory: 199936 KB (195.25 MB)Time: 7.3s | Memory: 200960 KB (196.25 MB)Time: 7.3s | Memory: 203904 KB (199.12 MB)Time: 7.3s | Memory: 205184 KB (200.38 MB)Time: 7.3s | Memory: 205184 KB (200.38 MB)Time: 7.3s | Memory: 205184 KB (200.38 MB)Time: 7.3s | Memory: 205184 KB (200.38 MB)Time: 7.3s | Memory: 205184 KB (200.38 MB)Time: 7.3s | Memory: 258304 KB (252.25 MB)Time: 7.4s | Memory: 336512 KB (328.62 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 7.4s | Memory: 330600 KB (322.85 MB)Time: 7.4s | Memory: 205672 KB (200.85 MB)Time: 7.4s | Memory: 205800 KB (200.98 MB)Time: 7.4s | Memory: 204368 KB (199.58 MB)Time: 7.4s | Memory: 203256 KB (198.49 MB)Time: 7.4s | Memory: 202456 KB (197.71 MB)Time: 7.4s | Memory: 201344 KB (196.62 MB)Time: 7.4s | Memory: 194080 KB (189.53 MB)DEBUG: Bulk streaming rows 356224-372416 (len=16192) with facet indices
-TERCEN: Requesting offset=356224, limit=16192
-Time: 7.4s | Memory: 170024 KB (166.04 MB)Time: 7.4s | Memory: 170024 KB (166.04 MB)TERCEN: Received chunk #1 with 180175 bytes
-Time: 7.4s | Memory: 170024 KB (166.04 MB)TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 2534 -> 0.367330434119173
-DEBUG: Sample conversion [1]: 2534 -> 0.367330434119173
-DEBUG: Sample conversion [2]: 2534 -> 0.367330434119173
-DEBUG: Sample conversion [3]: 2534 -> 0.367330434119173
-DEBUG: Sample conversion [4]: 2534 -> 0.367330434119173
-Time: 7.4s | Memory: 170024 KB (166.04 MB)Time: 7.4s | Memory: 177960 KB (173.79 MB)Time: 7.4s | Memory: 179624 KB (175.41 MB)Time: 7.4s | Memory: 182312 KB (178.04 MB)Time: 7.4s | Memory: 185128 KB (180.79 MB)Time: 7.4s | Memory: 186536 KB (182.16 MB)Time: 7.4s | Memory: 189344 KB (184.91 MB)Time: 7.4s | Memory: 193056 KB (188.53 MB)Time: 7.5s | Memory: 193184 KB (188.66 MB)Time: 7.5s | Memory: 193312 KB (188.78 MB)Time: 7.5s | Memory: 194464 KB (189.91 MB)Time: 7.5s | Memory: 194464 KB (189.91 MB)Time: 7.5s | Memory: 194464 KB (189.91 MB)Time: 7.5s | Memory: 195104 KB (190.53 MB)Time: 7.5s | Memory: 195104 KB (190.53 MB)Time: 7.5s | Memory: 196256 KB (191.66 MB)Time: 7.5s | Memory: 196256 KB (191.66 MB)Time: 7.5s | Memory: 197664 KB (193.03 MB)Time: 7.5s | Memory: 197792 KB (193.16 MB)Time: 7.5s | Memory: 199968 KB (195.28 MB)Time: 7.5s | Memory: 199968 KB (195.28 MB)Time: 7.5s | Memory: 199968 KB (195.28 MB)Time: 7.5s | Memory: 199968 KB (195.28 MB)Time: 7.5s | Memory: 200992 KB (196.28 MB)Time: 7.5s | Memory: 200992 KB (196.28 MB)Time: 7.5s | Memory: 203936 KB (199.16 MB)Time: 7.5s | Memory: 205216 KB (200.41 MB)Time: 7.6s | Memory: 205216 KB (200.41 MB)Time: 7.6s | Memory: 205216 KB (200.41 MB)Time: 7.6s | Memory: 205216 KB (200.41 MB)Time: 7.6s | Memory: 205216 KB (200.41 MB)Time: 7.6s | Memory: 336288 KB (328.41 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 7.6s | Memory: 336712 KB (328.82 MB)Time: 7.6s | Memory: 205704 KB (200.88 MB)Time: 7.6s | Memory: 205704 KB (200.88 MB)Time: 7.6s | Memory: 204400 KB (199.61 MB)Time: 7.6s | Memory: 204400 KB (199.61 MB)Time: 7.6s | Memory: 202488 KB (197.74 MB)Time: 7.6s | Memory: 202488 KB (197.74 MB)Time: 7.6s | Memory: 194128 KB (189.58 MB)DEBUG: Bulk streaming rows 372416-388608 (len=16192) with facet indices
-TERCEN: Requesting offset=372416, limit=16192
-Time: 7.6s | Memory: 170072 KB (166.09 MB)Time: 7.6s | Memory: 170072 KB (166.09 MB)Time: 7.6s | Memory: 170072 KB (166.09 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 3773 -> 0.5469367513542381
-DEBUG: Sample conversion [1]: 3773 -> 0.5469367513542381
-DEBUG: Sample conversion [2]: 3773 -> 0.5469367513542381
-DEBUG: Sample conversion [3]: 3773 -> 0.5469367513542381
-DEBUG: Sample conversion [4]: 3773 -> 0.5469367513542381
-Time: 7.6s | Memory: 170072 KB (166.09 MB)Time: 7.6s | Memory: 178264 KB (174.09 MB)Time: 7.6s | Memory: 179800 KB (175.59 MB)Time: 7.6s | Memory: 183640 KB (179.34 MB)Time: 7.7s | Memory: 185688 KB (181.34 MB)Time: 7.7s | Memory: 186172 KB (181.81 MB)Time: 7.7s | Memory: 189628 KB (185.18 MB)Time: 7.7s | Memory: 193340 KB (188.81 MB)Time: 7.7s | Memory: 193468 KB (188.93 MB)Time: 7.7s | Memory: 193596 KB (189.06 MB)Time: 7.7s | Memory: 194748 KB (190.18 MB)Time: 7.7s | Memory: 194748 KB (190.18 MB)Time: 7.7s | Memory: 194748 KB (190.18 MB)Time: 7.7s | Memory: 195388 KB (190.81 MB)Time: 7.7s | Memory: 195388 KB (190.81 MB)Time: 7.7s | Memory: 196540 KB (191.93 MB)Time: 7.7s | Memory: 196924 KB (192.31 MB)Time: 7.7s | Memory: 197948 KB (193.31 MB)Time: 7.7s | Memory: 199100 KB (194.43 MB)Time: 7.7s | Memory: 200124 KB (195.43 MB)Time: 7.7s | Memory: 200124 KB (195.43 MB)Time: 7.7s | Memory: 200124 KB (195.43 MB)Time: 7.7s | Memory: 200124 KB (195.43 MB)Time: 7.7s | Memory: 201148 KB (196.43 MB)Time: 7.8s | Memory: 204092 KB (199.31 MB)Time: 7.8s | Memory: 205372 KB (200.56 MB)Time: 7.8s | Memory: 205372 KB (200.56 MB)Time: 7.8s | Memory: 205372 KB (200.56 MB)Time: 7.8s | Memory: 205372 KB (200.56 MB)Time: 7.8s | Memory: 205372 KB (200.56 MB)Time: 7.8s | Memory: 336444 KB (328.56 MB)Time: 7.8s | Memory: 336868 KB (328.97 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 7.8s | Memory: 205988 KB (201.16 MB)Time: 7.8s | Memory: 205988 KB (201.16 MB)Time: 7.8s | Memory: 204556 KB (199.76 MB)Time: 7.8s | Memory: 204556 KB (199.76 MB)Time: 7.8s | Memory: 202644 KB (197.89 MB)Time: 7.8s | Memory: 202644 KB (197.89 MB)Time: 7.8s | Memory: 194260 KB (189.71 MB)DEBUG: Bulk streaming rows 388608-404800 (len=16192) with facet indices
-TERCEN: Requesting offset=388608, limit=16192
-Time: 7.8s | Memory: 170204 KB (166.21 MB)Time: 7.8s | Memory: 170204 KB (166.21 MB)Time: 7.8s | Memory: 170204 KB (166.21 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 5551 -> 0.8046768902113375
-DEBUG: Sample conversion [1]: 5551 -> 0.8046768902113375
-DEBUG: Sample conversion [2]: 5551 -> 0.8046768902113375
-DEBUG: Sample conversion [3]: 5552 -> 0.8048218509193561
-DEBUG: Sample conversion [4]: 5552 -> 0.8048218509193561
-Time: 7.8s | Memory: 170204 KB (166.21 MB)Time: 7.9s | Memory: 178140 KB (173.96 MB)Time: 7.9s | Memory: 179804 KB (175.59 MB)Time: 7.9s | Memory: 182620 KB (178.34 MB)Time: 7.9s | Memory: 185436 KB (181.09 MB)Time: 7.9s | Memory: 186076 KB (181.71 MB)Time: 7.9s | Memory: 189688 KB (185.24 MB)Time: 7.9s | Memory: 193144 KB (188.62 MB)Time: 7.9s | Memory: 193400 KB (188.87 MB)Time: 7.9s | Memory: 193912 KB (189.37 MB)Time: 7.9s | Memory: 194680 KB (190.12 MB)Time: 7.9s | Memory: 194680 KB (190.12 MB)Time: 7.9s | Memory: 195320 KB (190.74 MB)Time: 7.9s | Memory: 195320 KB (190.74 MB)Time: 7.9s | Memory: 196472 KB (191.87 MB)Time: 7.9s | Memory: 196472 KB (191.87 MB)Time: 7.9s | Memory: 197496 KB (192.87 MB)Time: 7.9s | Memory: 197880 KB (193.24 MB)Time: 7.9s | Memory: 199800 KB (195.12 MB)Time: 7.9s | Memory: 200056 KB (195.37 MB)Time: 7.9s | Memory: 200056 KB (195.37 MB)Time: 8.0s | Memory: 200056 KB (195.37 MB)Time: 8.0s | Memory: 201080 KB (196.37 MB)Time: 8.0s | Memory: 201080 KB (196.37 MB)Time: 8.0s | Memory: 204024 KB (199.24 MB)Time: 8.0s | Memory: 205304 KB (200.49 MB)Time: 8.0s | Memory: 205304 KB (200.49 MB)Time: 8.0s | Memory: 205304 KB (200.49 MB)Time: 8.0s | Memory: 205304 KB (200.49 MB)Time: 8.0s | Memory: 205304 KB (200.49 MB)Time: 8.0s | Memory: 336376 KB (328.49 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 8.0s | Memory: 336800 KB (328.91 MB)Time: 8.0s | Memory: 205792 KB (200.97 MB)Time: 8.0s | Memory: 205920 KB (201.09 MB)Time: 8.0s | Memory: 204488 KB (199.70 MB)Time: 8.0s | Memory: 204488 KB (199.70 MB)Time: 8.0s | Memory: 202576 KB (197.83 MB)Time: 8.0s | Memory: 202576 KB (197.83 MB)Time: 8.0s | Memory: 194220 KB (189.67 MB)DEBUG: Bulk streaming rows 404800-420992 (len=16192) with facet indices
-TERCEN: Requesting offset=404800, limit=16192
-Time: 8.0s | Memory: 170224 KB (166.23 MB)Time: 8.0s | Memory: 170224 KB (166.23 MB)Time: 8.1s | Memory: 170224 KB (166.23 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-Time: 8.1s | Memory: 170224 KB (166.23 MB)DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 7900 -> 1.1451895933470664
-DEBUG: Sample conversion [1]: 7900 -> 1.1451895933470664
-DEBUG: Sample conversion [2]: 7900 -> 1.1451895933470664
-DEBUG: Sample conversion [3]: 7901 -> 1.145334554055085
-DEBUG: Sample conversion [4]: 7901 -> 1.145334554055085
-Time: 8.1s | Memory: 175216 KB (171.11 MB)Time: 8.1s | Memory: 179312 KB (175.11 MB)Time: 8.1s | Memory: 181488 KB (177.23 MB)Time: 8.1s | Memory: 185456 KB (181.11 MB)Time: 8.1s | Memory: 185840 KB (181.48 MB)Time: 8.1s | Memory: 189580 KB (185.14 MB)Time: 8.1s | Memory: 191372 KB (186.89 MB)Time: 8.1s | Memory: 193420 KB (188.89 MB)Time: 8.1s | Memory: 193420 KB (188.89 MB)Time: 8.1s | Memory: 193420 KB (188.89 MB)Time: 8.1s | Memory: 193420 KB (188.89 MB)Time: 8.1s | Memory: 193420 KB (188.89 MB)Time: 8.1s | Memory: 193420 KB (188.89 MB)Time: 8.1s | Memory: 193548 KB (189.01 MB)Time: 8.1s | Memory: 193804 KB (189.26 MB)Time: 8.1s | Memory: 194188 KB (189.64 MB)Time: 8.1s | Memory: 194956 KB (190.39 MB)Time: 8.2s | Memory: 194956 KB (190.39 MB)Time: 8.2s | Memory: 195468 KB (190.89 MB)Time: 8.2s | Memory: 195468 KB (190.89 MB)Time: 8.2s | Memory: 195980 KB (191.39 MB)Time: 8.2s | Memory: 196748 KB (192.14 MB)Time: 8.2s | Memory: 197644 KB (193.01 MB)Time: 8.2s | Memory: 197644 KB (193.01 MB)Time: 8.2s | Memory: 198028 KB (193.39 MB)Time: 8.2s | Memory: 200204 KB (195.51 MB)Time: 8.2s | Memory: 200204 KB (195.51 MB)Time: 8.2s | Memory: 200204 KB (195.51 MB)Time: 8.2s | Memory: 200204 KB (195.51 MB)Time: 8.2s | Memory: 201356 KB (196.64 MB)Time: 8.2s | Memory: 201356 KB (196.64 MB)Time: 8.2s | Memory: 204300 KB (199.51 MB)Time: 8.2s | Memory: 205452 KB (200.64 MB)Time: 8.2s | Memory: 205452 KB (200.64 MB)Time: 8.2s | Memory: 205452 KB (200.64 MB)Time: 8.2s | Memory: 205452 KB (200.64 MB)Time: 8.2s | Memory: 205452 KB (200.64 MB)Time: 8.3s | Memory: 336780 KB (328.89 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 8.3s | Memory: 220896 KB (215.72 MB)Time: 8.3s | Memory: 205960 KB (201.13 MB)Time: 8.3s | Memory: 205960 KB (201.13 MB)Time: 8.3s | Memory: 204528 KB (199.73 MB)Time: 8.3s | Memory: 202760 KB (198.01 MB)Time: 8.3s | Memory: 202616 KB (197.87 MB)Time: 8.3s | Memory: 194272 KB (189.72 MB)DEBUG: Bulk streaming rows 420992-437184 (len=16192) with facet indices
-TERCEN: Requesting offset=420992, limit=16192
-Time: 8.3s | Memory: 170212 KB (166.22 MB)Time: 8.3s | Memory: 170212 KB (166.22 MB)Time: 8.3s | Memory: 170212 KB (166.22 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-Time: 8.3s | Memory: 170212 KB (166.22 MB)DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 10813 -> 1.5674601358052949
-DEBUG: Sample conversion [1]: 10813 -> 1.5674601358052949
-DEBUG: Sample conversion [2]: 10813 -> 1.5674601358052949
-DEBUG: Sample conversion [3]: 10813 -> 1.5674601358052949
-DEBUG: Sample conversion [4]: 10813 -> 1.5674601358052949
-Time: 8.3s | Memory: 171364 KB (167.35 MB)Time: 8.3s | Memory: 179300 KB (175.10 MB)Time: 8.3s | Memory: 181348 KB (177.10 MB)Time: 8.3s | Memory: 184804 KB (180.47 MB)Time: 8.3s | Memory: 185828 KB (181.47 MB)Time: 8.3s | Memory: 189536 KB (185.09 MB)Time: 8.3s | Memory: 191456 KB (186.97 MB)Time: 8.3s | Memory: 193376 KB (188.84 MB)Time: 8.4s | Memory: 193376 KB (188.84 MB)Time: 8.4s | Memory: 193504 KB (188.97 MB)Time: 8.4s | Memory: 193632 KB (189.09 MB)Time: 8.4s | Memory: 193760 KB (189.22 MB)Time: 8.4s | Memory: 194784 KB (190.22 MB)Time: 8.4s | Memory: 194784 KB (190.22 MB)Time: 8.4s | Memory: 195424 KB (190.84 MB)Time: 8.4s | Memory: 195424 KB (190.84 MB)Time: 8.4s | Memory: 196576 KB (191.97 MB)Time: 8.4s | Memory: 196576 KB (191.97 MB)Time: 8.4s | Memory: 197600 KB (192.97 MB)Time: 8.4s | Memory: 197984 KB (193.34 MB)Time: 8.4s | Memory: 200288 KB (195.59 MB)Time: 8.4s | Memory: 200288 KB (195.59 MB)Time: 8.4s | Memory: 200288 KB (195.59 MB)Time: 8.4s | Memory: 200288 KB (195.59 MB)Time: 8.4s | Memory: 201312 KB (196.59 MB)Time: 8.4s | Memory: 201312 KB (196.59 MB)Time: 8.4s | Memory: 205408 KB (200.59 MB)Time: 8.5s | Memory: 205536 KB (200.72 MB)Time: 8.5s | Memory: 205536 KB (200.72 MB)Time: 8.5s | Memory: 205536 KB (200.72 MB)Time: 8.5s | Memory: 205536 KB (200.72 MB)Time: 8.5s | Memory: 232544 KB (227.09 MB)Time: 8.5s | Memory: 336864 KB (328.97 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 8.5s | Memory: 206148 KB (201.32 MB)Time: 8.5s | Memory: 206148 KB (201.32 MB)Time: 8.5s | Memory: 206276 KB (201.44 MB)Time: 8.5s | Memory: 204844 KB (200.04 MB)Time: 8.5s | Memory: 203076 KB (198.32 MB)Time: 8.5s | Memory: 202932 KB (198.18 MB)Time: 8.5s | Memory: 194560 KB (190.00 MB)DEBUG: Bulk streaming rows 437184-453376 (len=16192) with facet indices
-TERCEN: Requesting offset=437184, limit=16192
-Time: 8.5s | Memory: 170536 KB (166.54 MB)Time: 8.5s | Memory: 170536 KB (166.54 MB)Time: 8.5s | Memory: 170536 KB (166.54 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-DEBUG: Found .ys column, converting quantized coordinates
-Time: 8.5s | Memory: 170536 KB (166.54 MB)DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 14439 -> 2.0930876630807966
-DEBUG: Sample conversion [1]: 14440 -> 2.0932326237888152
-DEBUG: Sample conversion [2]: 14440 -> 2.0932326237888152
-DEBUG: Sample conversion [3]: 14440 -> 2.0932326237888152
-DEBUG: Sample conversion [4]: 14440 -> 2.0932326237888152
-Time: 8.5s | Memory: 177192 KB (173.04 MB)Time: 8.5s | Memory: 179752 KB (175.54 MB)Time: 8.5s | Memory: 182056 KB (177.79 MB)Time: 8.6s | Memory: 185896 KB (181.54 MB)Time: 8.6s | Memory: 186408 KB (182.04 MB)Time: 8.6s | Memory: 190080 KB (185.62 MB)Time: 8.6s | Memory: 192256 KB (187.75 MB)Time: 8.6s | Memory: 193792 KB (189.25 MB)Time: 8.6s | Memory: 194048 KB (189.50 MB)Time: 8.6s | Memory: 194048 KB (189.50 MB)Time: 8.6s | Memory: 195200 KB (190.62 MB)Time: 8.6s | Memory: 195200 KB (190.62 MB)Time: 8.6s | Memory: 195200 KB (190.62 MB)Time: 8.6s | Memory: 195840 KB (191.25 MB)Time: 8.6s | Memory: 195840 KB (191.25 MB)Time: 8.6s | Memory: 196992 KB (192.38 MB)Time: 8.6s | Memory: 197504 KB (192.88 MB)Time: 8.6s | Memory: 198400 KB (193.75 MB)Time: 8.6s | Memory: 199680 KB (195.00 MB)Time: 8.6s | Memory: 200576 KB (195.88 MB)Time: 8.6s | Memory: 200576 KB (195.88 MB)Time: 8.6s | Memory: 200576 KB (195.88 MB)Time: 8.7s | Memory: 200576 KB (195.88 MB)Time: 8.7s | Memory: 201600 KB (196.88 MB)Time: 8.7s | Memory: 204544 KB (199.75 MB)Time: 8.7s | Memory: 205824 KB (201.00 MB)Time: 8.7s | Memory: 205824 KB (201.00 MB)Time: 8.7s | Memory: 205824 KB (201.00 MB)Time: 8.7s | Memory: 205824 KB (201.00 MB)Time: 8.7s | Memory: 205824 KB (201.00 MB)Time: 8.7s | Memory: 336896 KB (329.00 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 8.7s | Memory: 337320 KB (329.41 MB)Time: 8.7s | Memory: 206312 KB (201.48 MB)Time: 8.7s | Memory: 206312 KB (201.48 MB)Time: 8.7s | Memory: 205008 KB (200.20 MB)Time: 8.7s | Memory: 205008 KB (200.20 MB)Time: 8.7s | Memory: 203096 KB (198.34 MB)Time: 8.7s | Memory: 201984 KB (197.25 MB)Time: 8.7s | Memory: 194716 KB (190.15 MB)DEBUG: Bulk streaming rows 453376-469568 (len=16192) with facet indices
-TERCEN: Requesting offset=453376, limit=16192
-Time: 8.7s | Memory: 170752 KB (166.75 MB)Time: 8.7s | Memory: 170752 KB (166.75 MB)TERCEN: Received chunk #1 with 180175 bytes
-TERCEN: Received chunk #2 with 14479 bytes
-TERCEN: Total 194654 bytes in 2 chunks
-TSON: Parsed table with 4 columns, 15000 rows
-Time: 8.7s | Memory: 170752 KB (166.75 MB)DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 19443 -> 2.818471046005951
-DEBUG: Sample conversion [1]: 19443 -> 2.818471046005951
-DEBUG: Sample conversion [2]: 19445 -> 2.8187609674219885
-DEBUG: Sample conversion [3]: 19447 -> 2.8190508888380257
-DEBUG: Sample conversion [4]: 19447 -> 2.8190508888380257
-Time: 8.8s | Memory: 170752 KB (166.75 MB)Time: 8.8s | Memory: 178944 KB (174.75 MB)Time: 8.8s | Memory: 180480 KB (176.25 MB)Time: 8.8s | Memory: 184448 KB (180.12 MB)Time: 8.8s | Memory: 186368 KB (182.00 MB)Time: 8.8s | Memory: 186668 KB (182.29 MB)Time: 8.8s | Memory: 190380 KB (185.92 MB)Time: 8.8s | Memory: 193964 KB (189.42 MB)Time: 8.8s | Memory: 194092 KB (189.54 MB)Time: 8.8s | Memory: 194220 KB (189.67 MB)Time: 8.8s | Memory: 195372 KB (190.79 MB)Time: 8.8s | Memory: 195372 KB (190.79 MB)Time: 8.8s | Memory: 195372 KB (190.79 MB)Time: 8.8s | Memory: 196012 KB (191.42 MB)Time: 8.8s | Memory: 196012 KB (191.42 MB)Time: 8.8s | Memory: 197164 KB (192.54 MB)Time: 8.8s | Memory: 197548 KB (192.92 MB)Time: 8.8s | Memory: 198572 KB (193.92 MB)Time: 8.8s | Memory: 199596 KB (194.92 MB)Time: 8.8s | Memory: 200620 KB (195.92 MB)Time: 8.9s | Memory: 200748 KB (196.04 MB)Time: 8.9s | Memory: 200748 KB (196.04 MB)Time: 8.9s | Memory: 200748 KB (196.04 MB)Time: 8.9s | Memory: 201772 KB (197.04 MB)Time: 8.9s | Memory: 204716 KB (199.92 MB)Time: 8.9s | Memory: 205996 KB (201.17 MB)Time: 8.9s | Memory: 205996 KB (201.17 MB)Time: 8.9s | Memory: 205996 KB (201.17 MB)Time: 8.9s | Memory: 205996 KB (201.17 MB)Time: 8.9s | Memory: 205996 KB (201.17 MB)Time: 8.9s | Memory: 205996 KB (201.17 MB)Time: 8.9s | Memory: 337068 KB (329.17 MB)✓ WebGPU rendered 15000 points to 741x528 surface
-Time: 8.9s | Memory: 314988 KB (307.61 MB)Time: 8.9s | Memory: 206444 KB (201.61 MB)Time: 8.9s | Memory: 206444 KB (201.61 MB)Time: 8.9s | Memory: 205012 KB (200.21 MB)Time: 8.9s | Memory: 203244 KB (198.48 MB)Time: 8.9s | Memory: 203100 KB (198.34 MB)Time: 8.9s | Memory: 200820 KB (196.11 MB)Time: 9.0s | Memory: 170764 KB (166.76 MB)DEBUG: Bulk streaming rows 469568-475688 (len=6120) with facet indices
-TERCEN: Requesting offset=469568, limit=6120
-Time: 9.0s | Memory: 170764 KB (166.76 MB)Time: 9.0s | Memory: 170764 KB (166.76 MB)TERCEN: Received chunk #1 with 73615 bytes
-TERCEN: Total 73615 bytes in 1 chunks
-TSON: Parsed table with 4 columns, 6120 rows
-DEBUG: Found .ys column, converting quantized coordinates
-DEBUG: Y-axis data: Numeric(NumericAxisData { min_value: 0.0, max_value: 9.5, min_axis: 0.0, max_axis: 9.5, transform: None })
-DEBUG: Converting .ys with range [0, 9.5] (range=9.5)
-DEBUG: Sample conversion [0]: 29164 -> 4.227634088654917
-DEBUG: Sample conversion [1]: 29164 -> 4.227634088654917
-DEBUG: Sample conversion [2]: 29165 -> 4.227779049362936
-DEBUG: Sample conversion [3]: 29166 -> 4.2279240100709545
-DEBUG: Sample conversion [4]: 29170 -> 4.228503852903029
-Time: 9.0s | Memory: 170764 KB (166.76 MB)Time: 9.0s | Memory: 178828 KB (174.64 MB)Time: 9.0s | Memory: 180364 KB (176.14 MB)Time: 9.0s | Memory: 183436 KB (179.14 MB)Time: 9.0s | Memory: 185996 KB (181.64 MB)Time: 9.0s | Memory: 186632 KB (182.26 MB)Time: 9.0s | Memory: 190088 KB (185.63 MB)Time: 9.0s | Memory: 192648 KB (188.13 MB)Time: 9.0s | Memory: 193928 KB (189.38 MB)Time: 9.0s | Memory: 194056 KB (189.51 MB)Time: 9.0s | Memory: 194440 KB (189.88 MB)Time: 9.0s | Memory: 195208 KB (190.63 MB)Time: 9.0s | Memory: 195208 KB (190.63 MB)Time: 9.0s | Memory: 195848 KB (191.26 MB)Time: 9.0s | Memory: 195848 KB (191.26 MB)Time: 9.0s | Memory: 197000 KB (192.38 MB)Time: 9.0s | Memory: 197000 KB (192.38 MB)Time: 9.1s | Memory: 198024 KB (193.38 MB)Time: 9.1s | Memory: 198536 KB (193.88 MB)Time: 9.1s | Memory: 200712 KB (196.01 MB)Time: 9.1s | Memory: 200712 KB (196.01 MB)Time: 9.1s | Memory: 200840 KB (196.13 MB)Time: 9.1s | Memory: 200840 KB (196.13 MB)Time: 9.1s | Memory: 201864 KB (197.13 MB)Time: 9.1s | Memory: 201864 KB (197.13 MB)Time: 9.1s | Memory: 204936 KB (200.13 MB)Time: 9.1s | Memory: 206088 KB (201.26 MB)Time: 9.1s | Memory: 206088 KB (201.26 MB)Time: 9.1s | Memory: 206088 KB (201.26 MB)Time: 9.1s | Memory: 206088 KB (201.26 MB)Time: 9.1s | Memory: 206088 KB (201.26 MB)Time: 9.1s | Memory: 337160 KB (329.26 MB)Time: 9.1s | Memory: 337560 KB (329.65 MB)✓ WebGPU rendered 6120 points to 741x528 surface
-Time: 9.1s | Memory: 206552 KB (201.71 MB)Time: 9.1s | Memory: 206552 KB (201.71 MB)Time: 9.1s | Memory: 206552 KB (201.71 MB)Time: 9.1s | Memory: 205120 KB (200.31 MB)Time: 9.2s | Memory: 203208 KB (198.45 MB)Time: 9.2s | Memory: 203208 KB (198.45 MB)Time: 9.2s | Memory: 194876 KB (190.31 MB)Time: 9.2s | Memory: 170912 KB (166.91 MB)Time: 9.2s | Memory: 170912 KB (166.91 MB)Time: 9.2s | Memory: 170912 KB (166.91 MB)Time: 9.2s | Memory: 170912 KB (166.91 MB)Time: 9.2s | Memory: 171040 KB (167.03 MB)Time: 9.2s | Memory: 171040 KB (167.03 MB)Time: 9.2s | Memory: 171040 KB (167.03 MB)Time: 9.2s | Memory: 171040 KB (167.03 MB)Time: 9.2s | Memory: 171040 KB (167.03 MB)Time: 9.2s | Memory: 171040 KB (167.03 MB)Time: 9.2s | Memory: 171040 KB (167.03 MB)[PHASE @9.218s] PHASE 5.4: Saving PNG
-Saving plot to plot.png...
-✓ Plot saved to plot.png (52577 bytes)
-[PHASE @9.218s] PHASE 6: Test complete
-
-=== Test Complete ===
-All checks passed! The TercenStreamGenerator is working correctly.
-Time: 9.2s | Memory: 169152 KB (165.19 MB)Time: 9.2s | Memory: 169152 KB (165.19 MB)Time: 9.2s | Memory: 166712 KB (162.80 MB)
-Process 149514 no longer exists or is not accessible: VmRSS not found in /proc/149514/status
-
-
-Generating statistics...
-Total samples: 1810
-Mean memory: 165804.08 KB (161.92 MB)
-Median memory: 193560.00 KB (189.02 MB)
-Max memory: 357456 KB (349.08 MB)
-Min memory: 1920 KB (1.88 MB)
-
-Generating chart: memory_usage_chunk_16192.png
-Chart saved successfully!
-
-Saving memory data to CSV: memory_usage_chunk_16192.csv
-CSV saved successfully!
-
-============================================
-Test completed with exit code: 0
-Memory chart saved to: memory_usage_chunk_16192.png
-Memory data saved to: memory_usage_chunk_16192.csv
-============================================

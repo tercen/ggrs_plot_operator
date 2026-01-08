@@ -6,9 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the GGRS plotting library with the Tercen platform. It receives tabular data through the Tercen gRPC API, generates high-performance plots using GGRS, and returns PNG images back to Tercen for visualization.
 
-**Current Status**: Phase 7 COMPLETE ✅ - Full end-to-end plot generation with dequantization! Successfully tested with 475K rows, plot rendered in 9.5s, memory stable at ~46MB peak. Dequantization working correctly in GGRS render pipeline.
+**Current Status**: Phase 7 COMPLETE ✅ - Full end-to-end plot generation with GPU acceleration! Successfully tested with 475K rows. GPU backend optimized to use OpenGL (162 MB peak) instead of Vulkan (314 MB), achieving 49% memory reduction while maintaining 10x speedup over CPU.
 
 **📋 Continue from**: Ready for Phase 8 (result upload to Tercen).
+
+**⚠️ Note**: render_v2.rs is the active implementation. render.rs will be replaced once v2 is fully validated (see TODO).
 
 ## Quick Reference
 
@@ -245,8 +247,9 @@ impl StreamGenerator for TercenStreamGenerator {
 - ✅ Polars lazy API with predicate pushdown for efficient filtering
 - ✅ Zero-copy operations where possible
 - ✅ **Dequantization in GGRS** - operator stays simple, returns quantized data
-- ✅ Memory efficient: stable ~46MB for 475K rows with full plot rendering
-- ✅ Fast: 9.5 seconds total for 475K rows (data fetch + dequantization + rendering)
+- ✅ Memory efficient (CPU): stable ~49MB for 475K rows
+- ✅ Memory efficient (GPU): stable ~162MB for 475K rows (OpenGL backend, 10x faster)
+- ✅ Fast: CPU 3.1s, GPU 0.5s for 475K points
 - ✅ Lazy loading - only fetch what GGRS needs
 - ✅ Progressive rendering - each chunk is dequantized and rendered immediately
 
@@ -350,13 +353,31 @@ let polars_df = polars_df
 - **Zero-Copy**: Minimize data duplication, use references and move semantics
 
 ### Memory Efficiency & Dequantization
-- **Streaming Architecture**: Don't load entire table into memory; process in 1000-row chunks
+- **Streaming Architecture**: Don't load entire table into memory; process in chunks
 - **Lazy Faceting**: Only load data for facet cells being rendered
-- **Chunked Processing**: Default 15000 rows per operator chunk, 1000 rows per GGRS render chunk
+- **Chunked Processing**: Default 15000 rows per operator chunk
 - **Schema-Based Limiting**: Use table schema row count to prevent infinite loops
 - **Dequantization in GGRS**: Operator returns compact quantized data (2 bytes/coordinate)
 - **Progressive Dequantization**: Each chunk dequantized immediately before rendering, then discarded
-- **Test Results**: 475K rows with full plot rendering in 9.5s, memory stable at ~46MB peak
+- **Test Results (CPU)**: 475K rows in 3.1s, memory stable at ~49MB peak
+- **Test Results (GPU)**: 475K rows in 0.5s, memory stable at ~162MB peak (OpenGL)
+
+### GPU Backend (WebGPU)
+- **Backend Selection**: Configurable via `operator_config.json` (`"backend": "cpu"` or `"gpu"`)
+- **OpenGL vs Vulkan**: OpenGL selected for 49% memory reduction (162 MB vs 314 MB)
+- **Performance**: 10x faster than CPU (0.5s vs 3.1s for 475K points)
+- **Memory Overhead**: GPU uses 3.3x more memory than CPU (acceptable for performance gain)
+- **Driver Overhead**: ~97 MB for OpenGL initialization, ~12 MB for staging buffers
+- **Implementation**: `ggrs/crates/ggrs-core/src/renderer/webgpu.rs`
+- **Configuration**: `wgpu::Backends::GL` with `Limits::downlevel_defaults()`
+- **Documentation**: See `docs/GPU_BACKEND_MEMORY.md` for detailed investigation
+
+**Memory Comparison**:
+| Backend | Peak Memory | Speedup | Render Time |
+|---------|------------|---------|-------------|
+| CPU (Cairo) | 49 MB | 1.0x | 3.1s |
+| GPU (OpenGL) | 162 MB | 10x | 0.5s |
+| GPU (Vulkan) | 314 MB | 10x | 0.5s (rejected) |
 
 ### Proto Files Location
 Proto files should be copied/linked from: `/home/thiago/workspaces/tercen/main/sci/tercen_grpc/tercen_grpc_api/protos/`
@@ -763,7 +784,9 @@ Tercen organizes data as a crosstab with:
 ### Primary Documentation (Read These First)
 - **`docs/09_FINAL_DESIGN.md`** ⭐⭐⭐ - Complete architecture and final design
 - **`docs/10_IMPLEMENTATION_PHASES.md`** - Current implementation roadmap
-- **`docs/SESSION_2025-01-05.md`** - Latest session notes with debugging details
+- **`docs/GPU_BACKEND_MEMORY.md`** - GPU backend memory investigation and optimization
+- **`docs/SESSION_2025-01-05.md`** - Session notes with debugging details
+- **`docs/SESSION_2025-01-07.md`** - GPU backend optimization session
 - **`IMPLEMENTATION_COMPLETE.md`** - Phase 6 completion status
 - **`TESTING_STATUS.md`** - Testing phase status and instructions
 - **`TEST_LOCAL.md`** - Local testing guide

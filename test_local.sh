@@ -21,7 +21,7 @@ export STEP_ID="b9659735-27db-4480-b398-4e391431480f"
 MEMORY_TRACKER="/home/thiago/workspaces/tercen/main/memory_tracker/target/release/memory_tracker"
 
 # Get backend from argument or use default
-BACKEND="gpu"
+BACKEND="cpu"
 
 # Validate backend
 if [[ "$BACKEND" != "cpu" && "$BACKEND" != "gpu" ]]; then
