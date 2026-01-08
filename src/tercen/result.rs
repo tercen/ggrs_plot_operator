@@ -22,18 +22,18 @@ use std::sync::Arc;
 /// Save a PNG plot result back to Tercen
 ///
 /// Takes the generated PNG buffer, converts it to Tercen's result format,
-/// and uploads it via the FileService, linking it to the task.
+/// and uploads it via the FileService.
 ///
 /// # Arguments
 /// * `client` - Tercen client for gRPC calls
-/// * `task` - The computation task to attach the result to
+/// * `project_id` - Project ID to upload the result to
 /// * `png_buffer` - Raw PNG bytes from the renderer
 ///
 /// # Returns
 /// Result indicating success or error during upload
 pub async fn save_result(
     client: Arc<TercenClient>,
-    task: &proto::ComputationTask,
+    project_id: &str,
     png_buffer: Vec<u8>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use base64::Engine;
@@ -76,16 +76,12 @@ pub async fn save_result(
 
     // 6. Create FileDocument
     println!("Creating FileDocument...");
-    let file_doc = create_file_document(task, result_bytes.len() as i32);
+    let file_doc = create_file_document(project_id, result_bytes.len() as i32);
 
     // 7. Upload via FileService
     println!("Uploading result...");
     let uploaded_doc = upload_result(&client, file_doc, result_bytes).await?;
     println!("  Uploaded with ID: {}", uploaded_doc.id);
-
-    // 8. Update task with result ID
-    println!("Updating task...");
-    update_task_with_result(&client, task, &uploaded_doc.id).await?;
 
     println!("Result saved successfully!");
     Ok(())
@@ -178,7 +174,7 @@ fn serialize_operator_result(
 }
 
 /// Create FileDocument for result upload
-fn create_file_document(task: &proto::ComputationTask, size: i32) -> proto::FileDocument {
+fn create_file_document(project_id: &str, size: i32) -> proto::FileDocument {
     // Set file metadata
     let file_metadata = proto::FileMetadata {
         content_type: "application/octet-stream".to_string(),
@@ -190,10 +186,9 @@ fn create_file_document(task: &proto::ComputationTask, size: i32) -> proto::File
     };
 
     // Note: ACL will be assigned by the server based on projectId
-    // ComputationTask doesn't have a direct ACL field to copy
     proto::FileDocument {
         name: "result".to_string(),
-        project_id: task.project_id.clone(),
+        project_id: project_id.to_string(),
         size,
         metadata: Some(e_metadata),
         ..Default::default()
@@ -244,26 +239,4 @@ async fn upload_result(
         .ok_or("Upload response missing FileDocument")?;
 
     Ok(uploaded_doc)
-}
-
-/// Update task with result file ID
-async fn update_task_with_result(
-    client: &TercenClient,
-    task: &proto::ComputationTask,
-    file_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut task_service = client.task_service()?;
-
-    // Clone task and update fileResultId
-    let mut updated_task = task.clone();
-    updated_task.file_result_id = file_id.to_string();
-
-    // Wrap in ETask
-    let mut e_task = proto::ETask::default();
-    e_task.object = Some(proto::e_task::Object::Computationtask(updated_task));
-
-    // Update task
-    let _response = task_service.update(e_task).await?;
-
-    Ok(())
 }
