@@ -159,7 +159,10 @@ fn serialize_operator_result(
 
     // Build OperatorResult JSON structure
     let mut result_map = HashMap::new();
-    result_map.insert("kind".to_string(), TsonValue::STR("OperatorResult".to_string()));
+    result_map.insert(
+        "kind".to_string(),
+        TsonValue::STR("OperatorResult".to_string()),
+    );
 
     // Convert tables
     let mut tables_list = Vec::new();
@@ -175,7 +178,10 @@ fn serialize_operator_result(
         // Add properties
         if let Some(ref props) = table.properties {
             let mut props_map = HashMap::new();
-            props_map.insert("kind".to_string(), TsonValue::STR("TableProperties".to_string()));
+            props_map.insert(
+                "kind".to_string(),
+                TsonValue::STR("TableProperties".to_string()),
+            );
             props_map.insert("name".to_string(), TsonValue::STR(props.name.clone()));
             table_map.insert("properties".to_string(), TsonValue::MAP(props_map));
         }
@@ -194,8 +200,9 @@ fn serialize_operator_result(
             col_map.insert("nRows".to_string(), TsonValue::I32(col.n_rows));
 
             // Decode the TSON-encoded column values to get the data array
-            let col_data = rustson::decode_bytes(&col.values)
-                .map_err(|e| format!("Failed to decode column values for '{}': {:?}", col.name, e))?;
+            let col_data = rustson::decode_bytes(&col.values).map_err(|e| {
+                format!("Failed to decode column values for '{}': {:?}", col.name, e)
+            })?;
             col_map.insert("data".to_string(), col_data);
 
             columns_list.push(TsonValue::MAP(col_map));
