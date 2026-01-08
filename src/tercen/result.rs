@@ -128,47 +128,87 @@ fn create_operator_result(
 }
 
 /// Serialize OperatorResult to TSON binary format
+///
+/// This follows the Python client pattern:
+/// 1. Convert OperatorResult proto to JSON
+/// 2. TSON-encode the JSON
+///
+/// The JSON structure must match what Python's result.toJson() produces:
+/// ```json
+/// {
+///   "kind": "OperatorResult",
+///   "tables": [{
+///     "kind": "Table",
+///     "nRows": N,
+///     "properties": {...},
+///     "columns": [{
+///       "kind": "Column",
+///       "name": "...",
+///       "type": "...",
+///       "nRows": N,
+///       "data": [...]  // TSON-decoded array
+///     }, ...]
+///   }, ...]
+/// }
+/// ```
 fn serialize_operator_result(
     result: &proto::OperatorResult,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    // For now, we need to convert OperatorResult to TSON
-    // The challenge is that OperatorResult is a proto message, not a TSON value
-    // We'll need to manually construct the TSON structure
-
     use rustson::Value as TsonValue;
     use std::collections::HashMap;
 
-    // Convert Table to TSON structure
-    let mut tson_tables = Vec::new();
+    // Build OperatorResult JSON structure
+    let mut result_map = HashMap::new();
+    result_map.insert("kind".to_string(), TsonValue::STR("OperatorResult".to_string()));
 
+    // Convert tables
+    let mut tables_list = Vec::new();
     for table in &result.tables {
         let mut table_map = HashMap::new();
+
+        // Add kind
+        table_map.insert("kind".to_string(), TsonValue::STR("Table".to_string()));
 
         // Add nRows
         table_map.insert("nRows".to_string(), TsonValue::I32(table.n_rows));
 
-        // Add columns
-        let mut cols_list = Vec::new();
-        for col in &table.columns {
-            let mut col_map = HashMap::new();
-            col_map.insert("name".to_string(), TsonValue::STR(col.name.clone()));
-            col_map.insert("type".to_string(), TsonValue::STR(col.r#type.clone()));
-
-            // Decode the TSON bytes back to get the data
-            let col_data = rustson::decode_bytes(&col.values)
-                .map_err(|e| format!("Failed to decode column values: {:?}", e))?;
-            col_map.insert("data".to_string(), col_data);
-
-            cols_list.push(TsonValue::MAP(col_map));
+        // Add properties
+        if let Some(ref props) = table.properties {
+            let mut props_map = HashMap::new();
+            props_map.insert("kind".to_string(), TsonValue::STR("TableProperties".to_string()));
+            props_map.insert("name".to_string(), TsonValue::STR(props.name.clone()));
+            table_map.insert("properties".to_string(), TsonValue::MAP(props_map));
         }
 
-        table_map.insert("cols".to_string(), TsonValue::LST(cols_list));
-        tson_tables.push(TsonValue::MAP(table_map));
+        // Add columns (note: "columns" not "cols"!)
+        let mut columns_list = Vec::new();
+        for col in &table.columns {
+            let mut col_map = HashMap::new();
+
+            // Add kind
+            col_map.insert("kind".to_string(), TsonValue::STR("Column".to_string()));
+
+            // Add column metadata
+            col_map.insert("name".to_string(), TsonValue::STR(col.name.clone()));
+            col_map.insert("type".to_string(), TsonValue::STR(col.r#type.clone()));
+            col_map.insert("nRows".to_string(), TsonValue::I32(col.n_rows));
+
+            // Decode the TSON-encoded column values to get the data array
+            let col_data = rustson::decode_bytes(&col.values)
+                .map_err(|e| format!("Failed to decode column values for '{}': {:?}", col.name, e))?;
+            col_map.insert("data".to_string(), col_data);
+
+            columns_list.push(TsonValue::MAP(col_map));
+        }
+
+        table_map.insert("columns".to_string(), TsonValue::LST(columns_list));
+        tables_list.push(TsonValue::MAP(table_map));
     }
 
-    // Create top-level structure
-    let mut result_map = HashMap::new();
-    result_map.insert("tables".to_string(), TsonValue::LST(tson_tables));
+    result_map.insert("tables".to_string(), TsonValue::LST(tables_list));
+
+    // Add empty joinOperators
+    result_map.insert("joinOperators".to_string(), TsonValue::LST(Vec::new()));
 
     let tson_value = TsonValue::MAP(result_map);
 
