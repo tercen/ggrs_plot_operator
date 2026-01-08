@@ -40,14 +40,15 @@ COPY protos ./protos
 COPY src ./src
 
 # Build with jemalloc feature enabled
-# Release mode with optimizations
+# Using dev-release profile for faster CI builds (4-5 min vs 12+ min)
+# For production releases, use --release instead
 # Configure git auth in same RUN to access private dependencies
 RUN --mount=type=secret,id=gh_pat \
     if [ -f /run/secrets/gh_pat ]; then \
       GH_PAT=$(cat /run/secrets/gh_pat) && \
       git config --global url."https://${GH_PAT}@github.com/".insteadOf "https://github.com/"; \
     fi && \
-    cargo build --release --features jemalloc
+    cargo build --profile dev-release --features jemalloc
 
 # ============================================================================
 # Runtime Stage - Minimal runtime environment (no Rust toolchain)
@@ -73,8 +74,8 @@ RUN groupadd -f -g 1000 operator && \
 
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=builder /app/target/release/ggrs_plot_operator /usr/local/bin/ggrs_plot_operator
+# Copy binary from builder (dev-release profile)
+COPY --from=builder /app/target/dev-release/ggrs_plot_operator /usr/local/bin/ggrs_plot_operator
 
 # Set permissions
 RUN chmod +x /usr/local/bin/ggrs_plot_operator

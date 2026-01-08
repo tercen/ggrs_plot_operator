@@ -10,6 +10,8 @@ The **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the G
 
 **📋 Continue from**: Ready for Phase 8 (result upload to Tercen).
 
+**⚠️ DEPLOYMENT ISSUE**: Logging is currently disabled due to EventService UnimplementedError. See `DEPLOYMENT_DEBUG.md` for details and debugging progress.
+
 **⚠️ Note**: render_v2.rs is the active implementation. render.rs will be replaced once v2 is fully validated (see TODO).
 
 ## Quick Reference
@@ -19,7 +21,8 @@ The **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the G
 ```bash
 # Build and test
 cargo build                    # Debug build
-cargo build --release          # Release build with optimizations
+cargo build --profile dev-release  # Fast optimized build (4-5 min) - USE THIS for dev/testing!
+cargo build --release          # Full optimization (12+ min) - Only for production releases
 cargo test                     # Run all tests
 cargo clippy                   # Lint code
 cargo fmt                      # Format code
@@ -686,6 +689,7 @@ The current implementation includes:
 **Logger** (`src/tercen/logger.rs`):
 - `log(message)`: Send log message to Tercen
 - `progress(percent, message)`: Send progress update to Tercen
+- **⚠️ Currently disabled** - See `DEPLOYMENT_DEBUG.md` for EventService issue
 
 **Error Handling** (`src/tercen/error.rs`):
 ```rust
@@ -782,11 +786,13 @@ Tercen organizes data as a crosstab with:
 ## Documentation References
 
 ### Primary Documentation (Read These First)
+- **`DEPLOYMENT_DEBUG.md`** ⚠️ - **START HERE** - Current deployment issues and debugging guide
 - **`docs/09_FINAL_DESIGN.md`** ⭐⭐⭐ - Complete architecture and final design
 - **`docs/10_IMPLEMENTATION_PHASES.md`** - Current implementation roadmap
 - **`docs/GPU_BACKEND_MEMORY.md`** - GPU backend memory investigation and optimization
 - **`docs/SESSION_2025-01-05.md`** - Session notes with debugging details
 - **`docs/SESSION_2025-01-07.md`** - GPU backend optimization session
+- **`docs/SESSION_2025-01-08.md`** - EventService debugging and build optimization
 - **`IMPLEMENTATION_COMPLETE.md`** - Phase 6 completion status
 - **`TESTING_STATUS.md`** - Testing phase status and instructions
 - **`TEST_LOCAL.md`** - Local testing guide

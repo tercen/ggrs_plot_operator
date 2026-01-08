@@ -1,14 +1,18 @@
-// Module declarations
-// These modules are organized to make future library extraction easy:
-// - `tercen`: All Tercen gRPC client code (will become `tercen-rust` crate)
-// - `ggrs_integration`: GGRS-specific integration code
-// - `config`: Operator configuration
+//! GGRS Plot Operator - Main entry point
+//!
+//! This operator receives tabular data from Tercen via gRPC, generates plots using GGRS,
+//! and returns PNG images back to Tercen for visualization.
+//!
+//! Module organization:
+//! - `tercen`: Tercen gRPC client library (future tercen-rust crate)
+//! - `ggrs_integration`: GGRS-specific integration code
+//! - `config`: Operator configuration
+
 #![allow(dead_code)] // Allow unused functions when building as lib
+
 pub mod config;
 pub mod ggrs_integration;
 pub mod tercen;
-
-use tercen::tson_to_dataframe;
 
 #[cfg(feature = "jemalloc")]
 use tikv_jemallocator::Jemalloc;
@@ -20,78 +24,100 @@ static GLOBAL: Jemalloc = Jemalloc;
 #[tokio::main]
 async fn main() {
     println!("GGRS Plot Operator v{}", env!("CARGO_PKG_VERSION"));
-    println!("Phase 4+: Data Query & Logging Test");
+    println!("Ready to generate high-performance plots!\n");
 
     // Parse command-line arguments
     // Production: Tercen passes --taskId, --serviceUri, --token
     // Dev: Can pass --workflowId, --stepId (like Python OperatorContextDev)
     let args: Vec<String> = std::env::args().collect();
-    let mut task_id_arg: Option<String> = None;
-    let mut workflow_id_arg: Option<String> = None;
-    let mut step_id_arg: Option<String> = None;
-    let mut service_uri_arg: Option<String> = None;
-    let mut token_arg: Option<String> = None;
+    parse_args(&args);
 
+    // Load operator configuration
+    let config = config::OperatorConfig::load();
+
+    // Print environment info
+    print_env_info();
+
+    // Connect to Tercen
+    println!("Attempting to connect to Tercen...");
+    match tercen::TercenClient::from_env().await {
+        Ok(client) => {
+            println!("✓ Successfully connected to Tercen!\n");
+
+            // Process task if TERCEN_TASK_ID is set
+            if let Ok(task_id) = std::env::var("TERCEN_TASK_ID") {
+                // Create Arc for sharing client across async operations
+                let client_arc = std::sync::Arc::new(client);
+                let logger = tercen::TercenLogger::new(&client_arc, task_id.clone());
+
+                match process_task(client_arc.clone(), &task_id, &logger, &config).await {
+                    Ok(()) => {
+                        println!("\n✓ Task processed successfully!");
+                    }
+                    Err(e) => {
+                        eprintln!("\n✗ Task processing failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                println!("No TERCEN_TASK_ID set, skipping task processing");
+            }
+        }
+        Err(e) => {
+            eprintln!("✗ Failed to connect to Tercen: {}", e);
+            eprintln!("\nNote: To run the operator, set environment variables:");
+            eprintln!("  export TERCEN_URI=https://tercen.com:5400");
+            eprintln!("  export TERCEN_TOKEN=your_token_here");
+            eprintln!("  export TERCEN_TASK_ID=your_task_id_here");
+            std::process::exit(1);
+        }
+    }
+
+    println!("\nOperator completed!");
+}
+
+/// Parse command-line arguments and set environment variables
+fn parse_args(args: &[String]) {
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
             "--taskId" if i + 1 < args.len() => {
-                task_id_arg = Some(args[i + 1].clone());
+                std::env::set_var("TERCEN_TASK_ID", &args[i + 1]);
                 i += 2;
             }
             "--workflowId" if i + 1 < args.len() => {
-                workflow_id_arg = Some(args[i + 1].clone());
+                std::env::set_var("WORKFLOW_ID", &args[i + 1]);
                 i += 2;
             }
             "--stepId" if i + 1 < args.len() => {
-                step_id_arg = Some(args[i + 1].clone());
+                std::env::set_var("STEP_ID", &args[i + 1]);
                 i += 2;
             }
             "--serviceUri" if i + 1 < args.len() => {
-                service_uri_arg = Some(args[i + 1].clone());
+                std::env::set_var("TERCEN_URI", &args[i + 1]);
                 i += 2;
             }
             "--token" if i + 1 < args.len() => {
-                token_arg = Some(args[i + 1].clone());
+                std::env::set_var("TERCEN_TOKEN", &args[i + 1]);
                 i += 2;
             }
             _ => i += 1,
         }
     }
+}
 
-    // Override environment variables with command-line arguments (priority: CLI > env)
-    // Production mode: taskId provided
-    if let Some(task_id) = &task_id_arg {
-        std::env::set_var("TERCEN_TASK_ID", task_id);
-    }
-    // Dev mode: workflowId and stepId provided (used by test scripts)
-    if let Some(workflow_id) = &workflow_id_arg {
-        std::env::set_var("WORKFLOW_ID", workflow_id);
-    }
-    if let Some(step_id) = &step_id_arg {
-        std::env::set_var("STEP_ID", step_id);
-    }
-    if let Some(uri) = &service_uri_arg {
-        std::env::set_var("TERCEN_URI", uri);
-    }
-    if let Some(token) = &token_arg {
-        std::env::set_var("TERCEN_TOKEN", token);
-    }
-
-    // Load operator configuration
-    let config = config::OperatorConfig::load();
-
-    // Print environment info to verify operator context
+/// Print environment info for debugging
+fn print_env_info() {
     if let Ok(task_id) = std::env::var("TERCEN_TASK_ID") {
         println!("TERCEN_TASK_ID: {}", task_id);
     } else {
-        println!("TERCEN_TASK_ID not set (expected when running outside Tercen)");
+        println!("TERCEN_TASK_ID not set");
     }
 
     if let Ok(uri) = std::env::var("TERCEN_URI") {
         println!("TERCEN_URI: {}", uri);
     } else {
-        println!("TERCEN_URI not set (expected when running outside Tercen)");
+        println!("TERCEN_URI not set");
     }
 
     if let Ok(token) = std::env::var("TERCEN_TOKEN") {
@@ -103,68 +129,24 @@ async fn main() {
     } else {
         println!("TERCEN_TOKEN not set");
     }
-
-    // Try to connect to Tercen
-    println!("\nAttempting to connect to Tercen...");
-    match tercen::TercenClient::from_env().await {
-        Ok(client) => {
-            println!("✓ Successfully connected to Tercen!");
-
-            // Try to get task if TERCEN_TASK_ID is set
-            if let Ok(task_id) = std::env::var("TERCEN_TASK_ID") {
-                println!("\nFetching task information (skipping logs for now)...");
-
-                // Skip logging temporarily to test if TaskService works
-                let logger = tercen::TercenLogger::new(&client, task_id.clone());
-
-                match process_task(&client, &task_id, &logger, &config).await {
-                    Ok(()) => {
-                        println!("✓ Task processed successfully!");
-                        // if let Err(e) = logger.log("Task completed successfully").await {
-                        //     eprintln!("Warning: Failed to send log: {}", e);
-                        // }
-                    }
-                    Err(e) => {
-                        eprintln!("✗ Task processing failed: {}", e);
-                        // if let Err(log_err) =
-                        //     logger.log(format!("Task processing failed: {}", e)).await
-                        // {
-                        //     eprintln!("Warning: Failed to send error log: {}", log_err);
-                        // }
-                    }
-                }
-            } else {
-                println!("\nNo TERCEN_TASK_ID set, skipping task processing");
-            }
-        }
-        Err(e) => {
-            eprintln!("✗ Failed to connect to Tercen: {}", e);
-            eprintln!("\nNote: To test connection, set environment variables:");
-            eprintln!("  export TERCEN_URI=https://tercen.com:5400");
-            eprintln!("  export TERCEN_TOKEN=your_token_here");
-            eprintln!("  export TERCEN_TASK_ID=your_task_id_here");
-        }
-    }
-
-    println!("Operator completed!");
-    std::process::exit(0);
+    println!();
 }
 
-/// Process a Tercen task: fetch data, parse, and prepare for plotting
+/// Process a Tercen task: fetch data, generate plot, upload result
 async fn process_task(
-    client: &tercen::TercenClient,
+    client_arc: std::sync::Arc<tercen::TercenClient>,
     task_id: &str,
     _logger: &tercen::TercenLogger<'_>,
     config: &config::OperatorConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use tercen::client::proto::GetRequest;
 
-    println!("Starting task processing (logging disabled for testing)...");
-    // // logger.log("Start task processing").await?;
-    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    println!("=== Task Processing Started ===");
+    println!("Task ID: {}\n", task_id);
 
     // Step 1: Fetch task information
-    let mut task_service = client.task_service()?;
+    println!("[1/5] Fetching task information...");
+    let mut task_service = client_arc.task_service()?;
     let request = tonic::Request::new(GetRequest {
         id: task_id.to_string(),
         ..Default::default()
@@ -173,253 +155,180 @@ async fn process_task(
     let response = task_service.get(request).await?;
     let task = response.into_inner();
 
-    println!("✓ Task retrieved: {}", task_id);
-    // // logger.log("Task retrieved successfully").await?;
+    println!("✓ Task retrieved");
 
-    // Step 2: Extract table IDs from task (if available)
-    // Note: In Phase 4, we demonstrate the structure
-    // In Phase 5-6, we'll actually fetch and parse real data
-    if let Some(obj) = &task.object {
-        match obj {
-            tercen::client::proto::e_task::Object::Computationtask(ct) => {
-                println!("  Task type: ComputationTask");
-                // logger.log("Processing ComputationTask").await?;
+    // Step 2: Extract cube query from task
+    println!("\n[2/5] Extracting cube query...");
+    let (cube_query, _computation_task) = extract_cube_query(&task)?;
 
-                // Check if query exists
-                if let Some(query) = &ct.query {
-                    println!("  Query found");
-                    // logger.log("Query structure detected").await?;
+    println!("✓ Cube query extracted");
+    println!("  Main table: {}", cube_query.qt_hash);
+    println!("  Column facets: {}", cube_query.column_hash);
+    println!("  Row facets: {}", cube_query.row_hash);
 
-                    // Extract table hashes from CubeQuery
-                    let qt_hash = &query.qt_hash;
-                    let column_hash = &query.column_hash;
-                    let row_hash = &query.row_hash;
-
-                    println!("  Table hashes:");
-                    println!("    qt_hash (main data): {}", qt_hash);
-                    println!("    column_hash: {}", column_hash);
-                    println!("    row_hash: {}", row_hash);
-
-                    // logger.log(format!("Main data table: {}", qt_hash)).await?;
-                    // logger.log(format!("Column facet table: {}", column_hash)).await?;
-                    // logger.log(format!("Row facet table: {}", row_hash)).await?;
-
-                    // Query the main data table
-                    if !qt_hash.is_empty() {
-                        println!("\n  Querying main data table...");
-                        // logger.log("Starting data query").await?;
-
-                        match query_and_log_data(client, qt_hash, _logger, config).await {
-                            Ok(()) => {
-                                println!("  ✓ Data query completed successfully");
-                                // logger.log("Data query completed").await?;
-                            }
-                            Err(e) => {
-                                eprintln!("  ✗ Data query failed: {}", e);
-                                // logger.log(format!("Data query failed: {}", e)).await?;
-                            }
-                        }
-                    } else {
-                        println!("  ⚠ No qt_hash found");
-                        // logger.log("No main data table hash").await?;
-                    }
-
-                    // Log operator settings if present
-                    if let Some(settings) = &query.operator_settings {
-                        println!("  Operator settings: {:?}", settings);
-                        // logger.log("Operator settings detected").await?;
-                    }
-                } else {
-                    println!("  ⚠ No query in task");
-                    // logger.log("No query structure in task").await?;
-                }
-            }
-            tercen::client::proto::e_task::Object::Runcomputationtask(rct) => {
-                println!("  Task type: RunComputationTask");
-                // logger.log("Processing RunComputationTask").await?;
-
-                // Check if query exists
-                if let Some(query) = &rct.query {
-                    println!("  Query found");
-                    // logger.log("Query structure detected").await?;
-
-                    // Extract table hashes from CubeQuery
-                    let qt_hash = &query.qt_hash;
-                    let column_hash = &query.column_hash;
-                    let row_hash = &query.row_hash;
-
-                    println!("  Table hashes:");
-                    println!("    qt_hash (main data): {}", qt_hash);
-                    println!("    column_hash: {}", column_hash);
-                    println!("    row_hash: {}", row_hash);
-
-                    // logger.log(format!("Main data table: {}", qt_hash)).await?;
-                    // logger.log(format!("Column facet table: {}", column_hash)).await?;
-                    // logger.log(format!("Row facet table: {}", row_hash)).await?;
-
-                    // Query the main data table
-                    if !qt_hash.is_empty() {
-                        println!("\n  Querying main data table...");
-                        // logger.log("Starting data query").await?;
-
-                        match query_and_log_data(client, qt_hash, _logger, config).await {
-                            Ok(()) => {
-                                println!("  ✓ Data query completed successfully");
-                                // logger.log("Data query completed").await?;
-                            }
-                            Err(e) => {
-                                eprintln!("  ✗ Data query failed: {}", e);
-                                // logger.log(format!("Data query failed: {}", e)).await?;
-                            }
-                        }
-                    } else {
-                        println!("  ⚠ No qt_hash found");
-                        // logger.log("No main data table hash").await?;
-                    }
-
-                    // Log operator settings if present
-                    if let Some(settings) = &query.operator_settings {
-                        println!("  Operator settings: {:?}", settings);
-                        // logger.log("Operator settings detected").await?;
-                    }
-                } else {
-                    println!("  ⚠ No query in task");
-                    // logger.log("No query structure in task").await?;
-                }
-            }
-            tercen::client::proto::e_task::Object::Cubequerytask(cqt) => {
-                println!("  Task type: CubeQueryTask");
-                // logger.log("Processing CubeQueryTask").await?;
-
-                // CubeQueryTask also has a query field
-                if let Some(query) = &cqt.query {
-                    println!("  Query found");
-
-                    let qt_hash = &query.qt_hash;
-                    let column_hash = &query.column_hash;
-                    let row_hash = &query.row_hash;
-
-                    println!("  Table hashes:");
-                    println!("    qt_hash (main data): {}", qt_hash);
-                    println!("    column_hash: {}", column_hash);
-                    println!("    row_hash: {}", row_hash);
-
-                    if !qt_hash.is_empty() {
-                        println!("\n  Querying main data table...");
-
-                        match query_and_log_data(client, qt_hash, _logger, config).await {
-                            Ok(()) => {
-                                println!("  ✓ Data query completed successfully");
-                            }
-                            Err(e) => {
-                                eprintln!("  ✗ Data query failed: {}", e);
-                            }
-                        }
-                    } else {
-                        println!("  ⚠ No qt_hash found");
-                    }
-
-                    if let Some(settings) = &query.operator_settings {
-                        println!("  Operator settings: {:?}", settings);
-                    }
-                } else {
-                    println!("  ⚠ No query in task");
-                }
-            }
-            other_variant => {
-                // Debug: Print the actual variant name
-                println!("  Task type: Other (variant: {:?})", other_variant);
-                // logger.log("Non-computation task type").await?;
-            }
-        }
+    // Find Y-axis table (4th table in schema_ids, if it exists)
+    let y_axis_table_id = find_y_axis_table(&client_arc, &task).await.ok();
+    if let Some(ref id) = y_axis_table_id {
+        println!("  Y-axis table: {}", id);
     } else {
-        println!("  ⚠ No task object found");
-        // logger.log("Empty task object").await?;
+        println!("  Y-axis table: None (will compute from data)");
     }
 
+    // Step 3: Create stream generator
+    println!("\n[3/5] Creating stream generator...");
+    use ggrs_core::stream::StreamGenerator;
+
+    let stream_gen = ggrs_integration::TercenStreamGenerator::new(
+        client_arc.clone(),
+        cube_query.qt_hash.clone(),
+        cube_query.column_hash.clone(),
+        cube_query.row_hash.clone(),
+        y_axis_table_id,
+        config.chunk_size,
+    )
+    .await?;
+
+    println!("✓ Stream generator created");
+    println!(
+        "  Facets: {} columns × {} rows = {} cells",
+        stream_gen.n_col_facets(),
+        stream_gen.n_row_facets(),
+        stream_gen.n_col_facets() * stream_gen.n_row_facets()
+    );
+
+    // Step 4: Generate plot
+    println!("\n[4/5] Generating plot...");
+    use ggrs_core::{EnginePlotSpec, Geom, ImageRenderer, PlotGenerator};
+
+    let plot_spec = EnginePlotSpec::new().add_layer(Geom::point());
+    let plot_gen = PlotGenerator::new(Box::new(stream_gen), plot_spec)?;
+    let renderer = ImageRenderer::new(
+        plot_gen,
+        config.default_plot_width,
+        config.default_plot_height,
+    );
+
+    println!("  Rendering plot (backend: {})...", config.render_backend);
+    let png_buffer = renderer.render_to_bytes()?;
+    println!("✓ Plot generated ({} bytes)", png_buffer.len());
+
+    // Step 5: Upload result
+    println!("\n[5/5] Uploading result to Tercen...");
+    tercen::result::save_result(client_arc, &_computation_task, png_buffer).await?;
+    println!("✓ Result uploaded successfully");
+
+    println!("\n=== Task Processing Complete ===");
     Ok(())
 }
 
-/// Query data from a table and log information about each chunk
-async fn query_and_log_data(
-    client: &tercen::TercenClient,
-    table_id: &str,
-    _logger: &tercen::TercenLogger<'_>,
-    config: &config::OperatorConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+/// Extract CubeQuery from task
+fn extract_cube_query(
+    task: &tercen::client::proto::ETask,
+) -> Result<(CubeQuery, tercen::client::proto::ComputationTask), Box<dyn std::error::Error>> {
+    use tercen::client::proto::e_task;
+
+    let task_obj = task
+        .object
+        .as_ref()
+        .ok_or("Task has no object")?;
+
+    match task_obj {
+        e_task::Object::Computationtask(ct) => {
+            let query = ct.query.as_ref().ok_or("ComputationTask has no query")?;
+            Ok((query.clone().into(), ct.clone()))
+        }
+        e_task::Object::Runcomputationtask(rct) => {
+            let query = rct.query.as_ref().ok_or("RunComputationTask has no query")?;
+
+            // Convert RunComputationTask to ComputationTask for result upload
+            // (they have the same structure)
+            let ct = tercen::client::proto::ComputationTask {
+                id: rct.id.clone(),
+                owner: rct.owner.clone(),
+                project_id: rct.project_id.clone(),
+                query: rct.query.clone(),
+                ..Default::default()
+            };
+
+            Ok((query.clone().into(), ct))
+        }
+        e_task::Object::Cubequerytask(cqt) => {
+            let query = cqt.query.as_ref().ok_or("CubeQueryTask has no query")?;
+
+            // Convert CubeQueryTask to ComputationTask
+            let ct = tercen::client::proto::ComputationTask {
+                id: cqt.id.clone(),
+                owner: cqt.owner.clone(),
+                project_id: cqt.project_id.clone(),
+                query: cqt.query.clone(),
+                ..Default::default()
+            };
+
+            Ok((query.clone().into(), ct))
+        }
+        _ => Err("Unsupported task type".into()),
+    }
+}
+
+/// Find Y-axis table from task schema_ids
+async fn find_y_axis_table(
+    client: &std::sync::Arc<tercen::TercenClient>,
+    task: &tercen::client::proto::ETask,
+) -> Result<String, Box<dyn std::error::Error>> {
+    use tercen::client::proto::e_task;
     use tercen::TableStreamer;
 
     let streamer = TableStreamer::new(client);
 
-    // Configuration from operator_config.json
-    let chunk_size = config.chunk_size as i64;
-    let max_chunks = config.max_chunks;
+    // Get schema_ids from task
+    let schema_ids = match task.object.as_ref() {
+        Some(e_task::Object::Cubequerytask(cqt)) => &cqt.schema_ids,
+        _ => return Err("Task is not a CubeQueryTask".into()),
+    };
 
-    let mut chunk_num = 0;
-    let mut total_rows = 0;
-    let mut offset = 0;
-
-    println!("  Fetching data in chunks of {} rows...", chunk_size);
-    // logger.log(format!("Chunk size: {} rows", chunk_size)).await?;
-
-    loop {
-        chunk_num += 1;
-
-        if chunk_num > max_chunks {
-            println!("  ⚠ Safety limit reached ({} chunks)", max_chunks);
-            // logger.log(format!("Safety limit reached: {} chunks", max_chunks)).await?;
-            break;
+    // Find the extra table (not qt, column, or row)
+    let cube_query = match task.object.as_ref() {
+        Some(e_task::Object::Cubequerytask(cqt)) => {
+            cqt.query.as_ref().ok_or("No query in task")?
         }
+        _ => return Err("Task is not a CubeQueryTask".into()),
+    };
 
-        println!("\n  --- Chunk {} ---", chunk_num);
-        // logger.log(format!("Fetching chunk {}", chunk_num)).await?;
+    let known_tables = [
+        cube_query.qt_hash.as_str(),
+        cube_query.column_hash.as_str(),
+        cube_query.row_hash.as_str(),
+    ];
 
-        // Stream this chunk
-        let tson_data = streamer
-            .stream_tson(table_id, None, offset, chunk_size)
-            .await?;
-
-        if tson_data.is_empty() {
-            println!("  No more data (empty chunk)");
-            // logger.log("End of data reached").await?;
-            break;
+    for schema_id in schema_ids {
+        if !known_tables.contains(&schema_id.as_str()) {
+            // Check if this is the Y-axis table
+            let axis_schema = streamer.get_schema(schema_id).await?;
+            use tercen::client::proto::e_schema;
+            if let Some(e_schema::Object::Cubequerytableschema(cqts)) = axis_schema.object {
+                if cqts.query_table_type == "y" {
+                    return Ok(schema_id.clone());
+                }
+            }
         }
-
-        // Parse the TSON data
-        let df = tson_to_dataframe(&tson_data)?;
-        let row_count = df.nrow();
-
-        total_rows += row_count;
-
-        println!("  Rows in chunk: {}", row_count);
-        // logger.log(format!("Chunk {}: {} rows", chunk_num, row_count)).await?;
-
-        // Log first entry of this chunk
-        // TODO: Re-implement sample row display for Arrow format
-        /* Commented out old ParsedData code
-        if row_count > 0 {
-            // Sample first row logging
-        }
-        */
-
-        // Check if this was the last chunk (fewer rows than requested)
-        if row_count < chunk_size as usize {
-            println!("  Last chunk (fewer than {} rows)", chunk_size);
-            // logger.log("Last chunk detected").await?;
-            break;
-        }
-
-        offset += chunk_size;
     }
 
-    println!("\n  === Summary ===");
-    println!("  Total chunks processed: {}", chunk_num);
-    println!("  Total rows: {}", total_rows);
+    Err("Y-axis table not found".into())
+}
 
-    // logger.log(format!(
-    //     "Query complete: {} chunks, {} total rows",
-    //     chunk_num, total_rows
-    // )).await?;
+/// Simplified CubeQuery struct
+struct CubeQuery {
+    qt_hash: String,
+    column_hash: String,
+    row_hash: String,
+}
 
-    Ok(())
+impl From<tercen::client::proto::CubeQuery> for CubeQuery {
+    fn from(cq: tercen::client::proto::CubeQuery) -> Self {
+        CubeQuery {
+            qt_hash: cq.qt_hash,
+            column_hash: cq.column_hash,
+            row_hash: cq.row_hash,
+        }
+    }
 }
