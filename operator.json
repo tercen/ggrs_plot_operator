@@ -1,5 +1,5 @@
 {
-  "name": "GGRS Plot Operator v0.0.0",
+  "name": "GGRS Plot Operator v0.0.1 -- build 1",
   "description": "High-performance faceted plotting using the GGRS library",
   "tags": ["visualization", "plot", "ggrs"],
   "authors": ["Tercen"],

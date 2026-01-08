@@ -22,6 +22,62 @@ async fn main() {
     println!("GGRS Plot Operator v{}", env!("CARGO_PKG_VERSION"));
     println!("Phase 4+: Data Query & Logging Test");
 
+    // Parse command-line arguments
+    // Production: Tercen passes --taskId, --serviceUri, --token
+    // Dev: Can pass --workflowId, --stepId (like Python OperatorContextDev)
+    let args: Vec<String> = std::env::args().collect();
+    let mut task_id_arg: Option<String> = None;
+    let mut workflow_id_arg: Option<String> = None;
+    let mut step_id_arg: Option<String> = None;
+    let mut service_uri_arg: Option<String> = None;
+    let mut token_arg: Option<String> = None;
+
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--taskId" if i + 1 < args.len() => {
+                task_id_arg = Some(args[i + 1].clone());
+                i += 2;
+            }
+            "--workflowId" if i + 1 < args.len() => {
+                workflow_id_arg = Some(args[i + 1].clone());
+                i += 2;
+            }
+            "--stepId" if i + 1 < args.len() => {
+                step_id_arg = Some(args[i + 1].clone());
+                i += 2;
+            }
+            "--serviceUri" if i + 1 < args.len() => {
+                service_uri_arg = Some(args[i + 1].clone());
+                i += 2;
+            }
+            "--token" if i + 1 < args.len() => {
+                token_arg = Some(args[i + 1].clone());
+                i += 2;
+            }
+            _ => i += 1,
+        }
+    }
+
+    // Override environment variables with command-line arguments (priority: CLI > env)
+    // Production mode: taskId provided
+    if let Some(task_id) = &task_id_arg {
+        std::env::set_var("TERCEN_TASK_ID", task_id);
+    }
+    // Dev mode: workflowId and stepId provided (used by test scripts)
+    if let Some(workflow_id) = &workflow_id_arg {
+        std::env::set_var("WORKFLOW_ID", workflow_id);
+    }
+    if let Some(step_id) = &step_id_arg {
+        std::env::set_var("STEP_ID", step_id);
+    }
+    if let Some(uri) = &service_uri_arg {
+        std::env::set_var("TERCEN_URI", uri);
+    }
+    if let Some(token) = &token_arg {
+        std::env::set_var("TERCEN_TOKEN", token);
+    }
+
     // Load operator configuration
     let config = config::OperatorConfig::load();
 
