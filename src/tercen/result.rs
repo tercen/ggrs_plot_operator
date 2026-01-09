@@ -83,9 +83,13 @@ pub async fn save_result(
         table.columns.len()
     );
 
-    // 4. Serialize table to Sarno format (simple {"cols": [...]})
-    println!("Serializing to Sarno TSON format...");
-    let result_bytes = serialize_table_for_sarno(&table)?;
+    // 4. Wrap table in OperatorResult structure
+    println!("Creating OperatorResult...");
+    let operator_result = create_operator_result(table)?;
+
+    // 5. Serialize OperatorResult to TSON
+    println!("Serializing OperatorResult to TSON...");
+    let result_bytes = serialize_operator_result(&operator_result)?;
     println!("  TSON size: {} bytes", result_bytes.len());
 
     // 5. Create FileDocument
@@ -179,7 +183,47 @@ fn dataframe_to_table(df: &DataFrame) -> Result<proto::Table, Box<dyn std::error
     table_convert::dataframe_to_table(df)
 }
 
-/// Serialize Table to Sarno-compatible TSON format
+/// Create an OperatorResult wrapping the table
+///
+/// OperatorResult structure:
+/// ```json
+/// {
+///   "kind": "OperatorResult",
+///   "tables": [table],
+///   "joinOperators": []
+/// }
+/// ```
+fn create_operator_result(
+    table: proto::Table,
+) -> Result<rustson::Value, Box<dyn std::error::Error>> {
+    use rustson::Value as TsonValue;
+    use std::collections::HashMap;
+
+    // Convert Table to TSON value (Sarno format with cols)
+    let table_tson = table_to_sarno_tson(&table)?;
+
+    // Create OperatorResult structure
+    let mut operator_result = HashMap::new();
+    operator_result.insert(
+        "kind".to_string(),
+        TsonValue::STR("OperatorResult".to_string()),
+    );
+    operator_result.insert("tables".to_string(), TsonValue::LST(vec![table_tson]));
+    operator_result.insert("joinOperators".to_string(), TsonValue::LST(vec![]));
+
+    Ok(TsonValue::MAP(operator_result))
+}
+
+/// Serialize OperatorResult to TSON bytes
+fn serialize_operator_result(
+    operator_result: &rustson::Value,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let bytes = rustson::encode(operator_result)
+        .map_err(|e| format!("Failed to encode OperatorResult to TSON: {:?}", e))?;
+    Ok(bytes)
+}
+
+/// Convert Table to Sarno-compatible TSON format
 ///
 /// Sarno expects a simple structure:
 /// ```json
@@ -195,7 +239,7 @@ fn dataframe_to_table(df: &DataFrame) -> Result<proto::Table, Box<dyn std::error
 /// - 106 (LIST_INT64_TYPE) for int64
 /// - 111 (LIST_FLOAT64_TYPE) for double/float64
 /// - 112 (LIST_STRING_TYPE) for string
-fn serialize_table_for_sarno(table: &proto::Table) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+fn table_to_sarno_tson(table: &proto::Table) -> Result<rustson::Value, Box<dyn std::error::Error>> {
     use rustson::Value as TsonValue;
     use std::collections::HashMap;
 
@@ -228,13 +272,7 @@ fn serialize_table_for_sarno(table: &proto::Table) -> Result<Vec<u8>, Box<dyn st
     }
 
     sarno_table.insert("cols".to_string(), TsonValue::LST(cols_list));
-    let tson_value = TsonValue::MAP(sarno_table);
-
-    // Encode to TSON bytes
-    let bytes = rustson::encode(&tson_value)
-        .map_err(|e| format!("Failed to encode table to TSON: {:?}", e))?;
-
-    Ok(bytes)
+    Ok(TsonValue::MAP(sarno_table))
 }
 
 /// Create FileDocument for result upload
