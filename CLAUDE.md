@@ -8,7 +8,7 @@ The **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the G
 
 ## ⚠️ IMPORTANT: Current Status & Known Issues
 
-**Phase**: Phase 7 COMPLETE ✅ | **Next**: Phase 8 (Result Upload)
+**Phase**: Phase 8 IN PROGRESS 🚧 | **Current**: Debugging result upload "columns missing" error
 
 **Deployment Status**: ✅ Working (with logging disabled)
 
@@ -24,15 +24,93 @@ The **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the G
 **What's Working**:
 - ✅ gRPC connection and authentication
 - ✅ TaskService (get, runTask)
-- ✅ TableSchemaService (streamTable)
+- ✅ TableSchemaService (streamTable, uploadTable)
 - ✅ Full plot generation pipeline (475K rows → PNG in 9.5s)
 - ✅ GPU acceleration (OpenGL backend: 0.5s vs CPU: 3.1s)
 - ✅ Columnar architecture with Polars
 - ✅ TSON streaming and dequantization
+- ✅ Proto files via submodule (tercen_grpc_api)
 
 **What's Blocked**:
 - ❌ EventService.create() - All logging disabled
-- ⏸️ Phase 8: Result upload - Ready to implement
+- 🚧 Phase 8: Result upload - Debugging Sarno worker error (see logbook below)
+
+---
+
+## 📋 Current Issue Logbook (2025-01-09)
+
+### Issue: Result Upload "columns missing" Error
+
+**Error**: `Worker process failed - Tbl -- from_tson_table -- columns missing`
+
+**Context**: Phase 8 result upload implementation. Operator generates PNG successfully, but upload via `TableSchemaService.uploadTable()` fails during Sarno worker processing.
+
+**Investigation Timeline**:
+
+1. **Initial Implementation** (❌ Failed)
+   - Tried: Added `.ci` and `.ri` columns (int32, value 0) - thought they were mandatory
+   - Result: Still failed with same error
+   - Reasoning: Assumed these were required for facet linking based on initial error message
+
+2. **Namespace Prefixing** (❌ Failed)
+   - Tried: Added namespace prefix to all non-dot columns (`ds10.filename`, `ds10.mimetype`)
+   - Result: Still failed
+   - Reasoning: User pointed out all non-dot columns MUST have namespace prefix
+
+3. **Sarno Format Discovery** (❌ Failed)
+   - Tried: Simplified to `{"cols": [...]}` structure with TSON type integers
+   - Used wrong type codes: 7, 8, 9, 10
+   - Result: Error "expected type as LSTSTR,LSTU8, ... ,LSTF64"
+   - Reasoning: User provided analysis showing Sarno expects simple format, not OperatorResult wrapper
+
+4. **TSON Type Code Fix** (❌ Failed)
+   - Tried: Updated to correct TsonSpec constants (105=int32, 106=int64, 111=float64, 112=string)
+   - Result: Still fails (testing in progress)
+   - Reasoning: Found correct type codes in dtson/lib/src/tson.dart
+
+5. **Compare with R Implementation** (✅ Current)
+   - Investigation: Analyzed R's `file_to_tercen` from teRcen package
+   - Key findings:
+     - R does NOT include `.ci`/`.ri` in file_to_tercen output
+     - R uses plain `filename`, `mimetype`, `.content` columns initially
+     - Namespace is added LATER in operator flow (separate function)
+     - R includes `plot_width` and `plot_height` (numeric/double)
+   - Actions taken:
+     - ✅ Removed `.ci` and `.ri` columns
+     - ✅ Added namespace prefix back to filename/mimetype
+     - ✅ Added `plot_width` and `plot_height` columns (f64)
+   - Current structure:
+     ```
+     .content              (string - base64)
+     {ns}.filename         (string)
+     {ns}.mimetype         (string)
+     {ns}.plot_width       (f64)
+     {ns}.plot_height      (f64)
+     ```
+
+6. **Proto Files Submodule** (✅ Completed)
+   - Action: Replaced local `protos/` with `tercen_grpc_api` submodule
+   - Reasoning: User noted C# client uses submodule; ensures sync with canonical API
+   - Status: ✅ Build verified, submodule working
+
+**Current Hypothesis**:
+The result DataFrame structure now matches R's output format. The issue may have been the combination of:
+- Unnecessary `.ci`/`.ri` columns
+- Missing `plot_width`/`plot_height` columns
+- Incorrect TSON type codes (now fixed)
+
+**Next Steps**:
+1. Test current implementation in production
+2. If still failing, investigate column ordering or TSON encoding details
+3. Consider examining actual R operator output TSON bytes for comparison
+
+**Files Modified**:
+- `src/tercen/result.rs` - Result DataFrame structure
+- `src/main.rs` - Added plot dimensions to save_result call
+- `build.rs` - Updated to use tercen_grpc_api submodule
+- `.gitmodules` - Added tercen_grpc_api submodule
+
+---
 
 ## Quick Reference
 
@@ -80,7 +158,7 @@ See `TEST_LOCAL.md` and `WORKFLOW_TEST_INSTRUCTIONS.md` for testing details.
 
 **Build failing?**
 - Run: `cargo clean && cargo build --profile dev-release`
-- Check proto files: `ls protos/`
+- Check proto submodule: `git submodule update --init --recursive`
 - Update deps: `cargo update`
 
 **Tests failing?**
@@ -93,22 +171,34 @@ See `TEST_LOCAL.md` and `WORKFLOW_TEST_INSTRUCTIONS.md` for testing details.
 ## Module Structure
 
 ```
-src/
-├── main.rs                      # Entry point (⚠️ logging disabled!)
-├── tercen/                      # Pure Tercen gRPC client (future crate)
-│   ├── client.rs               # TercenClient with auth
-│   ├── table.rs                # TableStreamer (chunked streaming)
-│   ├── tson_convert.rs         # TSON → Polars DataFrame (columnar)
-│   ├── facets.rs               # Facet metadata loading
-│   ├── logger.rs               # TercenLogger (currently disabled)
-│   └── error.rs                # TercenError types
-├── ggrs_integration/           # GGRS-specific code
-│   └── stream_generator.rs     # TercenStreamGenerator impl
-└── bin/
-    └── test_stream_generator.rs # Test binary (USE THIS for testing!)
+ggrs_plot_operator/
+├── src/
+│   ├── main.rs                      # Entry point (⚠️ logging disabled!)
+│   ├── tercen/                      # Pure Tercen gRPC client (future crate)
+│   │   ├── client.rs               # TercenClient with auth
+│   │   ├── table.rs                # TableStreamer (chunked streaming)
+│   │   ├── tson_convert.rs         # TSON → Polars DataFrame (columnar)
+│   │   ├── facets.rs               # Facet metadata loading
+│   │   ├── result.rs               # Result upload (Phase 8)
+│   │   ├── logger.rs               # TercenLogger (currently disabled)
+│   │   └── error.rs                # TercenError types
+│   ├── ggrs_integration/           # GGRS-specific code
+│   │   └── stream_generator.rs     # TercenStreamGenerator impl
+│   └── bin/
+│       └── test_stream_generator.rs # Test binary (USE THIS for testing!)
+├── tercen_grpc_api/                # Git submodule (canonical proto files)
+│   └── protos/
+│       ├── tercen.proto            # Service definitions
+│       └── tercen_model.proto      # Data model definitions
+├── build.rs                        # Proto compilation (references submodule)
+├── Cargo.toml                      # Dependencies (ggrs-core from GitHub)
+└── .gitmodules                     # Submodule configuration
 ```
 
-**Key Design Principle**: `src/tercen/` has NO GGRS dependencies for future extraction as separate crate.
+**Key Design Principles**:
+- `src/tercen/` has NO GGRS dependencies for future extraction as separate crate
+- Proto files via submodule ensure sync with canonical Tercen gRPC API
+- GGRS library also from GitHub (`github.com/tercen/ggrs`)
 
 **Key Files to Read**:
 - `DEPLOYMENT_DEBUG.md` - ⚠️ Current issues and workarounds
@@ -303,12 +393,14 @@ base64 = "0.22"             # PNG encoding
 
 ### Next Steps (Phase 8)
 
-1. Encode PNG to base64
-2. Create result DataFrame with `.content`, `filename`, `mimetype` columns
-3. Wrap in `OperatorResult` JSON structure (if needed)
-4. Upload via `FileService.uploadTable()` or similar
-5. Update task with result reference
-6. Test full operator lifecycle
+1. ✅ Encode PNG to base64
+2. ✅ Create result DataFrame with `.content`, `.ci`, `.ri`, `filename`, `mimetype` columns
+3. 🚧 Test result upload to Tercen
+4. 🚧 Verify result appears in Tercen UI
+5. ⏸️ Update task state (if needed)
+6. ⏸️ Test full operator lifecycle end-to-end
+
+**Note**: Result structure uses columnar format with facet indices (`.ci`, `.ri`) to support multi-facet plots.
 
 ## Development Workflow
 
@@ -365,14 +457,15 @@ cargo run --profile dev-release --bin test_stream_generator
 
 ### Git Policy for Claude Code
 
-Claude Code should NOT create commits or push:
-- ❌ Never use `git commit`
-- ❌ Never use `git push`
+Claude Code should NOT create commits or push unless explicitly requested:
+- ❌ Never use `git commit` without explicit user request
+- ❌ Never use `git push` without explicit user request
 - ✅ Run quality checks: `cargo fmt`, `cargo clippy`, `cargo build`, `cargo test`
 - ✅ Use `git status` and `git diff` to show changes
 - ✅ Stage changes with `git add` if requested
+- ✅ Create commits only when user explicitly asks
 
-**The user handles all commits and pushes manually.**
+**Default behavior: The user handles commits and pushes manually.**
 
 ## Code Quality Standards
 
@@ -382,20 +475,47 @@ Claude Code should NOT create commits or push:
 - Write rustdoc comments for all public APIs
 - Use semantic commit messages (when user commits)
 
-## Proto Files
+**Before ANY code is considered complete**:
+1. Run `cargo fmt --check` (must pass)
+2. Run `cargo clippy -- -D warnings` (zero warnings required)
+3. Run `cargo build --profile dev-release` (must compile)
+4. Run `cargo test` (when tests exist, must pass)
 
-Proto files are copied from:
-`/home/thiago/workspaces/tercen/main/sci/tercen_grpc/tercen_grpc_api/protos/`
+CI will fail if these checks don't pass.
 
-- `tercen.proto`: Service definitions (TaskService, TableSchemaService, FileService)
-- `tercen_model.proto`: Data model definitions (ETask, ComputationTask, CrosstabSpec)
+## Proto Files (Submodule)
+
+**Important**: Proto files are managed via git submodule, NOT copied locally.
+
+The `tercen_grpc_api` submodule references the canonical proto definitions:
+- Repository: https://github.com/tercen/tercen_grpc_api
+- Path: `tercen_grpc_api/protos/`
+- Files:
+  - `tercen.proto`: Service definitions (TaskService, TableSchemaService, FileService)
+  - `tercen_model.proto`: Data model definitions (ETask, ComputationTask, CrosstabSpec)
+
+**Why submodule?**
+- Ensures sync with canonical Tercen gRPC API
+- Same approach as C# client (TercenCSharpClient)
+- Automatic updates when proto definitions change
+
+**Setup** (for new clones):
+```bash
+git submodule update --init --recursive
+```
 
 Proto files are compiled at build time via `build.rs`:
 ```rust
-tonic_build::configure()
+tonic_prost_build::configure()
     .build_server(false)      // Client only
     .build_transport(false)   // Avoid naming conflicts
-    .compile(&["protos/tercen.proto", "protos/tercen_model.proto"], &["protos"])
+    .compile_protos(
+        &[
+            "tercen_grpc_api/protos/tercen.proto",
+            "tercen_grpc_api/protos/tercen_model.proto",
+        ],
+        &["tercen_grpc_api/protos"]
+    )
 ```
 
 ## Documentation References
@@ -522,11 +642,12 @@ let polars_df = polars_df
 - Parse with rustson library
 - Process chunks incrementally with Polars
 
-**File Upload** (Phase 8 TODO):
-- Encode PNG to base64
-- Create result table with `.content`, `filename`, `mimetype` columns
-- Upload via `FileService.upload()` or save as table
-- Reference result in task
+**File Upload** (Phase 8 IN PROGRESS):
+- Encode PNG to base64 ✅
+- Create result table with `.content`, `.ci`, `.ri`, `filename`, `mimetype` columns ✅
+- Upload via `TableSchemaService.save()` with TSON format 🚧
+- Test result visibility in Tercen UI 🚧
+- **Note**: Results use columnar format with facet indices for multi-facet support
 
 ### Build System
 

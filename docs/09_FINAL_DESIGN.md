@@ -156,7 +156,8 @@ impl StreamGenerator for TercenStreamGenerator {
         DataFrame::from_facet_groups(facets)
     }
 
-    fn query_row_facet_stream(&self, range: Range) -> Result<DataFrame> {
+    fn query_row_facet_stream(&self, range: Range) -> Resul
+    t<DataFrame> {
         // Return facet labels for row facets in range
         let facets = &self.row_facets[range.start..range.end];
         DataFrame::from_facet_groups(facets)

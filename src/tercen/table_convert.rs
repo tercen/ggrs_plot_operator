@@ -88,39 +88,38 @@ fn infer_column_type(dtype: &DataType) -> String {
 /// ```
 fn encode_column_values(series: &Series) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     // Convert series to TSON Value
+    // CRITICAL: Must use typed lists (LSTSTR, LSTF64, LSTI32, LSTI64)
+    // NOT generic LST with wrapped values - Sarno expects TypedData!
     let tson_data = match series.dtype() {
         DataType::String => {
-            // String column
-            let str_vec: Vec<TsonValue> = series
+            // String column - use LSTSTR for CStringList
+            let str_vec: Vec<String> = series
                 .str()?
                 .into_iter()
-                .map(|opt| {
-                    opt.map(|s| TsonValue::STR(s.to_string()))
-                        .unwrap_or(TsonValue::NULL)
-                })
+                .map(|opt| opt.map(|s| s.to_string()).unwrap_or_else(String::new)) // TODO: Handle nulls properly
                 .collect();
-            TsonValue::LST(str_vec)
+            TsonValue::LSTSTR(str_vec.into())
         }
         DataType::Float64 => {
-            // Double column
-            let f64_vec: Vec<TsonValue> = series
+            // Double column - use LSTF64 for Float64List
+            let f64_vec: Vec<f64> = series
                 .f64()?
                 .into_iter()
-                .map(|opt| opt.map(TsonValue::F64).unwrap_or(TsonValue::NULL))
+                .map(|opt| opt.unwrap_or(0.0)) // TODO: Handle nulls properly
                 .collect();
-            TsonValue::LST(f64_vec)
+            TsonValue::LSTF64(f64_vec)
         }
         DataType::Int32 => {
-            // Int32 column
-            let i32_vec: Vec<TsonValue> = series
+            // Int32 column - use LSTI32 for Int32List
+            let i32_vec: Vec<i32> = series
                 .i32()?
                 .into_iter()
-                .map(|opt| opt.map(TsonValue::I32).unwrap_or(TsonValue::NULL))
+                .map(|opt| opt.unwrap_or(0)) // TODO: Handle nulls properly
                 .collect();
-            TsonValue::LST(i32_vec)
+            TsonValue::LSTI32(i32_vec)
         }
         DataType::Int64 => {
-            // Int64 column - use optimized LSTI64 for Vec<i64>
+            // Int64 column - use LSTI64 for Int64List
             let i64_values: Vec<i64> = series
                 .i64()?
                 .into_iter()
