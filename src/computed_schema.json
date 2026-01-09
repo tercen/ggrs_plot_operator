@@ -1,0 +1,514 @@
+{
+  "_id": "b35d8b128969e6578e7b525a6566f753",
+  "_rev": "1-628e1f77c23ea52237c5bc983efca82c",
+  "kind": "ComputedTableSchema",
+  "isDeleted": false,
+  "description": "",
+  "name": "7c15cb2c-b94f-4d7b-9987-58ea5e6b4ca1",
+  "acl": {
+    "kind": "Acl",
+    "owner": "test",
+    "aces": []
+  },
+  "createdDate": {
+    "kind": "Date",
+    "value": "2026-01-09T18:09:47.754972Z"
+  },
+  "lastModifiedDate": {
+    "kind": "Date",
+    "value": "2026-01-09T18:09:47.754972Z"
+  },
+  "urls": [],
+  "tags": [],
+  "meta": [],
+  "url": {
+    "kind": "Url",
+    "uri": ""
+  },
+  "version": "",
+  "isPublic": false,
+  "projectId": "2076952ae523bb4d472e283b9e000121",
+  "folderId": "",
+  "nRows": 1,
+  "columns": [
+    {
+      "kind": "ColumnSchema",
+      "id": "48d436a1-3f09-46cf-a635-a4c9526f6bcc",
+      "name": "ds21.filename",
+      "type": "string",
+      "nRows": 0,
+      "size": -1,
+      "metaData": {
+        "kind": "ColumnSchemaMetaData",
+        "sort": [],
+        "ascending": true,
+        "quartiles": [],
+        "properties": []
+      },
+      "storageSize": -1
+    },
+    {
+      "kind": "ColumnSchema",
+      "id": "8639e02b-4894-4a91-b81f-856892523378",
+      "name": "ds21.mimetype",
+      "type": "string",
+      "nRows": 0,
+      "size": -1,
+      "metaData": {
+        "kind": "ColumnSchemaMetaData",
+        "sort": [],
+        "ascending": true,
+        "quartiles": [],
+        "properties": []
+      },
+      "storageSize": -1
+    },
+    {
+      "kind": "ColumnSchema",
+      "id": "b1e2cb84-1178-4127-bb8f-7ec3a7a28c89",
+      "name": ".content",
+      "type": "string",
+      "nRows": 0,
+      "size": -1,
+      "metaData": {
+        "kind": "ColumnSchemaMetaData",
+        "sort": [],
+        "ascending": true,
+        "quartiles": [],
+        "properties": []
+      },
+      "storageSize": -1
+    },
+    {
+      "kind": "ColumnSchema",
+      "id": "3c5d2374-7a9a-4608-9cd6-211fa1494d9c",
+      "name": "ds21.plot_width",
+      "type": "double",
+      "nRows": 0,
+      "size": -1,
+      "metaData": {
+        "kind": "ColumnSchemaMetaData",
+        "sort": [],
+        "ascending": true,
+        "quartiles": [],
+        "properties": []
+      },
+      "storageSize": -1
+    },
+    {
+      "kind": "ColumnSchema",
+      "id": "c43000dd-16b4-445c-af47-b48240726715",
+      "name": "ds21.plot_height",
+      "type": "double",
+      "nRows": 0,
+      "size": -1,
+      "metaData": {
+        "kind": "ColumnSchemaMetaData",
+        "sort": [],
+        "ascending": true,
+        "quartiles": [],
+        "properties": []
+      },
+      "storageSize": -1
+    }
+  ],
+  "dataDirectory": "default/a6/90/90a647d8e70b4e439dcfef8d6fe98ca5",
+  "relation": {
+    "kind": "Relation",
+    "id": "6d83c25f-36d2-45b2-8037-70f95bc6bd39"
+  },
+  "size": 0,
+  "storageSize": 37168,
+  "query": {
+    "kind": "CubeQuery",
+    "relation": {
+      "kind": "RenameRelation",
+      "id": "95057f99-e613-4749-a593-621e605ab97b",
+      "relation": {
+        "kind": "SimpleRelation",
+        "id": "28e3c9888e9935f667aed6f07c0028d1",
+        "index": 0
+      },
+      "inNames": [
+        "Gender",
+        "First Name",
+        "Last Name",
+        "City",
+        "State",
+        "Country",
+        "Age",
+        "Annual Vacation Days",
+        "Average Monthly Spend on Entertainment",
+        "Number of Online Purchases in Last Month",
+        "Number of Charity Donations in Last Year",
+        "Average Weekly Exercise Hours",
+        "Investment Portfolio Value",
+        "Health Consciousness Rating",
+        "Education Level",
+        "Average Daily Screen Time",
+        "Environmental Awareness Rating",
+        "Social Media Influence Score",
+        "Risk Tolerance in Investments",
+        "Number of Professional Trainings Attended",
+        "Tech-Savviness Score",
+        "Financial Wellness Index",
+        "Lifestyle Balance Score",
+        "Entertainment Engagement Factor",
+        "Social Responsibility Index",
+        "Work-Life Balance Indicator",
+        "Investment Risk Appetite",
+        "Eco-Consciousness Metric",
+        "Stress Management Score",
+        "Time Management Skill",
+        "Lifestyle Choice",
+        "28e3c9888e9935f667aed6f07c0028d1._rids"
+      ],
+      "outNames": [
+        "Gender",
+        "First Name",
+        "Last Name",
+        "City",
+        "State",
+        "Country",
+        "Age",
+        "Annual Vacation Days",
+        "Average Monthly Spend on Entertainment",
+        "Number of Online Purchases in Last Month",
+        "Number of Charity Donations in Last Year",
+        "Average Weekly Exercise Hours",
+        "Investment Portfolio Value",
+        "Health Consciousness Rating",
+        "Education Level",
+        "Average Daily Screen Time",
+        "Environmental Awareness Rating",
+        "Social Media Influence Score",
+        "Risk Tolerance in Investments",
+        "Number of Professional Trainings Attended",
+        "Tech-Savviness Score",
+        "Financial Wellness Index",
+        "Lifestyle Balance Score",
+        "Entertainment Engagement Factor",
+        "Social Responsibility Index",
+        "Work-Life Balance Indicator",
+        "Investment Risk Appetite",
+        "Eco-Consciousness Metric",
+        "Stress Management Score",
+        "Time Management Skill",
+        "Lifestyle Choice",
+        "rowId"
+      ]
+    },
+    "colColumns": [],
+    "rowColumns": [],
+    "axisQueries": [
+      {
+        "kind": "CubeAxisQuery",
+        "pointSize": 4,
+        "chartType": "point",
+        "yAxis": {
+          "kind": "Factor",
+          "name": "Average Weekly Exercise Hours",
+          "type": "double"
+        },
+        "yAxisSettings": {
+          "kind": "AxisSettings",
+          "meta": []
+        },
+        "xAxis": {
+          "kind": "Factor",
+          "name": "",
+          "type": "string"
+        },
+        "xAxisSettings": {
+          "kind": "AxisSettings",
+          "meta": []
+        },
+        "errors": [],
+        "labels": [],
+        "colors": [],
+        "preprocessors": []
+      }
+    ],
+    "filters": {
+      "kind": "Filters",
+      "removeNaN": true,
+      "namedFilters": []
+    },
+    "operatorSettings": {
+      "kind": "OperatorSettings",
+      "namespace": "ds21",
+      "operatorRef": {
+        "kind": "OperatorRef",
+        "name": "Plot",
+        "version": "1.0.10",
+        "operatorId": "b35d8b128969e6578e7b525a6508b15b",
+        "operatorKind": "DockerOperator",
+        "propertyValues": [
+          {
+            "kind": "PropertyValue",
+            "name": "plot_type",
+            "value": "png"
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "file.name.prefix",
+            "value": "Tercen_Plot"
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "plot.width",
+            "value": ""
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "plot.height",
+            "value": ""
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "base.size",
+            "value": "11"
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "x_range",
+            "value": ""
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "y_range",
+            "value": ""
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "xlab",
+            "value": ""
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "ylab",
+            "value": ""
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "title",
+            "value": ""
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "subtitle",
+            "value": ""
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "caption",
+            "value": ""
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "legend.title",
+            "value": ""
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "bar.position",
+            "value": "dodge"
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "theme",
+            "value": "light"
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "scales",
+            "value": "fixed"
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "color_scales",
+            "value": "fixed"
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "rotate_x_axis",
+            "value": "false"
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "wrap.1d",
+            "value": "true"
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "flip",
+            "value": "false"
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "split_cells",
+            "value": "false"
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "n_cells_max",
+            "value": "50"
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "heatmap_annotation",
+            "value": "none"
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "default.color",
+            "value": "#36454f"
+          },
+          {
+            "kind": "PropertyValue",
+            "name": "legend.point.scale",
+            "value": "1"
+          }
+        ],
+        "url": {
+          "kind": "Url",
+          "uri": "https://github.com/tercen/plot_operator"
+        },
+        "operatorSpec": {
+          "kind": "OperatorSpec",
+          "ontologyUri": "https://tercen.com/_ontology/tercen",
+          "ontologyVersion": "0.0.1",
+          "inputSpecs": [
+            {
+              "kind": "CrosstabSpec",
+              "metaFactors": [
+                {
+                  "kind": "MetaFactor",
+                  "name": "Page",
+                  "type": "",
+                  "description": "These factor(s) will be used to produce one plot file per category.",
+                  "ontologyMapping": "page",
+                  "crosstabMapping": "row",
+                  "cardinality": "0..n",
+                  "factors": []
+                },
+                {
+                  "kind": "MetaFactor",
+                  "name": "Rows",
+                  "type": "",
+                  "description": "Factor(s) to stratify per row.",
+                  "ontologyMapping": "sample",
+                  "crosstabMapping": "row",
+                  "cardinality": "0..n",
+                  "factors": []
+                },
+                {
+                  "kind": "MetaFactor",
+                  "name": "Columns",
+                  "type": "",
+                  "description": "Factor(s) to stratify per column.",
+                  "ontologyMapping": "variable",
+                  "crosstabMapping": "column",
+                  "cardinality": "0..n",
+                  "factors": []
+                }
+              ],
+              "axis": [
+                {
+                  "kind": "AxisSpec",
+                  "metaFactors": [
+                    {
+                      "kind": "MetaFactor",
+                      "name": "Y Axis",
+                      "type": "numeric",
+                      "description": "Factor to use for the graph's Y axis.",
+                      "ontologyMapping": "y-axis",
+                      "crosstabMapping": "y",
+                      "cardinality": "1",
+                      "factors": []
+                    },
+                    {
+                      "kind": "MetaFactor",
+                      "name": "X Axis",
+                      "type": "",
+                      "description": "Factor to use for the graph's X axis.",
+                      "ontologyMapping": "x-axis",
+                      "crosstabMapping": "x",
+                      "cardinality": "1",
+                      "factors": []
+                    },
+                    {
+                      "kind": "MetaFactor",
+                      "name": "Colors",
+                      "type": "",
+                      "description": "Factor(s) to use as colors.",
+                      "ontologyMapping": "variable",
+                      "crosstabMapping": "color",
+                      "cardinality": "0..n",
+                      "factors": []
+                    },
+                    {
+                      "kind": "MetaFactor",
+                      "name": "Labels",
+                      "type": "",
+                      "description": "Factor(s) to use as labels.",
+                      "ontologyMapping": "variable",
+                      "crosstabMapping": "label",
+                      "cardinality": "0..n",
+                      "factors": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "outputSpecs": []
+        }
+      },
+      "environment": [
+        {
+          "kind": "Pair",
+          "key": "cpu",
+          "value": "0.0"
+        },
+        {
+          "kind": "Pair",
+          "key": "ram",
+          "value": "0"
+        },
+        {
+          "kind": "Pair",
+          "key": "cpu-shares",
+          "value": "0"
+        },
+        {
+          "kind": "Pair",
+          "key": "tercen.collect.stats",
+          "value": "false"
+        },
+        {
+          "kind": "Pair",
+          "key": "debug",
+          "value": "false"
+        },
+        {
+          "kind": "Pair",
+          "key": "preferred.run.ctx",
+          "value": ""
+        }
+      ],
+      "operatorModel": {
+        "kind": "OperatorModel"
+      }
+    },
+    "qtHash": "b35d8b128969e6578e7b525a6566ca4e",
+    "columnHash": "b35d8b128969e6578e7b525a6566caa9",
+    "rowHash": "b35d8b128969e6578e7b525a6566d547"
+  },
+  "refIds": [
+    "2076952ae523bb4d472e283b9e000121",
+    "28e3c9888e9935f667aed6f07c0028d1",
+    "b35d8b128969e6578e7b525a6508b15b",
+    "test"
+  ]
+}
