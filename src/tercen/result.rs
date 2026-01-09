@@ -27,6 +27,7 @@ use std::sync::Arc;
 /// # Arguments
 /// * `client` - Tercen client for gRPC calls
 /// * `project_id` - Project ID to upload the result to
+/// * `namespace` - Operator namespace for prefixing column names
 /// * `png_buffer` - Raw PNG bytes from the renderer
 /// * `task` - Mutable reference to the task (will be updated with fileResultId)
 ///
@@ -35,6 +36,7 @@ use std::sync::Arc;
 pub async fn save_result(
     client: Arc<TercenClient>,
     project_id: &str,
+    namespace: &str,
     png_buffer: Vec<u8>,
     task: &mut proto::ETask,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -49,9 +51,9 @@ pub async fn save_result(
         base64_png.len()
     );
 
-    // 2. Create result DataFrame
+    // 2. Create result DataFrame with namespace-prefixed columns
     println!("Creating result DataFrame...");
-    let result_df = create_result_dataframe(base64_png)?;
+    let result_df = create_result_dataframe(base64_png, namespace)?;
     println!(
         "  DataFrame: {} rows, {} columns",
         result_df.height(),
@@ -67,13 +69,9 @@ pub async fn save_result(
         table.columns.len()
     );
 
-    // 4. Wrap in OperatorResult
-    println!("Creating OperatorResult...");
-    let operator_result = create_operator_result(table)?;
-
-    // 5. Serialize OperatorResult to JSON then TSON
-    println!("Serializing to TSON...");
-    let result_bytes = serialize_operator_result(&operator_result)?;
+    // 4. Serialize table to Sarno format (simple {"cols": [...]})
+    println!("Serializing to Sarno TSON format...");
+    let result_bytes = serialize_table_for_sarno(&table)?;
     println!("  TSON size: {} bytes", result_bytes.len());
 
     // 6. Create FileDocument
@@ -99,15 +97,21 @@ pub async fn save_result(
 /// - .ci: Column facet index (0) - mandatory for Tercen linking
 /// - .ri: Row facet index (0) - mandatory for Tercen linking
 /// - .content: Base64-encoded PNG bytes
-/// - filename: "plot.png"
-/// - mimetype: "image/png"
-fn create_result_dataframe(png_base64: String) -> Result<DataFrame, Box<dyn std::error::Error>> {
+/// - {namespace}.filename: "plot.png" (namespace-prefixed)
+/// - {namespace}.mimetype: "image/png" (namespace-prefixed)
+///
+/// Note: Columns starting with '.' are NOT prefixed. All other columns MUST be
+/// prefixed with the operator namespace (e.g., "ds10.filename").
+fn create_result_dataframe(
+    png_base64: String,
+    namespace: &str,
+) -> Result<DataFrame, Box<dyn std::error::Error>> {
     let df = df! {
         ".ci" => [0i32],
         ".ri" => [0i32],
         ".content" => [png_base64],
-        "filename" => ["plot.png"],
-        "mimetype" => ["image/png"]
+        &format!("{}.filename", namespace) => ["plot.png"],
+        &format!("{}.mimetype", namespace) => ["image/png"]
     }?;
 
     Ok(df)
@@ -120,160 +124,60 @@ fn dataframe_to_table(df: &DataFrame) -> Result<proto::Table, Box<dyn std::error
     table_convert::dataframe_to_table(df)
 }
 
-/// Wrap Table in OperatorResult structure
-fn create_operator_result(
-    table: proto::Table,
-) -> Result<proto::OperatorResult, Box<dyn std::error::Error>> {
-    let result = proto::OperatorResult {
-        tables: vec![table],
-        join_operators: vec![],
-    };
-    Ok(result)
-}
-
-/// Serialize OperatorResult to TSON binary format
+/// Serialize Table to Sarno-compatible TSON format
 ///
-/// This follows the Python client pattern:
-/// 1. Convert OperatorResult proto to JSON
-/// 2. TSON-encode the JSON
-///
-/// The JSON structure must match what Python's result.toJson() produces:
+/// Sarno expects a simple structure:
 /// ```json
 /// {
-///   "kind": "OperatorResult",
-///   "tables": [{
-///     "kind": "Table",
-///     "nRows": N,
-///     "properties": {...},
-///     "columns": [{
-///       "kind": "Column",
-///       "name": "...",
-///       "type": "...",
-///       "nRows": N,
-///       "data": [...]  // TSON-decoded array
-///     }, ...]
-///   }, ...]
+///   "cols": [
+///     {"name": "column_name", "type": <tson_type_int>, "data": [values...]}
+///   ]
 /// }
 /// ```
-fn serialize_operator_result(
-    result: &proto::OperatorResult,
-) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+///
+/// Where type is a TSON type integer:
+/// - 7 (LIST_I32) for int32
+/// - 8 (LIST_I64) for int64
+/// - 9 (LIST_F64) for double/float64
+/// - 10 (LIST_STR) for string
+fn serialize_table_for_sarno(table: &proto::Table) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     use rustson::Value as TsonValue;
     use std::collections::HashMap;
 
-    // Build OperatorResult JSON structure
-    let mut result_map = HashMap::new();
-    result_map.insert(
-        "kind".to_string(),
-        TsonValue::STR("OperatorResult".to_string()),
-    );
+    // Build simple Sarno table structure: {"cols": [...]}
+    let mut sarno_table = HashMap::new();
+    let mut cols_list = Vec::new();
 
-    // Convert tables
-    let mut tables_list = Vec::new();
-    for table in &result.tables {
-        let mut table_map = HashMap::new();
+    for col in &table.columns {
+        let mut col_map = HashMap::new();
 
-        // Add kind
-        table_map.insert("kind".to_string(), TsonValue::STR("Table".to_string()));
+        // Add column name
+        col_map.insert("name".to_string(), TsonValue::STR(col.name.clone()));
 
-        // Add nRows
-        table_map.insert("nRows".to_string(), TsonValue::I32(table.n_rows));
+        // Map Tercen type string to TSON type integer
+        let tson_type = match col.r#type.as_str() {
+            "int32" => 7,   // LIST_I32
+            "int64" => 8,   // LIST_I64
+            "double" => 9,  // LIST_F64
+            "string" => 10, // LIST_STR
+            _ => return Err(format!("Unsupported column type: {}", col.r#type).into()),
+        };
+        col_map.insert("type".to_string(), TsonValue::I32(tson_type));
 
-        // Add properties
-        if let Some(ref props) = table.properties {
-            let mut props_map = HashMap::new();
-            props_map.insert(
-                "kind".to_string(),
-                TsonValue::STR("TableProperties".to_string()),
-            );
-            props_map.insert("name".to_string(), TsonValue::STR(props.name.clone()));
-            table_map.insert("properties".to_string(), TsonValue::MAP(props_map));
-        }
+        // Decode the TSON-encoded column values to get the data array
+        let col_data = rustson::decode_bytes(&col.values)
+            .map_err(|e| format!("Failed to decode column values for '{}': {:?}", col.name, e))?;
+        col_map.insert("data".to_string(), col_data);
 
-        // Add columns (note: "columns" not "cols"!)
-        let mut columns_list = Vec::new();
-        for col in &table.columns {
-            let mut col_map = HashMap::new();
-
-            // Add kind
-            col_map.insert("kind".to_string(), TsonValue::STR("Column".to_string()));
-
-            // Add id (from IdObject parent)
-            col_map.insert("id".to_string(), TsonValue::STR(col.id.clone()));
-
-            // Add column metadata (from ColumnSchema parent)
-            col_map.insert("name".to_string(), TsonValue::STR(col.name.clone()));
-            col_map.insert("type".to_string(), TsonValue::STR(col.r#type.clone()));
-            col_map.insert("nRows".to_string(), TsonValue::I32(col.n_rows));
-            col_map.insert("size".to_string(), TsonValue::I32(col.size));
-
-            // Add metaData (empty if not set)
-            if let Some(ref meta) = col.meta_data {
-                let mut meta_map = HashMap::new();
-                meta_map.insert(
-                    "kind".to_string(),
-                    TsonValue::STR("ColumnSchemaMetaData".to_string()),
-                );
-                meta_map.insert(
-                    "sort".to_string(),
-                    TsonValue::LST(
-                        meta.sort
-                            .iter()
-                            .map(|s| TsonValue::STR(s.clone()))
-                            .collect(),
-                    ),
-                );
-                meta_map.insert("ascending".to_string(), TsonValue::BOOL(meta.ascending));
-                meta_map.insert(
-                    "quartiles".to_string(),
-                    TsonValue::LST(
-                        meta.quartiles
-                            .iter()
-                            .map(|q| TsonValue::STR(q.clone()))
-                            .collect(),
-                    ),
-                );
-                col_map.insert("metaData".to_string(), TsonValue::MAP(meta_map));
-            }
-
-            // Add cValues (from Column) - usually null/empty for result tables
-            // Since our dataframe_to_table doesn't set cValues, we can skip this
-            // The Python client also typically leaves this as the default empty CValues()
-
-            // Decode the TSON-encoded column values to get the values array
-            let col_values = rustson::decode_bytes(&col.values).map_err(|e| {
-                format!("Failed to decode column values for '{}': {:?}", col.name, e)
-            })?;
-            col_map.insert("values".to_string(), col_values);
-
-            columns_list.push(TsonValue::MAP(col_map));
-        }
-
-        table_map.insert("columns".to_string(), TsonValue::LST(columns_list));
-        tables_list.push(TsonValue::MAP(table_map));
+        cols_list.push(TsonValue::MAP(col_map));
     }
 
-    result_map.insert("tables".to_string(), TsonValue::LST(tables_list));
-
-    // Add empty joinOperators
-    result_map.insert("joinOperators".to_string(), TsonValue::LST(Vec::new()));
-
-    let tson_value = TsonValue::MAP(result_map);
+    sarno_table.insert("cols".to_string(), TsonValue::LST(cols_list));
+    let tson_value = TsonValue::MAP(sarno_table);
 
     // Encode to TSON bytes
     let bytes = rustson::encode(&tson_value)
-        .map_err(|e| format!("Failed to encode OperatorResult to TSON: {:?}", e))?;
-
-    // Debug: Print first 500 chars of the decoded TSON to see the structure
-    if let Ok(decoded) = rustson::decode_bytes(&bytes) {
-        eprintln!(
-            "DEBUG: TSON structure preview: {:#?}",
-            format!("{:?}", decoded)
-                .chars()
-                .take(500)
-                .collect::<String>()
-        );
-    }
+        .map_err(|e| format!("Failed to encode table to TSON: {:?}", e))?;
 
     Ok(bytes)
 }

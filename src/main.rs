@@ -157,15 +157,16 @@ async fn process_task(
 
     println!("✓ Task retrieved");
 
-    // Step 2: Extract cube query and project_id from task
+    // Step 2: Extract cube query, project_id, and namespace from task
     println!("\n[2/5] Extracting cube query...");
-    let (cube_query, project_id) = extract_cube_query(&task)?;
+    let (cube_query, project_id, namespace) = extract_cube_query(&task)?;
 
     println!("✓ Cube query extracted");
     println!("  Main table: {}", cube_query.qt_hash);
     println!("  Column facets: {}", cube_query.column_hash);
     println!("  Row facets: {}", cube_query.row_hash);
     println!("  Project ID: {}", project_id);
+    println!("  Namespace: {}", namespace);
 
     // Find Y-axis table (4th table in schema_ids, if it exists)
     let y_axis_table_id = find_y_axis_table(&client_arc, &task).await.ok();
@@ -215,7 +216,14 @@ async fn process_task(
 
     // Step 5: Upload result and update task
     println!("\n[5/5] Uploading result to Tercen...");
-    tercen::result::save_result(client_arc.clone(), &project_id, png_buffer, &mut task).await?;
+    tercen::result::save_result(
+        client_arc.clone(),
+        &project_id,
+        &namespace,
+        png_buffer,
+        &mut task,
+    )
+    .await?;
     println!("✓ Result uploaded successfully");
 
     // Step 6: Update task with result file ID
@@ -229,10 +237,10 @@ async fn process_task(
     Ok(())
 }
 
-/// Extract CubeQuery and project_id from task
+/// Extract CubeQuery, project_id, and namespace from task
 fn extract_cube_query(
     task: &tercen::client::proto::ETask,
-) -> Result<(CubeQuery, String), Box<dyn std::error::Error>> {
+) -> Result<(CubeQuery, String, String), Box<dyn std::error::Error>> {
     use tercen::client::proto::e_task;
 
     let task_obj = task.object.as_ref().ok_or("Task has no object")?;
@@ -240,18 +248,33 @@ fn extract_cube_query(
     match task_obj {
         e_task::Object::Computationtask(ct) => {
             let query = ct.query.as_ref().ok_or("ComputationTask has no query")?;
-            Ok((query.clone().into(), ct.project_id.clone()))
+            let namespace = query
+                .operator_settings
+                .as_ref()
+                .map(|os| os.namespace.clone())
+                .unwrap_or_default();
+            Ok((query.clone().into(), ct.project_id.clone(), namespace))
         }
         e_task::Object::Runcomputationtask(rct) => {
             let query = rct
                 .query
                 .as_ref()
                 .ok_or("RunComputationTask has no query")?;
-            Ok((query.clone().into(), rct.project_id.clone()))
+            let namespace = query
+                .operator_settings
+                .as_ref()
+                .map(|os| os.namespace.clone())
+                .unwrap_or_default();
+            Ok((query.clone().into(), rct.project_id.clone(), namespace))
         }
         e_task::Object::Cubequerytask(cqt) => {
             let query = cqt.query.as_ref().ok_or("CubeQueryTask has no query")?;
-            Ok((query.clone().into(), cqt.project_id.clone()))
+            let namespace = query
+                .operator_settings
+                .as_ref()
+                .map(|os| os.namespace.clone())
+                .unwrap_or_default();
+            Ok((query.clone().into(), cqt.project_id.clone(), namespace))
         }
         _ => Err("Unsupported task type".into()),
     }

@@ -455,15 +455,6 @@ impl TercenStreamGenerator {
             ]
         };
 
-        eprintln!(
-            "DEBUG: Streaming facet ({}, {}) rows {}-{} (len={})",
-            col_idx,
-            row_idx,
-            data_range.start,
-            data_range.end,
-            data_range.len()
-        );
-
         // Use configured chunk_size for all requests to Tercen
         let chunk_size = self.chunk_size as i64;
         let mut all_chunks: Vec<polars::frame::DataFrame> = Vec::new();
@@ -474,12 +465,6 @@ impl TercenStreamGenerator {
             let remaining = end_offset - current_offset;
             let limit = remaining.min(chunk_size);
 
-            eprintln!(
-                "DEBUG:   Fetching chunk: offset={}, limit={}",
-                current_offset, limit
-            );
-
-            let fetch_start = std::time::Instant::now();
             let tson_data = streamer
                 .stream_tson(
                     &self.main_table_id,
@@ -488,41 +473,17 @@ impl TercenStreamGenerator {
                     limit,
                 )
                 .await?;
-            let fetch_time = fetch_start.elapsed();
 
             if tson_data.is_empty() {
                 break;
             }
 
             // Parse TSON to DataFrame
-            let parse_start = std::time::Instant::now();
             let df = tson_to_dataframe(&tson_data)?;
             let fetched_rows = df.nrow();
-            let parse_time = parse_start.elapsed();
-
-            eprintln!(
-                "TIMING: Fetch={:.2}ms, Parse={:.2}ms for {} rows",
-                fetch_time.as_secs_f64() * 1000.0,
-                parse_time.as_secs_f64() * 1000.0,
-                fetched_rows
-            );
 
             // Filter by facet indices if needed
-            let filter_start = std::time::Instant::now();
             let filtered_df = self.filter_by_facet(df, col_idx, row_idx)?;
-            let filter_time = filter_start.elapsed();
-
-            eprintln!(
-                "TIMING: Filter={:.2}ms for {} rows",
-                filter_time.as_secs_f64() * 1000.0,
-                filtered_df.nrow()
-            );
-            eprintln!(
-                "DEBUG:   Filtered to {} rows for facet ({}, {})",
-                filtered_df.nrow(),
-                col_idx,
-                row_idx
-            );
 
             // NOTE: Dequantization now happens in GGRS, not here in the operator
             // The data is returned with quantized coordinates (.xs, .ys) and will be
@@ -540,13 +501,6 @@ impl TercenStreamGenerator {
                 break;
             }
         }
-
-        eprintln!(
-            "DEBUG: Accumulated {} chunks for facet ({}, {})",
-            all_chunks.len(),
-            col_idx,
-            row_idx
-        );
 
         // Concatenate all chunks vertically using Polars vstack
         if all_chunks.is_empty() {
@@ -577,13 +531,6 @@ impl TercenStreamGenerator {
             ".xs".to_string(),
             ".ys".to_string(),
         ];
-
-        eprintln!(
-            "DEBUG: Bulk streaming rows {}-{} (len={}) with facet indices",
-            data_range.start,
-            data_range.end,
-            data_range.len()
-        );
 
         // Fetch the requested range directly (GGRS handles chunking)
         let offset = data_range.start as i64;
