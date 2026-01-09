@@ -151,14 +151,17 @@ pub async fn save_result(
 
 /// Create a result DataFrame with base64-encoded PNG
 ///
-/// Creates a single-row DataFrame with columns matching R plot_operator output:
+/// Creates a DataFrame with columns matching R plot_operator output:
 /// - .ci: Column facet index (int32, value 0 for single plot)
 /// - .ri: Row facet index (int32, value 0 for single plot)
-/// - .content: Base64-encoded PNG bytes
+/// - .content: Base64-encoded PNG bytes (chunked if > 1MB)
 /// - {namespace}.filename: "plot.png" (namespace-prefixed by operator)
 /// - {namespace}.mimetype: "image/png" (namespace-prefixed by operator)
 /// - {namespace}.plot_width: plot width in pixels (namespace-prefixed by operator)
 /// - {namespace}.plot_height: plot height in pixels (namespace-prefixed by operator)
+///
+/// If the base64 string is larger than 1MB, it will be split into multiple rows
+/// with the same .ci and .ri values.
 ///
 /// Note: .ci, .ri, and .content have leading dots. Other columns get namespace prefix.
 fn create_result_dataframe(
@@ -167,17 +170,56 @@ fn create_result_dataframe(
     plot_width: i32,
     plot_height: i32,
 ) -> Result<DataFrame, Box<dyn std::error::Error>> {
-    let df = df! {
-        ".ci" => [0i32],
-        ".ri" => [0i32],
-        ".content" => [png_base64],
-        &format!("{}.filename", namespace) => ["plot.png"],
-        &format!("{}.mimetype", namespace) => ["image/png"],
-        &format!("{}.plot_width", namespace) => [plot_width as f64],
-        &format!("{}.plot_height", namespace) => [plot_height as f64]
-    }?;
+    const CHUNK_SIZE: usize = 1_000_000; // 1MB chunks
 
-    Ok(df)
+    let base64_len = png_base64.len();
+
+    // Check if we need to chunk
+    if base64_len <= CHUNK_SIZE {
+        // Single row - no chunking needed
+        let df = df! {
+            ".ci" => [0i32],
+            ".ri" => [0i32],
+            ".content" => [png_base64],
+            &format!("{}.filename", namespace) => ["plot.png"],
+            &format!("{}.mimetype", namespace) => ["image/png"],
+            &format!("{}.plot_width", namespace) => [plot_width as f64],
+            &format!("{}.plot_height", namespace) => [plot_height as f64]
+        }?;
+        Ok(df)
+    } else {
+        // Multiple rows - chunk the base64 string
+        let chunks: Vec<String> = png_base64
+            .as_bytes()
+            .chunks(CHUNK_SIZE)
+            .map(|chunk| String::from_utf8(chunk.to_vec()).unwrap())
+            .collect();
+
+        let n_chunks = chunks.len();
+        println!(
+            "  Chunking large image: {} bytes into {} chunks",
+            base64_len, n_chunks
+        );
+
+        // Create vectors for each column (all chunks have same .ci/.ri)
+        let ci_vec = vec![0i32; n_chunks];
+        let ri_vec = vec![0i32; n_chunks];
+        let filename_vec = vec!["plot.png"; n_chunks];
+        let mimetype_vec = vec!["image/png"; n_chunks];
+        let width_vec = vec![plot_width as f64; n_chunks];
+        let height_vec = vec![plot_height as f64; n_chunks];
+
+        let df = df! {
+            ".ci" => ci_vec,
+            ".ri" => ri_vec,
+            ".content" => chunks,
+            &format!("{}.filename", namespace) => filename_vec,
+            &format!("{}.mimetype", namespace) => mimetype_vec,
+            &format!("{}.plot_width", namespace) => width_vec,
+            &format!("{}.plot_height", namespace) => height_vec
+        }?;
+        Ok(df)
+    }
 }
 
 /// Convert DataFrame to Tercen Table with TSON encoding
@@ -234,7 +276,10 @@ fn serialize_operator_result(
 /// {
 ///   "cols": [
 ///     {"name": "column_name", "type": <tson_type_int>, "data": [values...]}
-///   ]
+///   ],
+///   "meta_data": {
+///     "name": "schema-name"
+///   }
 /// }
 /// ```
 ///
@@ -247,7 +292,7 @@ fn table_to_sarno_tson(table: &proto::Table) -> Result<rustson::Value, Box<dyn s
     use rustson::Value as TsonValue;
     use std::collections::HashMap;
 
-    // Build simple Sarno table structure: {"cols": [...]}
+    // Build simple Sarno table structure: {"cols": [...], "meta_data": {...}}
     let mut sarno_table = HashMap::new();
     let mut cols_list = Vec::new();
 
@@ -276,6 +321,14 @@ fn table_to_sarno_tson(table: &proto::Table) -> Result<rustson::Value, Box<dyn s
     }
 
     sarno_table.insert("cols".to_string(), TsonValue::LST(cols_list));
+
+    // Add meta_data with schema name (Sarno uses this for schema.name)
+    // Generate a UUID for the schema name
+    let schema_name = uuid::Uuid::new_v4().to_string();
+    let mut meta_data = HashMap::new();
+    meta_data.insert("name".to_string(), TsonValue::STR(schema_name));
+    sarno_table.insert("meta_data".to_string(), TsonValue::MAP(meta_data));
+
     Ok(TsonValue::MAP(sarno_table))
 }
 
