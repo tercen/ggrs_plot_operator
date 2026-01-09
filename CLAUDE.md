@@ -93,16 +93,26 @@ The **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the G
    - Reasoning: User noted C# client uses submodule; ensures sync with canonical API
    - Status: ✅ Build verified, submodule working
 
+7. **TypedData Discovery** (🧪 Testing)
+   - Investigation: User provided Sarno API internals showing it expects TypedData, not generic lists
+   - Key finding: Sarno expects `data` field to contain **TypedData** (Uint32List, Float64List, CStringList), NOT generic LST!
+   - Root cause identified: We were encoding as `TsonValue::LST(vec![TsonValue::F64(...)])` (generic list)
+   - Fix applied: Changed to typed lists:
+     - String: `TsonValue::LSTSTR(vec![String].into())` for CStringList
+     - Float64: `TsonValue::LSTF64(vec![f64])` for Float64List
+     - Int32: `TsonValue::LSTI32(vec![i32])` for Int32List
+     - Int64: `TsonValue::LSTI64(vec![i64])` for Int64List (already correct)
+   - Files modified: `src/tercen/table_convert.rs`
+   - Also updated: `Cargo.lock` to latest ggrs-core (08cbf29) which removes debug messages
+   - Status: ✅ Compiles cleanly, deployed to test
+
 **Current Hypothesis**:
-The result DataFrame structure now matches R's output format. The issue may have been the combination of:
-- Unnecessary `.ci`/`.ri` columns
-- Missing `plot_width`/`plot_height` columns
-- Incorrect TSON type codes (now fixed)
+The "columns missing" error was caused by sending generic `LST(vec![TsonValue])` instead of TypedData lists. Sarno's from_tson_table expects the `data` field in each column to be a typed array (Float64List, CStringList, etc.), not a generic list of wrapped values.
 
 **Next Steps**:
-1. Test current implementation in production
-2. If still failing, investigate column ordering or TSON encoding details
-3. Consider examining actual R operator output TSON bytes for comparison
+1. ✅ Deploy and test with typed lists fix
+2. If still failing: Investigate column ordering or whether `serialize_table_for_sarno` structure is correct
+3. Alternative: Compare actual TSON bytes from working R operator vs our output
 
 **Files Modified**:
 - `src/tercen/result.rs` - Result DataFrame structure

@@ -29,12 +29,13 @@ WORKDIR /app
 
 # Copy manifests
 COPY Cargo.toml ./
+COPY Cargo.lock ./
 
 # Copy build script
 COPY build.rs ./
 
-# Copy proto files (needed for build.rs)
-COPY protos ./protos
+# Copy proto files submodule (needed for build.rs)
+COPY tercen_grpc_api ./tercen_grpc_api
 
 # Copy source tree
 COPY src ./src
