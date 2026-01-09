@@ -4,7 +4,7 @@
   "tags": ["visualization", "plot", "ggrs"],
   "authors": ["Tercen"],
   "urls": ["https://github.com/tercen/ggrs_plot_operator"],
-  "container": "ghcr.io/tercen/ggrs_plot_operator:main",
+  "container": "ghcr.io/tercen/ggrs_plot_operator:0.0.1",
   "properties": [
     {
       "kind": "DoubleProperty",
