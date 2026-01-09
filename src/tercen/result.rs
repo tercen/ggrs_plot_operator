@@ -135,11 +135,11 @@ fn dataframe_to_table(df: &DataFrame) -> Result<proto::Table, Box<dyn std::error
 /// }
 /// ```
 ///
-/// Where type is a TSON type integer:
-/// - 7 (LIST_I32) for int32
-/// - 8 (LIST_I64) for int64
-/// - 9 (LIST_F64) for double/float64
-/// - 10 (LIST_STR) for string
+/// Where type is a TSON type integer (from TsonSpec constants):
+/// - 105 (LIST_INT32_TYPE) for int32
+/// - 106 (LIST_INT64_TYPE) for int64
+/// - 111 (LIST_FLOAT64_TYPE) for double/float64
+/// - 112 (LIST_STRING_TYPE) for string
 fn serialize_table_for_sarno(table: &proto::Table) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     use rustson::Value as TsonValue;
     use std::collections::HashMap;
@@ -154,12 +154,12 @@ fn serialize_table_for_sarno(table: &proto::Table) -> Result<Vec<u8>, Box<dyn st
         // Add column name
         col_map.insert("name".to_string(), TsonValue::STR(col.name.clone()));
 
-        // Map Tercen type string to TSON type integer
+        // Map Tercen type string to TSON type integer (from TsonSpec constants)
         let tson_type = match col.r#type.as_str() {
-            "int32" => 7,   // LIST_I32
-            "int64" => 8,   // LIST_I64
-            "double" => 9,  // LIST_F64
-            "string" => 10, // LIST_STR
+            "int32" => 105,  // LIST_INT32_TYPE
+            "int64" => 106,  // LIST_INT64_TYPE
+            "double" => 111, // LIST_FLOAT64_TYPE
+            "string" => 112, // LIST_STRING_TYPE
             _ => return Err(format!("Unsupported column type: {}", col.r#type).into()),
         };
         col_map.insert("type".to_string(), TsonValue::I32(tson_type));
