@@ -221,6 +221,8 @@ async fn process_task(
         &project_id,
         &namespace,
         png_buffer,
+        config.default_plot_width as i32,
+        config.default_plot_height as i32,
         &mut task,
     )
     .await?;

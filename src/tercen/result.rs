@@ -29,6 +29,8 @@ use std::sync::Arc;
 /// * `project_id` - Project ID to upload the result to
 /// * `namespace` - Operator namespace for prefixing column names
 /// * `png_buffer` - Raw PNG bytes from the renderer
+/// * `plot_width` - Width of the plot in pixels
+/// * `plot_height` - Height of the plot in pixels
 /// * `task` - Mutable reference to the task (will be updated with fileResultId)
 ///
 /// # Returns
@@ -38,6 +40,8 @@ pub async fn save_result(
     project_id: &str,
     namespace: &str,
     png_buffer: Vec<u8>,
+    plot_width: i32,
+    plot_height: i32,
     task: &mut proto::ETask,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use base64::Engine;
@@ -53,7 +57,7 @@ pub async fn save_result(
 
     // 2. Create result DataFrame with namespace-prefixed columns
     println!("Creating result DataFrame...");
-    let result_df = create_result_dataframe(base64_png, namespace)?;
+    let result_df = create_result_dataframe(base64_png, namespace, plot_width, plot_height)?;
     println!(
         "  DataFrame: {} rows, {} columns",
         result_df.height(),
@@ -93,25 +97,26 @@ pub async fn save_result(
 
 /// Create a result DataFrame with base64-encoded PNG
 ///
-/// Creates a single-row DataFrame with columns:
-/// - .ci: Column facet index (0) - mandatory for Tercen linking
-/// - .ri: Row facet index (0) - mandatory for Tercen linking
+/// Creates a single-row DataFrame with columns matching R plot_operator output:
 /// - .content: Base64-encoded PNG bytes
-/// - {namespace}.filename: "plot.png" (namespace-prefixed)
-/// - {namespace}.mimetype: "image/png" (namespace-prefixed)
+/// - {namespace}.filename: "plot.png" (namespace-prefixed by operator)
+/// - {namespace}.mimetype: "image/png" (namespace-prefixed by operator)
+/// - {namespace}.plot_width: plot width in pixels (namespace-prefixed by operator)
+/// - {namespace}.plot_height: plot height in pixels (namespace-prefixed by operator)
 ///
-/// Note: Columns starting with '.' are NOT prefixed. All other columns MUST be
-/// prefixed with the operator namespace (e.g., "ds10.filename").
+/// Note: Only .content has a leading dot. Other columns get namespace prefix from operator.
 fn create_result_dataframe(
     png_base64: String,
     namespace: &str,
+    plot_width: i32,
+    plot_height: i32,
 ) -> Result<DataFrame, Box<dyn std::error::Error>> {
     let df = df! {
-        ".ci" => [0i32],
-        ".ri" => [0i32],
         ".content" => [png_base64],
         &format!("{}.filename", namespace) => ["plot.png"],
-        &format!("{}.mimetype", namespace) => ["image/png"]
+        &format!("{}.mimetype", namespace) => ["image/png"],
+        &format!("{}.plot_width", namespace) => [plot_width as f64],
+        &format!("{}.plot_height", namespace) => [plot_height as f64]
     }?;
 
     Ok(df)
