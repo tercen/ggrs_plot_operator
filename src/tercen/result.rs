@@ -24,15 +24,15 @@ use std::sync::Arc;
 /// Save a PNG plot result back to Tercen
 ///
 /// Takes the generated PNG buffer, converts it to Tercen's result format,
-/// uploads it, creates a new task to process the result, and waits for the
-/// server to link the result to the workflow step.
+/// uploads it, updates the existing task with the fileResultId, and waits
+/// for the server to process the result and link it to the workflow step.
 ///
-/// This follows the Python client pattern:
-/// 1. Upload result table via uploadTable()
-/// 2. Create a NEW RunComputationTask with the fileResultId
-/// 3. Run the task via runTask()
-/// 4. Wait for the task to complete via waitDone()
-/// 5. The server automatically creates the computedRelation linking the result
+/// This follows the Python production client pattern (OperatorContext.save):
+/// 1. Upload file via FileService.upload() → get FileDocument ID
+/// 2. Update EXISTING task's fileResultId field
+/// 3. Call TaskService.update() to save the updated task
+/// 4. Call TaskService.waitDone() to wait for server processing
+/// 5. Server (Sarno) processes file and creates computedRelation automatically
 ///
 /// # Arguments
 /// * `client` - Tercen client for gRPC calls
@@ -41,7 +41,7 @@ use std::sync::Arc;
 /// * `png_buffer` - Raw PNG bytes from the renderer
 /// * `plot_width` - Width of the plot in pixels
 /// * `plot_height` - Height of the plot in pixels
-/// * `original_task` - The original task from the operator (for getting cubeQuery, owner, etc.)
+/// * `task` - Mutable reference to the task (will be updated with fileResultId)
 ///
 /// # Returns
 /// Result indicating success or error during upload
@@ -52,7 +52,7 @@ pub async fn save_result(
     png_buffer: Vec<u8>,
     plot_width: i32,
     plot_height: i32,
-    original_task: &proto::ETask,
+    task: &mut proto::ETask,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use base64::Engine;
 
@@ -92,38 +92,38 @@ pub async fn save_result(
     println!("Creating FileDocument...");
     let file_doc = create_file_document(project_id, result_bytes.len() as i32);
 
-    // 6. Upload via TableSchemaService.uploadTable()
-    println!("Uploading result table...");
-    let schema_id = upload_result_table(&client, file_doc, result_bytes).await?;
-    println!("  Uploaded table with schema ID: {}", schema_id);
+    // 6. Upload via FileService.upload()
+    println!("Uploading result file...");
+    let file_doc_id = upload_result_file(&client, file_doc, result_bytes).await?;
+    println!("  Uploaded file with ID: {}", file_doc_id);
 
-    // 7. Create a NEW task with the result (this is the Python pattern)
-    println!("Creating new task to link result to workflow step...");
-    let new_task = create_result_task(original_task, &schema_id, project_id)?;
+    // 7. Update the EXISTING task with fileResultId
+    println!("Updating task with fileResultId...");
+    update_task_file_result_id(task, &file_doc_id)?;
+    println!("  Task fileResultId set to: {}", file_doc_id);
 
-    // 8. Create the task via TaskService
-    println!("Submitting task to server...");
+    // 8. Update task via TaskService
+    println!("Saving updated task...");
     let mut task_service = client.task_service()?;
-    let created_task = task_service.create(new_task).await?.into_inner();
-    let task_id = extract_task_id(&created_task)?;
-    println!("  Created task with ID: {}", task_id);
+    let update_response = task_service.update(task.clone()).await?;
+    let _updated_task = update_response.into_inner();
+    println!("  Task updated successfully");
 
-    // 9. Run the task
-    println!("Running task...");
-    let run_req = proto::ReqRunTask {
-        task_id: task_id.clone(),
-    };
-    task_service.run_task(run_req).await?;
-    println!("  Task started");
-
-    // 10. Wait for task completion
-    println!("Waiting for task to complete...");
+    // 9. Wait for Tercen to process the result
+    // The server will:
+    // - Retrieve the file from fileResultId
+    // - Call Sarno to process the TSON data
+    // - Create schemas from the result
+    // - Build computedRelation with JoinOperators
+    // - Link the result to the workflow step
+    println!("Waiting for Tercen to process result...");
+    let task_id = extract_task_id(task)?;
     let wait_req = proto::ReqWaitDone { task_id };
     let wait_response = task_service.wait_done(wait_req).await?.into_inner();
     let completed_task = wait_response.result.ok_or("Wait response missing task")?;
-    println!("  Task completed");
+    println!("  Processing complete");
 
-    // 11. Check if task failed
+    // 10. Check if task failed
     check_task_state(&completed_task)?;
 
     println!("Result saved and linked successfully!");
@@ -244,17 +244,21 @@ fn create_file_document(project_id: &str, size: i32) -> proto::FileDocument {
     }
 }
 
-/// Upload result table via TableSchemaService.uploadTable()
+/// Upload result file via FileService.upload()
 ///
-/// This is the correct method for uploading operator results.
-/// FileService.upload() is for regular files, but operator results
-/// must use TableSchemaService.uploadTable() to properly set the dataUri.
-async fn upload_result_table(
+/// This uploads an OperatorResult (TSON-encoded table) as a FileDocument.
+/// The returned FileDocument ID is what goes into task.fileResultId.
+/// The server (Sarno) will then process this file to create the actual schemas
+/// and computedRelation.
+///
+/// Note: We use FileService.upload() (NOT TableSchemaService.uploadTable())
+/// because we need a FileDocument with a dataUri, not just a Schema.
+async fn upload_result_file(
     client: &TercenClient,
     file_doc: proto::FileDocument,
     result_bytes: Vec<u8>,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let mut table_service = client.table_service()?;
+    let mut file_service = client.file_service()?;
 
     // Create EFileDocument wrapper
     let e_file_doc = proto::EFileDocument {
@@ -262,7 +266,7 @@ async fn upload_result_table(
     };
 
     // Create upload request (single message in a stream)
-    let request = proto::ReqUploadTable {
+    let request = proto::ReqUpload {
         file: Some(e_file_doc),
         bytes: result_bytes,
     };
@@ -272,84 +276,45 @@ async fn upload_result_table(
     let request_stream = stream::iter(vec![request]);
 
     // Send request
-    let response = table_service.upload_table(request_stream).await?;
+    let response = file_service.upload(request_stream).await?;
     let resp_upload = response.into_inner();
 
-    // Extract schema ID from response
-    let e_schema = resp_upload.result.ok_or("Upload response missing schema")?;
+    // Extract FileDocument ID from response
+    let e_file_doc = resp_upload
+        .result
+        .ok_or("Upload response missing file document")?;
 
-    // Extract the actual schema from the wrapper
-    use proto::e_schema;
-    let schema_obj = e_schema.object.ok_or("ESchema has no object")?;
+    // Extract the actual FileDocument from the wrapper
+    use proto::e_file_document;
+    let file_doc_obj = e_file_doc.object.ok_or("EFileDocument has no object")?;
 
-    let schema_id = match schema_obj {
-        e_schema::Object::Tableschema(ts) => ts.id,
-        e_schema::Object::Computedtableschema(cts) => cts.id,
-        e_schema::Object::Cubequerytableschema(cqts) => cqts.id,
-        e_schema::Object::Schema(s) => s.id,
+    // EFileDocument only has one variant: filedocument
+    let file_doc_id = match file_doc_obj {
+        e_file_document::Object::Filedocument(fd) => fd.id,
     };
 
-    Ok(schema_id)
+    Ok(file_doc_id)
 }
 
-/// Create a new RunComputationTask to link the result to the workflow step
+/// Update the task's fileResultId field
 ///
-/// This follows the Python client pattern where a NEW task is created (not modified)
-/// with the fileResultId set, and the server automatically creates the computedRelation.
-///
-/// The new task copies key fields from the original task:
-/// - query (CubeQuery) - CRITICAL: Same query that generated the data
-/// - projectId
-/// - owner
-/// - state = InitState (ready to run)
-fn create_result_task(
-    original_task: &proto::ETask,
-    schema_id: &str,
-    project_id: &str,
-) -> Result<proto::ETask, Box<dyn std::error::Error>> {
+/// This updates the EXISTING task (following Python OperatorContext pattern).
+/// The server will process the file and create the computedRelation automatically.
+fn update_task_file_result_id(
+    task: &mut proto::ETask,
+    file_doc_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     use proto::e_task;
 
-    // Extract query and owner from original task
-    let original_task_obj = original_task
-        .object
-        .as_ref()
-        .ok_or("Original task has no object field")?;
+    let task_obj = task.object.as_mut().ok_or("Task has no object field")?;
 
-    let (query, owner, acl_context) = match original_task_obj {
+    match task_obj {
         e_task::Object::Runcomputationtask(rct) => {
-            let query = rct
-                .query
-                .clone()
-                .ok_or("Original task has no query field")?;
-            (query, rct.owner.clone(), rct.acl_context.clone())
+            rct.file_result_id = file_doc_id.to_string();
+            Ok(())
         }
-        _ => {
-            return Err("Original task must be RunComputationTask".into());
-        }
-    };
-
-    // Create InitState
-    let init_state = proto::InitState::default();
-    let e_state = proto::EState {
-        object: Some(proto::e_state::Object::Initstate(init_state)),
-    };
-
-    // Create new RunComputationTask with all required fields
-    let new_rct = proto::RunComputationTask {
-        file_result_id: schema_id.to_string(),
-        query: Some(query),
-        state: Some(e_state),
-        project_id: project_id.to_string(),
-        owner,
-        acl_context,
-        ..Default::default()
-    };
-
-    let new_e_task = proto::ETask {
-        object: Some(e_task::Object::Runcomputationtask(new_rct)),
-    };
-
-    Ok(new_e_task)
+        _ => Err("Expected RunComputationTask".into()),
+    }
 }
 
 /// Extract task ID from ETask
