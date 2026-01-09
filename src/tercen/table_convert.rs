@@ -22,9 +22,9 @@ use rustson::Value as TsonValue;
 pub fn dataframe_to_table(df: &DataFrame) -> Result<proto::Table, Box<dyn std::error::Error>> {
     let nrows = df.height() as i32;
 
-    // Create TableProperties
+    // Create TableProperties with a unique name (required by Sarno)
     let properties = proto::TableProperties {
-        name: String::new(),
+        name: uuid::Uuid::new_v4().to_string(),
         sort_order: vec![],
         ascending: false,
     };

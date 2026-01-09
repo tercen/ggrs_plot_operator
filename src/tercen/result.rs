@@ -231,11 +231,18 @@ fn dataframe_to_table(df: &DataFrame) -> Result<proto::Table, Box<dyn std::error
 
 /// Create an OperatorResult wrapping the table
 ///
-/// OperatorResult structure:
+/// OperatorResult structure (full Tercen model format):
 /// ```json
 /// {
 ///   "kind": "OperatorResult",
-///   "tables": [table],
+///   "tables": [
+///     {
+///       "kind": "Table",
+///       "nRows": ...,
+///       "properties": {"kind": "TableProperties", "name": "...", ...},
+///       "columns": [...]
+///     }
+///   ],
 ///   "joinOperators": []
 /// }
 /// ```
@@ -245,8 +252,8 @@ fn create_operator_result(
     use rustson::Value as TsonValue;
     use std::collections::HashMap;
 
-    // Convert Table to TSON value (Sarno format with cols)
-    let table_tson = table_to_sarno_tson(&table)?;
+    // Convert Table to full Tercen model TSON format (NOT simplified Sarno format)
+    let table_tson = table_to_tercen_tson(&table)?;
 
     // Create OperatorResult structure
     let mut operator_result = HashMap::new();
@@ -269,67 +276,89 @@ fn serialize_operator_result(
     Ok(bytes)
 }
 
-/// Convert Table to Sarno-compatible TSON format
+/// Convert Table proto to full Tercen model TSON format
 ///
-/// Sarno expects a simple structure:
+/// Creates a complete Table object with kind, properties, and columns:
 /// ```json
 /// {
-///   "cols": [
-///     {"name": "column_name", "type": <tson_type_int>, "data": [values...]}
-///   ],
-///   "meta_data": {
-///     "name": "schema-name"
-///   }
+///   "kind": "Table",
+///   "nRows": ...,
+///   "properties": {
+///     "kind": "TableProperties",
+///     "name": "uuid",
+///     "sortOrder": [],
+///     "ascending": false
+///   },
+///   "columns": [
+///     {
+///       "kind": "Column",
+///       "name": "...",
+///       "type": "...",
+///       "nRows": ...,
+///       "size": ...,
+///       "values": <tson-encoded-data>
+///     }
+///   ]
 /// }
 /// ```
-///
-/// Where type is a TSON type integer (from TsonSpec constants):
-/// - 105 (LIST_INT32_TYPE) for int32
-/// - 106 (LIST_INT64_TYPE) for int64
-/// - 111 (LIST_FLOAT64_TYPE) for double/float64
-/// - 112 (LIST_STRING_TYPE) for string
-fn table_to_sarno_tson(table: &proto::Table) -> Result<rustson::Value, Box<dyn std::error::Error>> {
+fn table_to_tercen_tson(
+    table: &proto::Table,
+) -> Result<rustson::Value, Box<dyn std::error::Error>> {
     use rustson::Value as TsonValue;
     use std::collections::HashMap;
 
-    // Build simple Sarno table structure: {"cols": [...], "meta_data": {...}}
-    let mut sarno_table = HashMap::new();
-    let mut cols_list = Vec::new();
+    let mut table_map = HashMap::new();
 
+    // Add kind
+    table_map.insert("kind".to_string(), TsonValue::STR("Table".to_string()));
+
+    // Add nRows
+    table_map.insert("nRows".to_string(), TsonValue::I32(table.n_rows));
+
+    // Add properties
+    if let Some(props) = &table.properties {
+        let mut props_map = HashMap::new();
+        props_map.insert(
+            "kind".to_string(),
+            TsonValue::STR("TableProperties".to_string()),
+        );
+        props_map.insert("name".to_string(), TsonValue::STR(props.name.clone()));
+        props_map.insert(
+            "sortOrder".to_string(),
+            TsonValue::LST(
+                props
+                    .sort_order
+                    .iter()
+                    .map(|s| TsonValue::STR(s.clone()))
+                    .collect(),
+            ),
+        );
+        props_map.insert("ascending".to_string(), TsonValue::BOOL(props.ascending));
+
+        table_map.insert("properties".to_string(), TsonValue::MAP(props_map));
+    }
+
+    // Add columns
+    let mut cols_list = Vec::new();
     for col in &table.columns {
         let mut col_map = HashMap::new();
 
-        // Add column name
+        col_map.insert("kind".to_string(), TsonValue::STR("Column".to_string()));
         col_map.insert("name".to_string(), TsonValue::STR(col.name.clone()));
+        col_map.insert("type".to_string(), TsonValue::STR(col.r#type.clone()));
+        col_map.insert("nRows".to_string(), TsonValue::I32(col.n_rows));
+        col_map.insert("size".to_string(), TsonValue::I32(col.size));
 
-        // Map Tercen type string to TSON type integer (from TsonSpec constants)
-        let tson_type = match col.r#type.as_str() {
-            "int32" => 105,  // LIST_INT32_TYPE
-            "int64" => 106,  // LIST_INT64_TYPE
-            "double" => 111, // LIST_FLOAT64_TYPE
-            "string" => 112, // LIST_STRING_TYPE
-            _ => return Err(format!("Unsupported column type: {}", col.r#type).into()),
-        };
-        col_map.insert("type".to_string(), TsonValue::I32(tson_type));
-
-        // Decode the TSON-encoded column values to get the data array
-        let col_data = rustson::decode_bytes(&col.values)
+        // Decode the TSON-encoded values to get the actual data
+        let col_values = rustson::decode_bytes(&col.values)
             .map_err(|e| format!("Failed to decode column values for '{}': {:?}", col.name, e))?;
-        col_map.insert("data".to_string(), col_data);
+        col_map.insert("values".to_string(), col_values);
 
         cols_list.push(TsonValue::MAP(col_map));
     }
+    table_map.insert("columns".to_string(), TsonValue::LST(cols_list));
 
-    sarno_table.insert("cols".to_string(), TsonValue::LST(cols_list));
-
-    // Add meta_data with schema name (Sarno uses this for schema.name)
-    // Generate a UUID for the schema name
-    let schema_name = uuid::Uuid::new_v4().to_string();
-    let mut meta_data = HashMap::new();
-    meta_data.insert("name".to_string(), TsonValue::STR(schema_name));
-    sarno_table.insert("meta_data".to_string(), TsonValue::MAP(meta_data));
-
-    Ok(TsonValue::MAP(sarno_table))
+    Ok(TsonValue::MAP(table_map))
 }
 
 /// Create FileDocument for result upload
