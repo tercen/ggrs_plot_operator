@@ -1,10 +1,10 @@
 {
-  "name": "GGRS Plot Operator v0.0.1 -- build 1",
+  "name": "GGRS Plot Operator v0.0.1",
   "description": "High-performance faceted plotting using the GGRS library",
   "tags": ["visualization", "plot", "ggrs"],
   "authors": ["Tercen"],
   "urls": ["https://github.com/tercen/ggrs_plot_operator"],
-  "container": "ghcr.io/tercen/ggrs_plot_operator:0.0.1",
+  "container": "ghcr.io/tercen/ggrs_plot_operator:main",
   "properties": [
     {
       "kind": "DoubleProperty",
