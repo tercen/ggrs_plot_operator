@@ -152,13 +152,15 @@ pub async fn save_result(
 /// Create a result DataFrame with base64-encoded PNG
 ///
 /// Creates a single-row DataFrame with columns matching R plot_operator output:
+/// - .ci: Column facet index (int32, value 0 for single plot)
+/// - .ri: Row facet index (int32, value 0 for single plot)
 /// - .content: Base64-encoded PNG bytes
 /// - {namespace}.filename: "plot.png" (namespace-prefixed by operator)
 /// - {namespace}.mimetype: "image/png" (namespace-prefixed by operator)
 /// - {namespace}.plot_width: plot width in pixels (namespace-prefixed by operator)
 /// - {namespace}.plot_height: plot height in pixels (namespace-prefixed by operator)
 ///
-/// Note: Only .content has a leading dot. Other columns get namespace prefix from operator.
+/// Note: .ci, .ri, and .content have leading dots. Other columns get namespace prefix.
 fn create_result_dataframe(
     png_base64: String,
     namespace: &str,
@@ -166,6 +168,8 @@ fn create_result_dataframe(
     plot_height: i32,
 ) -> Result<DataFrame, Box<dyn std::error::Error>> {
     let df = df! {
+        ".ci" => [0i32],
+        ".ri" => [0i32],
         ".content" => [png_base64],
         &format!("{}.filename", namespace) => ["plot.png"],
         &format!("{}.mimetype", namespace) => ["image/png"],
