@@ -3,15 +3,17 @@
 //! This module handles the complete flow of saving a generated PNG plot
 //! back to Tercen so it can be displayed in the workflow UI.
 //!
-//! Flow:
+//! Flow (following Python client pattern):
 //! 1. PNG bytes → Base64 string
 //! 2. Create DataFrame with .content, filename, mimetype columns
 //! 3. Convert DataFrame → Tercen Table (with TSON encoding)
-//! 4. Wrap Table in OperatorResult
-//! 5. Serialize OperatorResult to TSON bytes
-//! 6. Upload via FileService
-//! 7. Update task with fileResultId
-//! 8. Wait for completion
+//! 4. Serialize to Sarno-compatible TSON format
+//! 5. Upload via TableSchemaService.uploadTable()
+//! 6. Create NEW RunComputationTask with fileResultId and original query
+//! 7. Submit task via TaskService.create()
+//! 8. Run task via TaskService.runTask()
+//! 9. Wait for completion via TaskService.waitDone()
+//! 10. Server automatically creates computedRelation linking result to step
 
 use super::client::proto;
 use super::client::TercenClient;
@@ -22,7 +24,15 @@ use std::sync::Arc;
 /// Save a PNG plot result back to Tercen
 ///
 /// Takes the generated PNG buffer, converts it to Tercen's result format,
-/// uploads it via the FileService, and updates the task with the file ID.
+/// uploads it, creates a new task to process the result, and waits for the
+/// server to link the result to the workflow step.
+///
+/// This follows the Python client pattern:
+/// 1. Upload result table via uploadTable()
+/// 2. Create a NEW RunComputationTask with the fileResultId
+/// 3. Run the task via runTask()
+/// 4. Wait for the task to complete via waitDone()
+/// 5. The server automatically creates the computedRelation linking the result
 ///
 /// # Arguments
 /// * `client` - Tercen client for gRPC calls
@@ -31,7 +41,7 @@ use std::sync::Arc;
 /// * `png_buffer` - Raw PNG bytes from the renderer
 /// * `plot_width` - Width of the plot in pixels
 /// * `plot_height` - Height of the plot in pixels
-/// * `task` - Mutable reference to the task (will be updated with fileResultId)
+/// * `original_task` - The original task from the operator (for getting cubeQuery, owner, etc.)
 ///
 /// # Returns
 /// Result indicating success or error during upload
@@ -42,7 +52,7 @@ pub async fn save_result(
     png_buffer: Vec<u8>,
     plot_width: i32,
     plot_height: i32,
-    task: &mut proto::ETask,
+    original_task: &proto::ETask,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use base64::Engine;
 
@@ -78,20 +88,45 @@ pub async fn save_result(
     let result_bytes = serialize_table_for_sarno(&table)?;
     println!("  TSON size: {} bytes", result_bytes.len());
 
-    // 6. Create FileDocument
+    // 5. Create FileDocument
     println!("Creating FileDocument...");
     let file_doc = create_file_document(project_id, result_bytes.len() as i32);
 
-    // 7. Upload via TableSchemaService.uploadTable() (NOT FileService.upload()!)
+    // 6. Upload via TableSchemaService.uploadTable()
     println!("Uploading result table...");
     let schema_id = upload_result_table(&client, file_doc, result_bytes).await?;
     println!("  Uploaded table with schema ID: {}", schema_id);
 
-    // 8. Update task with fileResultId (use schema_id as the file result ID)
-    update_task_file_result_id(task, &schema_id)?;
-    println!("  Task fileResultId set to: {}", schema_id);
+    // 7. Create a NEW task with the result (this is the Python pattern)
+    println!("Creating new task to link result to workflow step...");
+    let new_task = create_result_task(original_task, &schema_id, project_id)?;
 
-    println!("Result saved successfully!");
+    // 8. Create the task via TaskService
+    println!("Submitting task to server...");
+    let mut task_service = client.task_service()?;
+    let created_task = task_service.create(new_task).await?.into_inner();
+    let task_id = extract_task_id(&created_task)?;
+    println!("  Created task with ID: {}", task_id);
+
+    // 9. Run the task
+    println!("Running task...");
+    let run_req = proto::ReqRunTask {
+        task_id: task_id.clone(),
+    };
+    task_service.run_task(run_req).await?;
+    println!("  Task started");
+
+    // 10. Wait for task completion
+    println!("Waiting for task to complete...");
+    let wait_req = proto::ReqWaitDone { task_id };
+    let wait_response = task_service.wait_done(wait_req).await?.into_inner();
+    let completed_task = wait_response.result.ok_or("Wait response missing task")?;
+    println!("  Task completed");
+
+    // 11. Check if task failed
+    check_task_state(&completed_task)?;
+
+    println!("Result saved and linked successfully!");
     Ok(())
 }
 
@@ -257,49 +292,105 @@ async fn upload_result_table(
     Ok(schema_id)
 }
 
-/// Update the task's fileResultId field
+/// Create a new RunComputationTask to link the result to the workflow step
 ///
-/// Operators always run as RunComputationTask, so we only handle that type.
-fn update_task_file_result_id(
-    task: &mut proto::ETask,
-    file_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+/// This follows the Python client pattern where a NEW task is created (not modified)
+/// with the fileResultId set, and the server automatically creates the computedRelation.
+///
+/// The new task copies key fields from the original task:
+/// - query (CubeQuery) - CRITICAL: Same query that generated the data
+/// - projectId
+/// - owner
+/// - state = InitState (ready to run)
+fn create_result_task(
+    original_task: &proto::ETask,
+    schema_id: &str,
+    project_id: &str,
+) -> Result<proto::ETask, Box<dyn std::error::Error>> {
     use proto::e_task;
 
-    let task_obj = task.object.as_mut().ok_or("Task has no object field")?;
+    // Extract query and owner from original task
+    let original_task_obj = original_task
+        .object
+        .as_ref()
+        .ok_or("Original task has no object field")?;
 
-    match task_obj {
+    let (query, owner, acl_context) = match original_task_obj {
         e_task::Object::Runcomputationtask(rct) => {
-            rct.file_result_id = file_id.to_string();
-            Ok(())
+            let query = rct
+                .query
+                .clone()
+                .ok_or("Original task has no query field")?;
+            (query, rct.owner.clone(), rct.acl_context.clone())
         }
-        other => {
-            let type_name = match other {
-                e_task::Object::Computationtask(_) => "ComputationTask",
-                e_task::Object::Cubequerytask(_) => "CubeQueryTask",
-                e_task::Object::Csvtask(_) => "CSVTask",
-                e_task::Object::Creategitoperatortask(_) => "CreateGitOperatorTask",
-                e_task::Object::Exporttabletask(_) => "ExportTableTask",
-                e_task::Object::Exportworkflowtask(_) => "ExportWorkflowTask",
-                e_task::Object::Gitprojecttask(_) => "GitProjectTask",
-                e_task::Object::Gltask(_) => "GlTask",
-                e_task::Object::Importgitdatasettask(_) => "ImportGitDatasetTask",
-                e_task::Object::Importgitworkflowtask(_) => "ImportGitWorkflowTask",
-                e_task::Object::Importworkflowtask(_) => "ImportWorkflowTask",
-                e_task::Object::Librarytask(_) => "LibraryTask",
-                e_task::Object::Projecttask(_) => "ProjectTask",
-                e_task::Object::Runwebapptask(_) => "RunWebAppTask",
-                e_task::Object::Runworkflowtask(_) => "RunWorkflowTask",
-                e_task::Object::Savecomputationresulttask(_) => "SaveComputationResultTask",
-                e_task::Object::Task(_) => "Task",
-                e_task::Object::Testoperatortask(_) => "TestOperatorTask",
-                _ => "Unknown",
-            };
-            Err(format!(
-                "Expected RunComputationTask but got {}. Operators should always run as RunComputationTask.",
-                type_name
-            )
-            .into())
+        _ => {
+            return Err("Original task must be RunComputationTask".into());
         }
+    };
+
+    // Create InitState
+    let init_state = proto::InitState::default();
+    let e_state = proto::EState {
+        object: Some(proto::e_state::Object::Initstate(init_state)),
+    };
+
+    // Create new RunComputationTask with all required fields
+    let new_rct = proto::RunComputationTask {
+        file_result_id: schema_id.to_string(),
+        query: Some(query),
+        state: Some(e_state),
+        project_id: project_id.to_string(),
+        owner,
+        acl_context,
+        ..Default::default()
+    };
+
+    let new_e_task = proto::ETask {
+        object: Some(e_task::Object::Runcomputationtask(new_rct)),
+    };
+
+    Ok(new_e_task)
+}
+
+/// Extract task ID from ETask
+fn extract_task_id(task: &proto::ETask) -> Result<String, Box<dyn std::error::Error>> {
+    use proto::e_task;
+
+    let task_obj = task.object.as_ref().ok_or("Task has no object field")?;
+
+    let task_id = match task_obj {
+        e_task::Object::Runcomputationtask(rct) => rct.id.clone(),
+        e_task::Object::Computationtask(ct) => ct.id.clone(),
+        _ => return Err("Unexpected task type".into()),
+    };
+
+    if task_id.is_empty() {
+        return Err("Task ID is empty".into());
+    }
+
+    Ok(task_id)
+}
+
+/// Check if task failed and return error if so
+fn check_task_state(task: &proto::ETask) -> Result<(), Box<dyn std::error::Error>> {
+    use proto::{e_state, e_task};
+
+    let task_obj = task.object.as_ref().ok_or("Task has no object")?;
+
+    let state = match task_obj {
+        e_task::Object::Runcomputationtask(rct) => rct.state.as_ref(),
+        e_task::Object::Computationtask(ct) => ct.state.as_ref(),
+        _ => return Err("Unexpected task type".into()),
+    };
+
+    let state = state.ok_or("Task has no state")?;
+    let state_obj = state.object.as_ref().ok_or("State has no object")?;
+
+    match state_obj {
+        e_state::Object::Failedstate(failed) => {
+            Err(format!("Task failed: {}", failed.reason).into())
+        }
+        e_state::Object::Donestate(_) => Ok(()),
+        _ => Ok(()), // Other states (shouldn't happen after waitDone, but be safe)
     }
 }
