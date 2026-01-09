@@ -92,41 +92,56 @@ pub async fn save_result(
     println!("Creating FileDocument...");
     let file_doc = create_file_document(project_id, result_bytes.len() as i32);
 
-    // 6. Upload via FileService.upload()
-    println!("Uploading result file...");
-    let file_doc_id = upload_result_file(&client, file_doc, result_bytes).await?;
-    println!("  Uploaded file with ID: {}", file_doc_id);
+    // 6. Check if task already has a fileResultId (normal operator flow)
+    let existing_file_result_id = get_task_file_result_id(task)?;
 
-    // 7. Update the EXISTING task with fileResultId
-    println!("Updating task with fileResultId...");
-    update_task_file_result_id(task, &file_doc_id)?;
-    println!("  Task fileResultId set to: {}", file_doc_id);
+    if existing_file_result_id.is_empty() {
+        // Webapp/test scenario: Create new file and update task
+        println!("Uploading result file (webapp scenario)...");
+        let file_doc_id = upload_result_file(&client, file_doc, result_bytes).await?;
+        println!("  Uploaded file with ID: {}", file_doc_id);
 
-    // 8. Update task via TaskService
-    println!("Saving updated task...");
-    let mut task_service = client.task_service()?;
-    let update_response = task_service.update(task.clone()).await?;
-    let _updated_task = update_response.into_inner();
-    println!("  Task updated successfully");
+        println!("Updating task with fileResultId...");
+        update_task_file_result_id(task, &file_doc_id)?;
+        println!("  Task fileResultId set to: {}", file_doc_id);
 
-    // 9. Wait for Tercen to process the result
-    // The server will:
-    // - Retrieve the file from fileResultId
-    // - Call Sarno to process the TSON data
-    // - Create schemas from the result
-    // - Build computedRelation with JoinOperators
-    // - Link the result to the workflow step
-    println!("Waiting for Tercen to process result...");
-    let task_id = extract_task_id(task)?;
-    let wait_req = proto::ReqWaitDone { task_id };
-    let wait_response = task_service.wait_done(wait_req).await?.into_inner();
-    let completed_task = wait_response.result.ok_or("Wait response missing task")?;
-    println!("  Processing complete");
+        println!("Saving updated task...");
+        let mut task_service = client.task_service()?;
+        let update_response = task_service.update(task.clone()).await?;
+        let _updated_task = update_response.into_inner();
+        println!("  Task updated");
 
-    // 10. Check if task failed
-    check_task_state(&completed_task)?;
+        // Note: Python calls waitDone() here in webapp scenario
+        // We should exit cleanly and let the task runner process the result
+        println!("Result uploaded - exiting for server to process");
+    } else {
+        // Normal operator scenario: Upload to existing file
+        println!(
+            "Uploading to existing result file: {}",
+            existing_file_result_id
+        );
 
-    println!("Result saved and linked successfully!");
+        // Get the existing FileDocument
+        let mut file_service = client.file_service()?;
+        let get_req = proto::GetRequest {
+            id: existing_file_result_id.clone(),
+            ..Default::default()
+        };
+        let e_file_doc = file_service.get(get_req).await?.into_inner();
+
+        // Extract FileDocument
+        use proto::e_file_document;
+        let file_doc_obj = e_file_doc.object.ok_or("EFileDocument has no object")?;
+        let e_file_document::Object::Filedocument(file_doc) = file_doc_obj;
+
+        // Upload to existing file (overwrites content)
+        upload_result_file(&client, file_doc, result_bytes).await?;
+        println!("  Uploaded to existing file");
+
+        // No update(), no waitDone() - just exit cleanly
+        println!("Result uploaded - exiting normally");
+    }
+
     Ok(())
 }
 
@@ -296,6 +311,20 @@ async fn upload_result_file(
     Ok(file_doc_id)
 }
 
+/// Get the task's fileResultId if it exists
+///
+/// Returns empty string if fileResultId is not set.
+fn get_task_file_result_id(task: &proto::ETask) -> Result<String, Box<dyn std::error::Error>> {
+    use proto::e_task;
+
+    let task_obj = task.object.as_ref().ok_or("Task has no object field")?;
+
+    match task_obj {
+        e_task::Object::Runcomputationtask(rct) => Ok(rct.file_result_id.clone()),
+        _ => Err("Expected RunComputationTask".into()),
+    }
+}
+
 /// Update the task's fileResultId field
 ///
 /// This updates the EXISTING task (following Python OperatorContext pattern).
@@ -314,48 +343,5 @@ fn update_task_file_result_id(
             Ok(())
         }
         _ => Err("Expected RunComputationTask".into()),
-    }
-}
-
-/// Extract task ID from ETask
-fn extract_task_id(task: &proto::ETask) -> Result<String, Box<dyn std::error::Error>> {
-    use proto::e_task;
-
-    let task_obj = task.object.as_ref().ok_or("Task has no object field")?;
-
-    let task_id = match task_obj {
-        e_task::Object::Runcomputationtask(rct) => rct.id.clone(),
-        e_task::Object::Computationtask(ct) => ct.id.clone(),
-        _ => return Err("Unexpected task type".into()),
-    };
-
-    if task_id.is_empty() {
-        return Err("Task ID is empty".into());
-    }
-
-    Ok(task_id)
-}
-
-/// Check if task failed and return error if so
-fn check_task_state(task: &proto::ETask) -> Result<(), Box<dyn std::error::Error>> {
-    use proto::{e_state, e_task};
-
-    let task_obj = task.object.as_ref().ok_or("Task has no object")?;
-
-    let state = match task_obj {
-        e_task::Object::Runcomputationtask(rct) => rct.state.as_ref(),
-        e_task::Object::Computationtask(ct) => ct.state.as_ref(),
-        _ => return Err("Unexpected task type".into()),
-    };
-
-    let state = state.ok_or("Task has no state")?;
-    let state_obj = state.object.as_ref().ok_or("State has no object")?;
-
-    match state_obj {
-        e_state::Object::Failedstate(failed) => {
-            Err(format!("Task failed: {}", failed.reason).into())
-        }
-        e_state::Object::Donestate(_) => Ok(()),
-        _ => Ok(()), // Other states (shouldn't happen after waitDone, but be safe)
     }
 }
