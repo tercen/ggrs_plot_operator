@@ -88,19 +88,12 @@ fn tson_value_to_dataframe(tson: &TsonValue) -> Result<DataFrame> {
         }
     }
 
-    // Determine number of rows from first column
-    let nrows = if let Some(first_col_data) = col_data_arrays.first() {
+    // Determine number of rows from first column (unused but kept for future validation)
+    let _nrows = if let Some(first_col_data) = col_data_arrays.first() {
         get_column_length(first_col_data)?
     } else {
         0
     };
-
-    eprintln!(
-        "TSON: Parsed table with {} columns, {} rows",
-        col_names.len(),
-        nrows
-    );
-    eprintln!("TSON: Column names: {:?}", col_names);
 
     // Convert TSON columnar arrays directly to Polars Columns (STAY COLUMNAR!)
     let mut columns_vec = Vec::new();

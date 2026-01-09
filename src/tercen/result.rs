@@ -96,11 +96,15 @@ pub async fn save_result(
 /// Create a result DataFrame with base64-encoded PNG
 ///
 /// Creates a single-row DataFrame with columns:
+/// - .ci: Column facet index (0) - mandatory for Tercen linking
+/// - .ri: Row facet index (0) - mandatory for Tercen linking
 /// - .content: Base64-encoded PNG bytes
 /// - filename: "plot.png"
 /// - mimetype: "image/png"
 fn create_result_dataframe(png_base64: String) -> Result<DataFrame, Box<dyn std::error::Error>> {
     let df = df! {
+        ".ci" => [0i32],
+        ".ri" => [0i32],
         ".content" => [png_base64],
         "filename" => ["plot.png"],
         "mimetype" => ["image/png"]
@@ -259,6 +263,17 @@ fn serialize_operator_result(
     // Encode to TSON bytes
     let bytes = rustson::encode(&tson_value)
         .map_err(|e| format!("Failed to encode OperatorResult to TSON: {:?}", e))?;
+
+    // Debug: Print first 500 chars of the decoded TSON to see the structure
+    if let Ok(decoded) = rustson::decode_bytes(&bytes) {
+        eprintln!(
+            "DEBUG: TSON structure preview: {:#?}",
+            format!("{:?}", decoded)
+                .chars()
+                .take(500)
+                .collect::<String>()
+        );
+    }
 
     Ok(bytes)
 }

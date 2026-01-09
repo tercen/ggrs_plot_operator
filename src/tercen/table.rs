@@ -52,8 +52,6 @@ impl<'a> TableStreamer<'a> {
     ) -> Result<Vec<u8>> {
         let mut table_service = self.client.table_service()?;
 
-        eprintln!("TERCEN: Requesting offset={}, limit={}", offset, limit);
-
         let request = tonic::Request::new(ReqStreamTable {
             table_id: table_id.to_string(),
             cnames: columns.unwrap_or_default(),
@@ -69,28 +67,16 @@ impl<'a> TableStreamer<'a> {
             .into_inner();
 
         let mut all_data = Vec::new();
-        let mut chunk_count = 0;
 
         while let Some(chunk_result) = stream.next().await {
             match chunk_result {
                 Ok(chunk) => {
-                    chunk_count += 1;
-                    eprintln!(
-                        "TERCEN: Received chunk #{} with {} bytes",
-                        chunk_count,
-                        chunk.result.len()
-                    );
                     all_data.extend_from_slice(&chunk.result);
                 }
                 Err(e) => return Err(TercenError::Grpc(Box::new(e))),
             }
         }
 
-        eprintln!(
-            "TERCEN: Total {} bytes in {} chunks",
-            all_data.len(),
-            chunk_count
-        );
         Ok(all_data)
     }
 
