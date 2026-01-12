@@ -25,6 +25,7 @@ static GLOBAL: Jemalloc = Jemalloc;
 async fn main() {
     println!("GGRS Plot Operator v{}", env!("CARGO_PKG_VERSION"));
     println!("Ready to generate high-performance plots!\n");
+    println!("Build timestamp: 2026-01-12 08:50:00"); // Force cache bust
 
     // Parse command-line arguments
     // Production: Tercen passes --taskId, --serviceUri, --token
