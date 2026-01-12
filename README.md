@@ -9,8 +9,8 @@ Plot operator using ggrs
 - [x] Streaming and chunking architecture
 - [x] Scatter plot with a single facet
 - [x] GITHUB Actions (CI)
-- [ ] GITHUB Actions (Release)
-- [ ] Plot saving
+- [ you can comapre to the on ein ] GITHUB Actions (Release)
+- [x] Plot saving
 
 
 ### 0.0.2
