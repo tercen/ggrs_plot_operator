@@ -21,3 +21,7 @@ target
 #.idea/
 *.xml
 .idea/*protos/
+operator_config.json
+workflow.json
+src/working_step.json
+src/computed_schema.json
