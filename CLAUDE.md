@@ -8,7 +8,7 @@ The **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the G
 
 ## ⚠️ IMPORTANT: Current Status & Known Issues
 
-**Phase**: Phase 8 IN PROGRESS 🚧 | **Current**: Debugging result upload "columns missing" error
+**Phase**: ✅ Phase 8 COMPLETE | **Status**: Result upload working! 🎉
 
 **Deployment Status**: ✅ Working (with logging disabled)
 
@@ -24,16 +24,20 @@ The **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the G
 **What's Working**:
 - ✅ gRPC connection and authentication
 - ✅ TaskService (get, runTask)
-- ✅ TableSchemaService (streamTable, uploadTable)
+- ✅ TableSchemaService (streamTable)
+- ✅ FileService (upload) - for result uploads
 - ✅ Full plot generation pipeline (475K rows → PNG in 9.5s)
 - ✅ GPU acceleration (OpenGL backend: 0.5s vs CPU: 3.1s)
 - ✅ Columnar architecture with Polars
 - ✅ TSON streaming and dequantization
 - ✅ Proto files via submodule (tercen_grpc_api)
+- ✅ **Result upload with full Tercen model format**
 
 **What's Blocked**:
 - ❌ EventService.create() - All logging disabled
-- 🚧 Phase 8: Result upload - Debugging Sarno worker error (see logbook below)
+
+**Completed**:
+- ✅ CI/CD release workflow (tag-based Docker build and publish)
 
 ---
 
@@ -106,18 +110,67 @@ The **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the G
    - Also updated: `Cargo.lock` to latest ggrs-core (08cbf29) which removes debug messages
    - Status: ✅ Compiles cleanly, deployed to test
 
-**Current Hypothesis**:
-The "columns missing" error was caused by sending generic `LST(vec![TsonValue])` instead of TypedData lists. Sarno's from_tson_table expects the `data` field in each column to be a typed array (Float64List, CStringList, etc.), not a generic list of wrapped values.
+### ✅ RESOLUTION (2025-01-09)
 
-**Next Steps**:
-1. ✅ Deploy and test with typed lists fix
-2. If still failing: Investigate column ordering or whether `serialize_table_for_sarno` structure is correct
-3. Alternative: Compare actual TSON bytes from working R operator vs our output
+**Root Cause**: We were sending a **simplified Sarno format** (`{"cols": [...]}`) instead of the **full Tercen model format**.
+
+**The Fix**:
+- Changed from: `{"cols": [...], "meta_data": {...}}` (custom simplified format)
+- Changed to: `{"kind": "Table", "nRows": ..., "properties": {...}, "columns": [...]}` (full Tercen model)
+
+**Key Insight from Python Example**:
+User provided working Python OperatorResult structure showing:
+- `properties`: `{"kind": "TableProperties", "name": "", ...}` - Empty string is fine!
+- Each column has: `id`, `name`, `type`, `nRows`, `size`, `metaData`, `cValues`, `values`
+- The issue was NOT empty string for `properties.name`
+- The issue was NOT missing TypedData (though that was also needed earlier)
+- **The real issue**: We weren't sending the full Tercen model structure at all
+
+**Python toJson/fromJson**:
+- Python has auto-generated base classes (BaseObject.py) with toJson/fromJson methods
+- These are custom to Tercen's JSON format (not standard protobuf JSON)
+- Uses `kind` fields and camelCase (e.g., `nRows` not `n_rows`)
+- **For Rust**: No equivalent auto-generated code exists in Tercen ecosystem
+- We must manually construct TSON using the same structure as Python toJson
+
+**Final Working Structure**:
+```json
+{
+  "kind": "OperatorResult",
+  "tables": [
+    {
+      "kind": "Table",
+      "nRows": 1,
+      "properties": {
+        "kind": "TableProperties",
+        "name": "",
+        "sortOrder": [],
+        "ascending": true
+      },
+      "columns": [
+        {
+          "kind": "Column",
+          "id": "",
+          "name": ".content",
+          "type": "string",
+          "nRows": 1,
+          "size": 1,
+          "metaData": {...},
+          "cValues": {"kind": "CValues"},
+          "values": [<base64-data>]
+        }
+      ]
+    }
+  ],
+  "joinOperators": []
+}
+```
 
 **Files Modified**:
-- `src/tercen/result.rs` - Result DataFrame structure
-- `src/main.rs` - Added plot dimensions to save_result call
-- `build.rs` - Updated to use tercen_grpc_api submodule
+- `src/tercen/result.rs` - Full Tercen model TSON serialization
+- `src/tercen/table_convert.rs` - TableProperties with empty name (matches Python)
+- `src/main.rs` - Pass plot dimensions to save_result
+- `build.rs` - Use tercen_grpc_api submodule
 - `.gitmodules` - Added tercen_grpc_api submodule
 
 ---
@@ -266,10 +319,11 @@ ggrs_plot_operator/
    └─ GPU (OpenGL): 0.5s for 475K points, 162 MB peak
    └─ CPU (Cairo): 3.1s for 475K points, 49 MB peak
 
-5. TODO Phase 8: Upload to Tercen
+5. Phase 8: Upload to Tercen ✅
    └─ Encode PNG to base64
-   └─ Create result DataFrame with .content, filename, mimetype
-   └─ Upload via FileService or TableSchemaService
+   └─ Create result DataFrame with .content, filename, mimetype, plot_width, plot_height
+   └─ Upload via TableSchemaService with full Tercen model format
+   └─ Update task with fileResultId
 ```
 
 ### Data Structure
@@ -386,7 +440,7 @@ base64 = "0.22"             # PNG encoding
 ## Implementation Status
 
 **Phase 7**: ✅ COMPLETE - Full plot generation working
-**Phase 8**: 📋 NEXT - Result upload to Tercen
+**Phase 8**: ✅ COMPLETE - Result upload working!
 
 ### Completed Features
 
@@ -400,17 +454,45 @@ base64 = "0.22"             # PNG encoding
 8. ✅ GPU acceleration with OpenGL backend
 9. ✅ Configuration system (operator_config.json)
 10. ✅ Test binary (test_stream_generator)
+11. ✅ **Result upload with full Tercen model format**
+12. ✅ **FileService integration for result uploads**
+13. ✅ **Base64 PNG encoding with 1MB chunking support**
+14. ✅ **Two-path upload logic (empty fileResultId vs existing)**
 
-### Next Steps (Phase 8)
+### Phase 8 Completion
 
 1. ✅ Encode PNG to base64
-2. ✅ Create result DataFrame with `.content`, `.ci`, `.ri`, `filename`, `mimetype` columns
-3. 🚧 Test result upload to Tercen
-4. 🚧 Verify result appears in Tercen UI
-5. ⏸️ Update task state (if needed)
-6. ⏸️ Test full operator lifecycle end-to-end
+2. ✅ Create result DataFrame with `.content`, `.ci`, `.ri`, `{ns}.filename`, `{ns}.mimetype`, `{ns}.plot_width`, `{ns}.plot_height`
+3. ✅ Full Tercen model TSON serialization (matching Python toJson structure)
+4. ✅ FileService.upload() implementation
+5. ✅ Task update with fileResultId
+6. ✅ Result appears correctly in Tercen UI
+7. ✅ Tested full operator lifecycle end-to-end
 
-**Note**: Result structure uses columnar format with facet indices (`.ci`, `.ri`) to support multi-facet plots.
+**Note**: Result structure uses full Tercen model format with `kind` fields, `properties`, `metaData`, and `cValues` to match Python/Dart serialization.
+
+### Phase 9: CI/CD Release Workflow ✅ COMPLETE
+
+1. ✅ Tag-based Docker build (semantic versioning)
+2. ✅ Automatic operator.json updates with version tag (in-place, not committed)
+3. ✅ Docker image tagging and publishing to ghcr.io
+4. ✅ GitHub release creation with changelog
+5. ✅ Build attestation and provenance
+
+**Release Workflow Fix (2025-01-12)**:
+- **Issue**: Original workflow tried to commit and push to immutable tags, causing Git conflicts
+- **Fix**: Removed commit/push steps - operator.json is updated in-place for Docker build only
+- **Pattern**: Matches tercen/plot_operator release workflow (no tag modification)
+
+**All core phases complete!** The operator is production-ready.
+
+### Future Enhancements (Optional)
+
+1. **Logging**: Re-enable EventService when available
+2. **Multi-facet plots**: Implement per-facet plot generation (currently single plot)
+3. **Additional output formats**: SVG, PDF support
+4. **Performance optimization**: Profile and optimize hot paths
+5. **Extended GGRS features**: More plot types, themes, customizations
 
 ## Development Workflow
 
@@ -652,12 +734,12 @@ let polars_df = polars_df
 - Parse with rustson library
 - Process chunks incrementally with Polars
 
-**File Upload** (Phase 8 IN PROGRESS):
+**File Upload** (Phase 8 ✅ COMPLETE):
 - Encode PNG to base64 ✅
-- Create result table with `.content`, `.ci`, `.ri`, `filename`, `mimetype` columns ✅
-- Upload via `TableSchemaService.save()` with TSON format 🚧
-- Test result visibility in Tercen UI 🚧
-- **Note**: Results use columnar format with facet indices for multi-facet support
+- Create result table with `.content`, `{ns}.filename`, `{ns}.mimetype`, `{ns}.plot_width`, `{ns}.plot_height` columns ✅
+- Upload via `TableSchemaService.save()` with full Tercen model TSON format ✅
+- Result appears correctly in Tercen UI ✅
+- **Note**: Results use full Tercen model structure with `kind` fields, `properties`, `metaData`, and `cValues`
 
 ### Build System
 
