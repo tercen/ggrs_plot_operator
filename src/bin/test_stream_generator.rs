@@ -424,19 +424,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log_phase(
         start,
-        "PHASE 5.2: Creating PlotRenderer (v3 - optimized streaming)",
+        "PHASE 5.2: Creating PlotRenderer (optimized streaming)",
     );
-    println!("Creating plot renderer (v3)...");
+    println!("Creating plot renderer...");
     let renderer = PlotRenderer::new(
         &plot_gen,
         config.default_plot_width,
         config.default_plot_height,
     );
 
-    log_phase(
-        start,
-        "PHASE 5.3: Rendering plot with render_v3 (single-pass streaming)",
-    );
+    log_phase(start, "PHASE 5.3: Rendering plot (optimized streaming)");
     println!("Rendering plot with optimized streaming...");
     renderer.render_to_file("plot.png", BackendChoice::Cairo, OutputFormat::Png)?;
 

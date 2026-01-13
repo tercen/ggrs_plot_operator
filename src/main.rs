@@ -201,18 +201,32 @@ async fn process_task(
 
     // Step 4: Generate plot
     println!("\n[4/5] Generating plot...");
-    use ggrs_core::{EnginePlotSpec, Geom, ImageRenderer, PlotGenerator};
+    use ggrs_core::renderer::{BackendChoice, OutputFormat};
+    use ggrs_core::{EnginePlotSpec, Geom, PlotGenerator, PlotRenderer};
+    use std::fs;
 
     let plot_spec = EnginePlotSpec::new().add_layer(Geom::point_sized(config.point_size as f64));
     let plot_gen = PlotGenerator::new(Box::new(stream_gen), plot_spec)?;
-    let renderer = ImageRenderer::new(
-        plot_gen,
+    let renderer = PlotRenderer::new(
+        &plot_gen,
         config.default_plot_width,
         config.default_plot_height,
     );
 
     println!("  Rendering plot (backend: {})...", config.render_backend);
-    let png_buffer = renderer.render_to_bytes()?;
+    let backend = match config.render_backend.as_str() {
+        "gpu" => BackendChoice::WebGPU,
+        _ => BackendChoice::Cairo,
+    };
+
+    // Render to temporary file
+    let temp_path = "temp_plot.png";
+    renderer.render_to_file(temp_path, backend, OutputFormat::Png)?;
+
+    // Read PNG into memory
+    let png_buffer = fs::read(temp_path)?;
+    fs::remove_file(temp_path)?;
+
     println!("✓ Plot generated ({} bytes)", png_buffer.len());
 
     // Step 5: Upload result and update task

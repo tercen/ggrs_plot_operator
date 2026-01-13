@@ -60,10 +60,9 @@ base64 = "0.22"
 uuid = { version = "1.0", features = ["v4"] }
 
 # GGRS plotting library with WebGPU backend
-# Cargo will automatically find ggrs-core in the ggrs workspace (crates/ggrs-core)
-# Temporarily using local path for bulk streaming development
-ggrs-core = { path = "../ggrs/crates/ggrs-core", features = ["webgpu-backend", "cairo-backend"] }
-# ggrs-core = { git = "https://github.com/tercen/ggrs", branch = "main", features = ["webgpu-backend", "cairo-backend"] }
+# Use local path for development: path = "../ggrs/crates/ggrs-core"
+# Use git dependency for CI/production:
+ggrs-core = { git = "https://github.com/tercen/ggrs", branch = "main", features = ["webgpu-backend", "cairo-backend"] }
 
 [features]
 jemalloc = ["tikv-jemallocator"]
