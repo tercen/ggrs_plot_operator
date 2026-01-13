@@ -114,7 +114,10 @@ impl TercenStreamGenerator {
             Self::compute_axis_ranges(&client, &main_table_id, &facet_info, chunk_size).await?
         };
 
-        eprintln!("DEBUG: TercenStreamGenerator initialized with total_rows = {}", total_rows);
+        eprintln!(
+            "DEBUG: TercenStreamGenerator initialized with total_rows = {}",
+            total_rows
+        );
 
         // Create default aesthetics
         // Dequantization happens in GGRS render.rs using axis ranges
@@ -127,24 +130,44 @@ impl TercenStreamGenerator {
         let facet_spec = if !facet_info.row_facets.is_empty() && !facet_info.col_facets.is_empty() {
             // Grid faceting: rows × columns
             use ggrs_core::stream::FacetScales;
-            let row_vars = facet_info.row_facets.column_names.iter()
-                .filter(|n| !n.is_empty()).map(|s| s.clone()).collect::<Vec<_>>();
-            let col_vars = facet_info.col_facets.column_names.iter()
-                .filter(|n| !n.is_empty()).map(|s| s.clone()).collect::<Vec<_>>();
+            let row_vars = facet_info
+                .row_facets
+                .column_names
+                .iter()
+                .filter(|n| !n.is_empty())
+                .cloned()
+                .collect::<Vec<_>>();
+            let col_vars = facet_info
+                .col_facets
+                .column_names
+                .iter()
+                .filter(|n| !n.is_empty())
+                .cloned()
+                .collect::<Vec<_>>();
             let row_var = row_vars.first().unwrap_or(&".ri".to_string()).clone();
             let col_var = col_vars.first().unwrap_or(&".ci".to_string()).clone();
             FacetSpec::grid(row_var, col_var).scales(FacetScales::FreeY)
         } else if !facet_info.row_facets.is_empty() {
             // Row faceting only (each row has its own Y range)
             use ggrs_core::stream::FacetScales;
-            let row_vars = facet_info.row_facets.column_names.iter()
-                .filter(|n| !n.is_empty()).map(|s| s.clone()).collect::<Vec<_>>();
+            let row_vars = facet_info
+                .row_facets
+                .column_names
+                .iter()
+                .filter(|n| !n.is_empty())
+                .cloned()
+                .collect::<Vec<_>>();
             let row_var = row_vars.first().unwrap_or(&".ri".to_string()).clone();
             FacetSpec::row(row_var).scales(FacetScales::FreeY)
         } else if !facet_info.col_facets.is_empty() {
             // Column faceting only
-            let col_vars = facet_info.col_facets.column_names.iter()
-                .filter(|n| !n.is_empty()).map(|s| s.clone()).collect::<Vec<_>>();
+            let col_vars = facet_info
+                .col_facets
+                .column_names
+                .iter()
+                .filter(|n| !n.is_empty())
+                .cloned()
+                .collect::<Vec<_>>();
             let col_var = col_vars.first().unwrap_or(&".ci".to_string()).clone();
             FacetSpec::col(col_var)
         } else {
@@ -589,7 +612,10 @@ impl TercenStreamGenerator {
         let offset = data_range.start as i64;
         let limit = (data_range.end - data_range.start) as i64;
 
-        eprintln!("DEBUG: Calling stream_tson with offset={}, limit={}", offset, limit);
+        eprintln!(
+            "DEBUG: Calling stream_tson with offset={}, limit={}",
+            offset, limit
+        );
 
         let tson_data = streamer
             .stream_tson(&self.main_table_id, Some(columns), offset, limit)
@@ -667,7 +693,10 @@ impl StreamGenerator for TercenStreamGenerator {
 
     fn n_total_data_rows(&self) -> usize {
         // Return total row count across ALL facets
-        eprintln!("DEBUG PHASE 2: n_total_data_rows() returning {}", self.total_rows);
+        eprintln!(
+            "DEBUG PHASE 2: n_total_data_rows() returning {}",
+            self.total_rows
+        );
         self.total_rows
     }
 
@@ -683,18 +712,29 @@ impl StreamGenerator for TercenStreamGenerator {
             .map(|group| group.label.clone())
             .collect();
 
-        eprintln!("DEBUG PHASE 2: query_col_facet_labels() returning {} labels: {:?}",
-                  labels.len(),
-                  labels.iter().take(3).collect::<Vec<_>>());
+        eprintln!(
+            "DEBUG PHASE 2: query_col_facet_labels() returning {} labels: {:?}",
+            labels.len(),
+            labels.iter().take(3).collect::<Vec<_>>()
+        );
 
         if labels.is_empty() {
             return ggrs_core::data::DataFrame::new();
         }
 
         // Use the first non-empty column name from the facet metadata, or "label" as fallback
-        let column_name = self.facet_info.col_facets.column_names
+        let column_name = self
+            .facet_info
+            .col_facets
+            .column_names
             .first()
-            .and_then(|name| if name.is_empty() { None } else { Some(name.clone()) })
+            .and_then(|name| {
+                if name.is_empty() {
+                    None
+                } else {
+                    Some(name.clone())
+                }
+            })
             .unwrap_or_else(|| "label".to_string());
 
         let series = Series::new(column_name.into(), labels);
@@ -716,9 +756,15 @@ impl StreamGenerator for TercenStreamGenerator {
             .map(|group| group.label.clone())
             .collect();
 
-        eprintln!("DEBUG PHASE 2: query_row_facet_labels() returning {} labels", labels.len());
+        eprintln!(
+            "DEBUG PHASE 2: query_row_facet_labels() returning {} labels",
+            labels.len()
+        );
         if !labels.is_empty() {
-            eprintln!("  First 3 labels: {:?}", labels.iter().take(3).collect::<Vec<_>>());
+            eprintln!(
+                "  First 3 labels: {:?}",
+                labels.iter().take(3).collect::<Vec<_>>()
+            );
         }
 
         if labels.is_empty() {
@@ -726,9 +772,18 @@ impl StreamGenerator for TercenStreamGenerator {
         }
 
         // Use the first non-empty column name from the facet metadata, or "label" as fallback
-        let column_name = self.facet_info.row_facets.column_names
+        let column_name = self
+            .facet_info
+            .row_facets
+            .column_names
             .first()
-            .and_then(|name| if name.is_empty() { None } else { Some(name.clone()) })
+            .and_then(|name| {
+                if name.is_empty() {
+                    None
+                } else {
+                    Some(name.clone())
+                }
+            })
             .unwrap_or_else(|| "label".to_string());
 
         let series = Series::new(column_name.into(), labels);
@@ -754,7 +809,8 @@ impl StreamGenerator for TercenStreamGenerator {
     }
 
     fn query_y_axis(&self, col_idx: usize, row_idx: usize) -> AxisData {
-        let axis = self.axis_ranges
+        let axis = self
+            .axis_ranges
             .get(&(col_idx, row_idx))
             .map(|(_, y_axis)| y_axis.clone())
             .unwrap_or_else(|| {
@@ -771,8 +827,14 @@ impl StreamGenerator for TercenStreamGenerator {
         static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
         if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
             if let AxisData::Numeric(ref data) = axis {
-                eprintln!("DEBUG PHASE 2: query_y_axis({}, {}) called", col_idx, row_idx);
-                eprintln!("  Returning Y range: [{}, {}]", data.min_value, data.max_value);
+                eprintln!(
+                    "DEBUG PHASE 2: query_y_axis({}, {}) called",
+                    col_idx, row_idx
+                );
+                eprintln!(
+                    "  Returning Y range: [{}, {}]",
+                    data.min_value, data.max_value
+                );
             }
         }
 
@@ -802,7 +864,9 @@ impl StreamGenerator for TercenStreamGenerator {
 
     // NOTE: Per-facet streaming not used - GGRS uses bulk mode for faceted plots
     fn query_data_chunk(&self, _col_idx: usize, _row_idx: usize, _data_range: Range) -> DataFrame {
-        panic!("query_data_chunk should not be called - GGRS uses bulk mode (query_data_multi_facet)")
+        panic!(
+            "query_data_chunk should not be called - GGRS uses bulk mode (query_data_multi_facet)"
+        )
     }
 
     fn query_data_multi_facet(&self, data_range: Range) -> DataFrame {

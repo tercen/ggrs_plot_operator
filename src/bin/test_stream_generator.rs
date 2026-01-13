@@ -411,8 +411,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Generate plot
     log_phase(start, "PHASE 5: Starting plot generation");
     println!("\n=== Generating Plot ===");
-    use ggrs_core::{EnginePlotSpec, Geom, PlotGenerator, PlotRenderer};
     use ggrs_core::renderer::{BackendChoice, OutputFormat};
+    use ggrs_core::{EnginePlotSpec, Geom, PlotGenerator, PlotRenderer};
 
     println!("Creating plot specification...");
     println!("  Point size: {}", config.point_size);
@@ -422,7 +422,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating plot generator...");
     let plot_gen = PlotGenerator::new(Box::new(stream_gen), plot_spec)?;
 
-    log_phase(start, "PHASE 5.2: Creating PlotRenderer (v3 - optimized streaming)");
+    log_phase(
+        start,
+        "PHASE 5.2: Creating PlotRenderer (v3 - optimized streaming)",
+    );
     println!("Creating plot renderer (v3)...");
     let renderer = PlotRenderer::new(
         &plot_gen,
@@ -430,7 +433,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.default_plot_height,
     );
 
-    log_phase(start, "PHASE 5.3: Rendering plot with render_v3 (single-pass streaming)");
+    log_phase(
+        start,
+        "PHASE 5.3: Rendering plot with render_v3 (single-pass streaming)",
+    );
     println!("Rendering plot with optimized streaming...");
     renderer.render_to_file("plot.png", BackendChoice::Cairo, OutputFormat::Png)?;
 
