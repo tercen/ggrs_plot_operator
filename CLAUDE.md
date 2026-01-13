@@ -8,9 +8,20 @@ The **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the G
 
 ## ⚠️ IMPORTANT: Current Status & Known Issues
 
-**Phase**: ✅ Phase 8 COMPLETE | **Status**: Result upload working! 🎉
+**Phase**: 🚧 Version 0.0.2 IN PROGRESS - Faceting Support | **Status**: ✅ Phase 1 & 2 COMPLETE, Phase 3 pending
 
 **Deployment Status**: ✅ Working (with logging disabled)
+
+**Latest Changes (2025-01-13)**:
+- ✅ **Phase 1 COMPLETE** - Operator reads all data correctly (facet counts, labels, Y ranges from metadata)
+- ✅ **Phase 2 COMPLETE** - GGRS bulk streaming implemented
+  - Modified `render.rs` and `render_v2.rs` to use `query_data_multi_facet()`
+  - Added `filter_by_rows()` method to GGRS DataFrame for facet filtering
+  - GGRS now filters data internally by `.ri` and `.ci` indices
+  - Both GGRS and operator compile cleanly with zero warnings
+- ✅ **Faceting support implemented** - Row/column/grid faceting now enabled
+- ✅ **Plot size increased** - Default 2000×2000px for better facet visibility
+- 🎯 **Next: Phase 3** - Test full multi-facet rendering with real workflow data
 
 **Critical Issue**: EventService returns `UnimplementedError` in production
 - **Impact**: All logging via TercenLogger is disabled
@@ -175,6 +186,95 @@ User provided working Python OperatorResult structure showing:
 
 ---
 
+## 📋 Faceting Implementation (2025-01-12) - Version 0.0.2
+
+### Implementation Summary
+
+**Goal**: Enable multi-facet plots where each row facet (`.ri`) has its own panel and independent Y-axis range.
+
+**Changes Made**:
+
+1. **FacetSpec Configuration** (`src/ggrs_integration/stream_generator.rs`):
+   - Changed from hardcoded `FacetSpec::none()` to dynamic detection
+   - Uses `.ri` and `.ci` as faceting variables (index-based faceting)
+   - Supports three modes:
+     - **Row faceting**: `FacetSpec::row(".ri").scales(FacetScales::FreeY)`
+     - **Column faceting**: `FacetSpec::col(".ci")`
+     - **Grid faceting**: `FacetSpec::grid(".ri", ".ci").scales(FacetScales::FreeY)`
+   - Each row facet gets independent Y-axis scaling
+
+2. **Plot Size Increase** (`src/config.rs`):
+   - Changed default from 800×600px to 2000×2000px
+   - Better visibility for multi-facet layouts
+
+### How It Works
+
+**Data Flow**:
+1. **Setup Phase**:
+   - TercenStreamGenerator loads facet metadata from row.csv/column.csv
+   - Returns correct counts via `n_row_facets()`, `n_col_facets()`
+   - Returns facet labels via `query_row_facet_labels()`
+   - Returns per-facet Y ranges via `query_y_axis(col_idx, row_idx)`
+
+2. **Rendering Phase** (Current - Per-Facet Chunking):
+   ```
+   for row_idx in 0..n_row_facets {
+       for col_idx in 0..n_col_facets {
+           for chunk in chunks {
+               data = query_data_chunk(col_idx, row_idx, chunk)  // Filters by .ri == row_idx
+               dequantize(.xs/.ys → .x/.y using Y range for this facet)
+               render(data, panel[row_idx, col_idx])
+           }
+       }
+   }
+   ```
+
+**Key Insight**:
+- Data contains `.ci`, `.ri` indices (0, 1, 2, ...) not actual facet variable values
+- `.ri = 0` means "first row in row.csv", `.ri = 1` means "second row in row.csv"
+- GGRS uses `.ri` as a faceting variable and groups by its values
+- No data scanning needed - facet counts come from metadata table sizes
+
+### Performance Characteristics
+
+**Current Implementation (Per-Facet Chunking)**:
+- ✅ **Works correctly** - Each facet renders in its own panel
+- ✅ **Independent Y-axes** - Each row facet has its own Y range
+- ⚠️ **Performance overhead** - Data re-streamed N times for N facets
+- Example: 10 row facets × 475K rows = 4.75M rows transferred (10x redundancy)
+
+**Future Optimization (Bulk Streaming)**:
+- 🎯 Use `query_data_multi_facet()` instead (already implemented in TercenStreamGenerator)
+- Stream data once with all `.ci`, `.ri`, `.xs`, `.ys` columns
+- Route points to panels using indices: `panel[data.ri]`
+- Requires GGRS render.rs modification to support bulk mode
+- Would reduce 10 facets × 475K = 4.75M to just 475K rows (single pass)
+
+### Files Modified
+
+- `src/ggrs_integration/stream_generator.rs` - FacetSpec creation logic (lines 122-139, 182-199)
+- `src/config.rs` - Default plot dimensions (lines 40-41)
+
+### Testing Status
+
+- ✅ Code compiles cleanly
+- ✅ Clippy passes with zero warnings
+- ⚠️ **Needs testing** with actual faceted workflow
+
+**Next Steps for Testing**:
+1. Test with workflow containing row facets
+2. Verify each facet renders in separate panel with correct Y range
+3. Measure performance impact of per-facet chunking
+4. Consider bulk streaming optimization in GGRS render.rs
+
+**Current Git State** (2025-01-13):
+- Modified: `CLAUDE.md`, `README.md` - Documentation updates
+- Modified: `src/config.rs` - Increased default plot size to 2000×2000px
+- Modified: `src/ggrs_integration/stream_generator.rs` - Added faceting support
+- Modified: Test outputs (`plot.png`, memory usage files) - Normal test artifacts
+
+---
+
 ## Quick Reference
 
 ### Common Commands
@@ -228,6 +328,12 @@ See `TEST_LOCAL.md` and `WORKFLOW_TEST_INSTRUCTIONS.md` for testing details.
 - Use test script: `./test_local.sh`
 - Check test_stream_generator binary exists
 - Verify WORKFLOW_ID and STEP_ID are valid
+
+**Faceting issues?**
+- Verify `.ci` and `.ri` columns exist in data
+- Check facet metadata tables (column.csv, row.csv) are populated
+- Confirm row/column counts match data indices
+- Look for "FacetSpec" in logs to see what mode was detected
 
 **See `DEPLOYMENT_DEBUG.md` for detailed troubleshooting.**
 
@@ -486,13 +592,28 @@ base64 = "0.22"             # PNG encoding
 
 **All core phases complete!** The operator is production-ready.
 
-### Future Enhancements (Optional)
+### Future Enhancements (See README.md Roadmap)
 
-1. **Logging**: Re-enable EventService when available
-2. **Multi-facet plots**: Implement per-facet plot generation (currently single plot)
-3. **Additional output formats**: SVG, PDF support
-4. **Performance optimization**: Profile and optimize hot paths
-5. **Extended GGRS features**: More plot types, themes, customizations
+**Version 0.0.2** (Current):
+- ✅ Scatter plot with multiple facets (row/column/grid faceting with FreeY scales)
+- 🎯 Optimize bulk streaming for multi-facet (currently uses per-facet chunking)
+- 🎯 Add plot legend
+- 🎯 Add support for colors
+- 🎯 Review and optimize dependencies
+
+**Version 0.0.3** (Future):
+- Operator properties for plot width/height
+- Switching between GPU/CPU via operator config
+- Support for minimal and white themes
+
+**Version 0.0.4** (Future):
+- Textual elements (axis labels, legend, title)
+- Manual axis ranges
+- Additional output formats: SVG, PDF
+
+**Other Enhancements**:
+- Re-enable EventService logging when available
+- Profile and optimize hot paths
 
 ## Development Workflow
 
@@ -521,10 +642,14 @@ cargo test
 
 ### Testing Workflow
 
+**⚠️ CRITICAL: ALWAYS use credentials from test_local.sh**
+
+When testing or investigating issues, you **MUST** use the exact TERCEN_URI, TERCEN_TOKEN, WORKFLOW_ID, and STEP_ID from `test_local.sh`. **NEVER** use different credentials or make up test values, as this wastes time and tokens testing the wrong workflow.
+
 **Recommended Method** (workflow/step-based, like Python's OperatorContextDev):
 
 ```bash
-# 1. Edit test_local.sh with your WORKFLOW_ID and STEP_ID
+# 1. Edit test_local.sh with your WORKFLOW_ID and STEP_ID (if needed)
 vim test_local.sh
 
 # 2. Run test

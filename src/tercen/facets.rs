@@ -7,6 +7,7 @@ use super::error::Result;
 use super::table::TableStreamer;
 use super::tson_convert::tson_to_dataframe;
 use super::TercenClient;
+use crate::ggrs_integration::stream_generator::extract_column_names_from_schema;
 use std::collections::HashMap;
 
 /// Represents a single facet group
@@ -34,17 +35,127 @@ impl FacetMetadata {
     pub async fn load(client: &TercenClient, table_id: &str) -> Result<Self> {
         let streamer = TableStreamer::new(client);
 
-        // Load entire facet table (it's small)
-        let arrow_data = streamer.stream_tson(table_id, None, 0, 10000).await?;
+        // Get row count from schema
+        let schema = streamer.get_schema(table_id).await?;
 
-        if arrow_data.is_empty() {
+        use crate::tercen::client::proto::e_schema;
+        let n_rows = match &schema.object {
+            Some(e_schema::Object::Cubequerytableschema(cqts)) => {
+                eprintln!("DEBUG: CubeQueryTableSchema nRows={}", cqts.n_rows);
+                cqts.n_rows as usize
+            }
+            Some(e_schema::Object::Tableschema(ts)) => {
+                eprintln!("DEBUG: TableSchema nRows={}", ts.n_rows);
+                ts.n_rows as usize
+            }
+            Some(e_schema::Object::Computedtableschema(cts)) => {
+                eprintln!("DEBUG: ComputedTableSchema nRows={}", cts.n_rows);
+                cts.n_rows as usize
+            }
+            other => {
+                eprintln!("DEBUG: Unknown schema type: {:?}", other);
+                0
+            }
+        };
+
+        if n_rows == 0 {
             return Ok(FacetMetadata {
                 groups: vec![],
                 column_names: vec![],
             });
         }
 
-        Self::parse_facet_arrow(&arrow_data)
+        // Get column names from schema first
+        let column_names = match extract_column_names_from_schema(&schema) {
+            Ok(cols) => cols,
+            Err(e) => {
+                eprintln!("DEBUG: Failed to extract column names: {}", e);
+                vec![]
+            }
+        };
+        eprintln!("DEBUG: Facet table has columns: {:?}", column_names);
+
+        // Stream TSON data to get actual facet values
+        // Request specific columns (not None) to ensure data is materialized
+        let columns_to_fetch = if column_names.is_empty() {
+            None
+        } else {
+            Some(column_names.clone())
+        };
+
+        let tson_data = streamer
+            .stream_tson(table_id, columns_to_fetch, 0, n_rows as i64)
+            .await?;
+
+        // If no data, return placeholder labels
+        if tson_data.is_empty() || tson_data.len() < 30 {
+            eprintln!(
+                "DEBUG: Facet table has no data ({} bytes), using index labels",
+                tson_data.len()
+            );
+            let groups: Vec<FacetGroup> = (0..n_rows)
+                .map(|index| FacetGroup {
+                    index,
+                    label: format!("{}", index),
+                    values: Default::default(),
+                })
+                .collect();
+
+            return Ok(FacetMetadata {
+                groups,
+                column_names: vec![],
+            });
+        }
+
+        // Parse TSON to DataFrame
+        let df = tson_to_dataframe(&tson_data)?;
+        eprintln!(
+            "DEBUG: Parsed facet table: {} rows × {} columns",
+            df.nrow(),
+            df.ncol()
+        );
+
+        let column_names: Vec<String> = df.columns().iter().map(|s| s.to_string()).collect();
+        eprintln!("DEBUG: Facet columns: {:?}", column_names);
+
+        // Create groups from parsed data
+        let mut groups = Vec::new();
+        for index in 0..df.nrow() {
+            let mut values = HashMap::new();
+            let mut label_parts = Vec::new();
+
+            // Collect all column values for this row
+            for col_name in &column_names {
+                if let Ok(value) = df.get_value(index, col_name) {
+                    let value_str = value.as_string();
+                    values.insert(col_name.clone(), value_str.clone());
+                    label_parts.push(value_str);
+                }
+            }
+
+            // Join all values with ", " to create label
+            let label = if label_parts.is_empty() {
+                format!("{}", index)
+            } else {
+                label_parts.join(", ")
+            };
+
+            groups.push(FacetGroup {
+                index,
+                label,
+                values,
+            });
+        }
+
+        eprintln!("DEBUG: Created {} facet groups", groups.len());
+        if !groups.is_empty() {
+            eprintln!("DEBUG: First facet label: '{}'", groups[0].label);
+        }
+
+        Ok(FacetMetadata {
+            groups,
+            column_names,
+        })
     }
 
     /// Parse facet TSON data into structured metadata

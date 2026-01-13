@@ -39,8 +39,8 @@ cat > operator_config.json <<EOF
   "chunk_size": $CHUNK_SIZE,
   "max_chunks": 100000,
   "cache_axis_ranges": true,
-  "default_plot_width": 800,
-  "default_plot_height": 600,
+  "default_plot_width": 6000,
+  "default_plot_height": 2000,
   "render_backend": "$BACKEND"
 }
 EOF

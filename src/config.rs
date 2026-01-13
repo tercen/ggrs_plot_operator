@@ -25,10 +25,18 @@ pub struct OperatorConfig {
     /// Render backend: "cpu" or "gpu"
     #[serde(default = "default_backend")]
     pub render_backend: String,
+
+    /// Point size (default: 4, range: 1-10)
+    #[serde(default = "default_point_size")]
+    pub point_size: u32,
 }
 
 fn default_backend() -> String {
     "cpu".to_string()
+}
+
+fn default_point_size() -> u32 {
+    4
 }
 
 impl Default for OperatorConfig {
@@ -37,9 +45,10 @@ impl Default for OperatorConfig {
             chunk_size: 10_000,
             max_chunks: 1000,
             cache_axis_ranges: true,
-            default_plot_width: 800,
-            default_plot_height: 600,
+            default_plot_width: 2000,
+            default_plot_height: 2000,
             render_backend: "cpu".to_string(),
+            point_size: 4,
         }
     }
 }

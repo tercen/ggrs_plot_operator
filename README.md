@@ -9,24 +9,33 @@ Plot operator using ggrs
 - [x] Streaming and chunking architecture
 - [x] Scatter plot with a single facet
 - [x] GITHUB Actions (CI)
-- [ you can comapre to the on ein ] GITHUB Actions (Release)
+- [x] GITHUB Actions (Release)
 - [x] Plot saving
 
 
 ### 0.0.2
 
-- [ ] Scatter plot with multiple facets
-- [ ] Add plot legend
-- [ ] Add support for colors
+- [ ] Scatter plot with multiple facets (row/column/grid faceting with FreeY scales)
+- [x] Optimize bulk streaming for multi-facet (currently uses per-facet chunking)
+- [ ] Add operator properties - Plot width and height
 - [ ] Review and optimize dependencies
 
 ### 0.0.3
-- [ ] Add operator properties - Plot width and height
-- [ ] Switching between GPU / CPU
-- [ ] Support for minimal and white themes
 
+- [ ] Support for minimal and white themes
+- [ ] Add support for colors
+- [ ] Add plot legend
 
 ### 0.0.4
 
-- [ ] Textual elements in plot (axis labels, legend, title)
+- [ ] Add bar plot
+- [ ] Add line plot
 - [ ] Add support for manual axis ranges
+
+### 0.0.5
+
+- [ ] Add heatmap
+- [ ] Configurable textual elements in plot (axis labels, legend, title)
+
+### Unspecified Version
+- [ ] Switching between GPU / CPU

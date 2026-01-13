@@ -385,15 +385,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Testing Data Query ===");
     use ggrs_core::stream::{Range, StreamGenerator};
 
-    let col_idx = 0;
-    let row_idx = 0;
     let test_range = Range::new(0, 100); // Query first 100 rows
 
-    println!(
-        "Querying data chunk for facet ({}, {}), range 0-100...",
-        col_idx, row_idx
-    );
-    let data = stream_gen.query_data_chunk(col_idx, row_idx, test_range);
+    println!("Querying bulk data, range 0-100...");
+    let data = stream_gen.query_data_multi_facet(test_range);
 
     log_phase(start, "PHASE 4 COMPLETE: Data query finished");
     println!("✓ Received {} rows", data.nrow());
@@ -416,31 +411,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Generate plot
     log_phase(start, "PHASE 5: Starting plot generation");
     println!("\n=== Generating Plot ===");
-    use ggrs_core::{EnginePlotSpec, Geom, ImageRenderer, PlotGenerator};
+    use ggrs_core::{EnginePlotSpec, Geom, PlotGenerator, PlotRenderer};
+    use ggrs_core::renderer::{BackendChoice, OutputFormat};
 
     println!("Creating plot specification...");
-    let plot_spec = EnginePlotSpec::new().add_layer(Geom::point());
+    println!("  Point size: {}", config.point_size);
+    let plot_spec = EnginePlotSpec::new().add_layer(Geom::point_sized(config.point_size as f64));
 
     log_phase(start, "PHASE 5.1: Creating PlotGenerator");
     println!("Creating plot generator...");
     let plot_gen = PlotGenerator::new(Box::new(stream_gen), plot_spec)?;
 
-    log_phase(start, "PHASE 5.2: Creating ImageRenderer");
-    println!("Creating image renderer...");
-    let renderer = ImageRenderer::new(
-        plot_gen,
+    log_phase(start, "PHASE 5.2: Creating PlotRenderer (v3 - optimized streaming)");
+    println!("Creating plot renderer (v3)...");
+    let renderer = PlotRenderer::new(
+        &plot_gen,
         config.default_plot_width,
         config.default_plot_height,
     );
 
-    log_phase(start, "PHASE 5.3: Rendering plot (GGRS queries data here)");
-    println!("Rendering plot...");
-    let png_buffer = renderer.render_to_bytes()?;
+    log_phase(start, "PHASE 5.3: Rendering plot with render_v3 (single-pass streaming)");
+    println!("Rendering plot with optimized streaming...");
+    renderer.render_to_file("plot.png", BackendChoice::Cairo, OutputFormat::Png)?;
 
-    log_phase(start, "PHASE 5.4: Saving PNG");
-    println!("Saving plot to plot.png...");
-    std::fs::write("plot.png", &png_buffer)?;
-    println!("✓ Plot saved to plot.png ({} bytes)", png_buffer.len());
+    log_phase(start, "PHASE 5.4: Checking PNG");
+    let metadata = std::fs::metadata("plot.png")?;
+    println!("✓ Plot saved to plot.png ({} bytes)", metadata.len());
 
     log_phase(start, "PHASE 6: Test complete");
     println!("\n=== Test Complete ===");

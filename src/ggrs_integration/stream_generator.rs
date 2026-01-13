@@ -10,7 +10,7 @@ use ggrs_core::{
     legend::LegendScale,
     stream::{AxisData, FacetSpec, NumericAxisData, Range, StreamGenerator},
 };
-use polars::prelude::{col, IntoColumn, IntoLazy};
+use polars::prelude::IntoColumn;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -31,7 +31,7 @@ fn extract_row_count_from_schema(
 }
 
 /// Helper function to extract column names from a schema
-fn extract_column_names_from_schema(
+pub fn extract_column_names_from_schema(
     schema: &crate::tercen::client::proto::ESchema,
 ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     use crate::tercen::client::proto::e_schema;
@@ -114,17 +114,41 @@ impl TercenStreamGenerator {
             Self::compute_axis_ranges(&client, &main_table_id, &facet_info, chunk_size).await?
         };
 
+        eprintln!("DEBUG: TercenStreamGenerator initialized with total_rows = {}", total_rows);
+
         // Create default aesthetics
         // Dequantization happens in GGRS render.rs using axis ranges
         // After dequantization, columns are .x and .y (actual data values)
         let aes = Aes::new().x(".x").y(".y");
 
         // Create facet spec based on facet metadata
-        let facet_spec = if facet_info.has_faceting() {
-            // For now, create a simple grid spec
-            // TODO: Map from Tercen crosstab spec to proper FacetSpec
-            FacetSpec::none()
+        // Use actual column names from facet tables for labels
+        // Data filtering still uses .ri/.ci indices (handled in query_data_chunk)
+        let facet_spec = if !facet_info.row_facets.is_empty() && !facet_info.col_facets.is_empty() {
+            // Grid faceting: rows × columns
+            use ggrs_core::stream::FacetScales;
+            let row_vars = facet_info.row_facets.column_names.iter()
+                .filter(|n| !n.is_empty()).map(|s| s.clone()).collect::<Vec<_>>();
+            let col_vars = facet_info.col_facets.column_names.iter()
+                .filter(|n| !n.is_empty()).map(|s| s.clone()).collect::<Vec<_>>();
+            let row_var = row_vars.first().unwrap_or(&".ri".to_string()).clone();
+            let col_var = col_vars.first().unwrap_or(&".ci".to_string()).clone();
+            FacetSpec::grid(row_var, col_var).scales(FacetScales::FreeY)
+        } else if !facet_info.row_facets.is_empty() {
+            // Row faceting only (each row has its own Y range)
+            use ggrs_core::stream::FacetScales;
+            let row_vars = facet_info.row_facets.column_names.iter()
+                .filter(|n| !n.is_empty()).map(|s| s.clone()).collect::<Vec<_>>();
+            let row_var = row_vars.first().unwrap_or(&".ri".to_string()).clone();
+            FacetSpec::row(row_var).scales(FacetScales::FreeY)
+        } else if !facet_info.col_facets.is_empty() {
+            // Column faceting only
+            let col_vars = facet_info.col_facets.column_names.iter()
+                .filter(|n| !n.is_empty()).map(|s| s.clone()).collect::<Vec<_>>();
+            let col_var = col_vars.first().unwrap_or(&".ci".to_string()).clone();
+            FacetSpec::col(col_var)
         } else {
+            // No faceting
             FacetSpec::none()
         };
 
@@ -170,10 +194,21 @@ impl TercenStreamGenerator {
         let aes = Aes::new().x(".x").y(".y");
 
         // Create facet spec based on facet metadata
-        let facet_spec = if facet_info.has_faceting() {
-            // TODO: Map from Tercen crosstab spec to proper FacetSpec
-            FacetSpec::none()
+        // Use .ri/.ci as faceting variables since our data uses indices
+        // GGRS will use these to determine panel layout
+        let facet_spec = if !facet_info.row_facets.is_empty() && !facet_info.col_facets.is_empty() {
+            // Grid faceting: rows × columns
+            use ggrs_core::stream::FacetScales;
+            FacetSpec::grid(".ri", ".ci").scales(FacetScales::FreeY)
+        } else if !facet_info.row_facets.is_empty() {
+            // Row faceting only (each row has its own Y range)
+            use ggrs_core::stream::FacetScales;
+            FacetSpec::row(".ri").scales(FacetScales::FreeY)
+        } else if !facet_info.col_facets.is_empty() {
+            // Column faceting only
+            FacetSpec::col(".ci")
         } else {
+            // No faceting
             FacetSpec::none()
         };
 
@@ -223,9 +258,11 @@ impl TercenStreamGenerator {
         }
 
         // Fetch all rows from Y-axis table
-        let expected_rows = facet_info.n_col_facets() * facet_info.n_row_facets();
+        // Note: Y-axis table has one row per row facet (indexed by .ri only)
+        // Not one row per cell (col × row) because Y ranges are per row
+        let expected_rows = facet_info.n_row_facets();
         println!(
-            "  Fetching Y-axis ranges (expecting {} rows)...",
+            "  Fetching Y-axis ranges (expecting {} rows - one per row facet)...",
             expected_rows
         );
         let data = streamer
@@ -298,7 +335,15 @@ impl TercenStreamGenerator {
                 transform: None,
             });
 
-            axis_ranges.insert((col_idx, row_idx), (x_axis, y_axis));
+            // If there's no .ci column, the Y range applies to all columns in this row
+            if has_ci {
+                axis_ranges.insert((col_idx, row_idx), (x_axis.clone(), y_axis.clone()));
+            } else {
+                // Replicate the same Y range for all column facets
+                for col in 0..facet_info.n_col_facets() {
+                    axis_ranges.insert((col, row_idx), (x_axis.clone(), y_axis.clone()));
+                }
+            }
         }
 
         println!("  Loaded {} axis ranges", axis_ranges.len());
@@ -432,96 +477,104 @@ impl TercenStreamGenerator {
         Ok((axis_ranges, total_rows as usize))
     }
 
-    /// Stream data for a specific facet cell in chunks
-    async fn stream_facet_data(
-        &self,
-        col_idx: usize,
-        row_idx: usize,
-        data_range: Range,
-    ) -> Result<DataFrame, Box<dyn std::error::Error>> {
-        let streamer = TableStreamer::new(&self.client);
-
-        // Stream quantized coordinates from Tercen
-        // For single facet: Only need .xs, .ys (4 bytes per row)
-        // For multiple facets: Need .ci, .ri for filtering (8 bytes per row)
-        let columns = if self.facet_info.total_facets() == 1 {
-            vec![".xs".to_string(), ".ys".to_string()]
-        } else {
-            vec![
-                ".ci".to_string(),
-                ".ri".to_string(),
-                ".xs".to_string(),
-                ".ys".to_string(),
-            ]
-        };
-
-        // Use configured chunk_size for all requests to Tercen
-        let chunk_size = self.chunk_size as i64;
-        let mut all_chunks: Vec<polars::frame::DataFrame> = Vec::new();
-        let mut current_offset = data_range.start as i64;
-        let end_offset = data_range.end as i64;
-
-        while current_offset < end_offset {
-            let remaining = end_offset - current_offset;
-            let limit = remaining.min(chunk_size);
-
-            let tson_data = streamer
-                .stream_tson(
-                    &self.main_table_id,
-                    Some(columns.clone()),
-                    current_offset,
-                    limit,
-                )
-                .await?;
-
-            if tson_data.is_empty() {
-                break;
-            }
-
-            // Parse TSON to DataFrame
-            let df = tson_to_dataframe(&tson_data)?;
-            let fetched_rows = df.nrow();
-
-            // Filter by facet indices if needed
-            let filtered_df = self.filter_by_facet(df, col_idx, row_idx)?;
-
-            // NOTE: Dequantization now happens in GGRS, not here in the operator
-            // The data is returned with quantized coordinates (.xs, .ys) and will be
-            // dequantized by GGRS based on axis ranges right before rendering
-
-            // Accumulate the filtered Polars DataFrame (still has .xs/.ys)
-            if filtered_df.nrow() > 0 {
-                all_chunks.push(filtered_df.inner().clone());
-            }
-
-            current_offset += fetched_rows as i64;
-
-            // Safety check: if we didn't get any rows from this chunk, stop
-            if fetched_rows == 0 {
-                break;
-            }
-        }
-
-        // Concatenate all chunks vertically using Polars vstack
-        if all_chunks.is_empty() {
-            return Ok(ggrs_core::data::DataFrame::new());
-        }
-
-        let mut result_df = all_chunks[0].clone();
-        for chunk in all_chunks.iter().skip(1) {
-            result_df
-                .vstack_mut(chunk)
-                .map_err(|e| format!("Failed to vstack chunks: {}", e))?;
-        }
-
-        Ok(ggrs_core::data::DataFrame::from_polars(result_df))
-    }
+    // Stream data for a specific facet cell in chunks
+    // NOTE: Per-facet streaming not used - commented out since GGRS uses bulk mode
+    // async fn stream_facet_data(
+    //     &self,
+    //     col_idx: usize,
+    //     row_idx: usize,
+    //     data_range: Range,
+    // ) -> Result<DataFrame, Box<dyn std::error::Error>> {
+    //     let streamer = TableStreamer::new(&self.client);
+    //
+    //     // Stream quantized coordinates from Tercen
+    //     // For single facet: Only need .xs, .ys (4 bytes per row)
+    //     // For multiple facets: Need .ci, .ri for filtering (8 bytes per row)
+    //     let columns = if self.facet_info.total_facets() == 1 {
+    //         vec![".xs".to_string(), ".ys".to_string()]
+    //     } else {
+    //         vec![
+    //             ".ci".to_string(),
+    //             ".ri".to_string(),
+    //             ".xs".to_string(),
+    //             ".ys".to_string(),
+    //         ]
+    //     };
+    //
+    //     // Use configured chunk_size for all requests to Tercen
+    //     let chunk_size = self.chunk_size as i64;
+    //     let mut all_chunks: Vec<polars::frame::DataFrame> = Vec::new();
+    //     let mut current_offset = data_range.start as i64;
+    //     let end_offset = data_range.end as i64;
+    //
+    //     while current_offset < end_offset {
+    //         let remaining = end_offset - current_offset;
+    //         let limit = remaining.min(chunk_size);
+    //
+    //         let tson_data = streamer
+    //             .stream_tson(
+    //                 &self.main_table_id,
+    //                 Some(columns.clone()),
+    //                 current_offset,
+    //                 limit,
+    //             )
+    //             .await?;
+    //
+    //         if tson_data.is_empty() {
+    //             break;
+    //         }
+    //
+    //         // Parse TSON to DataFrame
+    //         let df = tson_to_dataframe(&tson_data)?;
+    //         let fetched_rows = df.nrow();
+    //
+    //         // Filter by facet indices if needed
+    //         let filtered_df = self.filter_by_facet(df, col_idx, row_idx)?;
+    //
+    //         // NOTE: Dequantization now happens in GGRS, not here in the operator
+    //         // The data is returned with quantized coordinates (.xs, .ys) and will be
+    //         // dequantized by GGRS based on axis ranges right before rendering
+    //
+    //         // Accumulate the filtered Polars DataFrame (still has .xs/.ys)
+    //         if filtered_df.nrow() > 0 {
+    //             all_chunks.push(filtered_df.inner().clone());
+    //         }
+    //
+    //         current_offset += fetched_rows as i64;
+    //
+    //         // Safety check: if we didn't get any rows from this chunk, stop
+    //         if fetched_rows == 0 {
+    //             break;
+    //         }
+    //     }
+    //
+    //     // Concatenate all chunks vertically using Polars vstack
+    //     if all_chunks.is_empty() {
+    //         return Ok(ggrs_core::data::DataFrame::new());
+    //     }
+    //
+    //     let mut result_df = all_chunks[0].clone();
+    //     for chunk in all_chunks.iter().skip(1) {
+    //         result_df
+    //             .vstack_mut(chunk)
+    //             .map_err(|e| format!("Failed to vstack chunks: {}", e))?;
+    //     }
+    //
+    //     Ok(ggrs_core::data::DataFrame::from_polars(result_df))
+    // }
 
     /// Stream data in bulk across ALL facets (includes .ci and .ri columns)
     async fn stream_bulk_data(
         &self,
         data_range: Range,
     ) -> Result<DataFrame, Box<dyn std::error::Error>> {
+        eprintln!(
+            "DEBUG: stream_bulk_data called with range {}..{} (requesting {} rows)",
+            data_range.start,
+            data_range.end,
+            data_range.end - data_range.start
+        );
+
         let streamer = TableStreamer::new(&self.client);
 
         // For bulk streaming, ALWAYS include facet indices
@@ -536,74 +589,85 @@ impl TercenStreamGenerator {
         let offset = data_range.start as i64;
         let limit = (data_range.end - data_range.start) as i64;
 
+        eprintln!("DEBUG: Calling stream_tson with offset={}, limit={}", offset, limit);
+
         let tson_data = streamer
             .stream_tson(&self.main_table_id, Some(columns), offset, limit)
             .await?;
 
+        eprintln!("DEBUG: stream_tson returned {} bytes", tson_data.len());
+
         if tson_data.is_empty() {
+            eprintln!("DEBUG: Empty TSON data, returning empty DataFrame");
             return Ok(ggrs_core::data::DataFrame::new());
         }
 
         // Parse TSON to DataFrame - contains .ci, .ri, .xs, .ys
         let df = tson_to_dataframe(&tson_data)?;
+        eprintln!("DEBUG: Parsed DataFrame with {} rows", df.nrow());
 
         Ok(df)
     }
 
-    /// Dequantize coordinates: .xs/.ys (uint16 0-65535) → .x/.y (actual data values)
-    ///
-    /// This transformation is backend-agnostic and must happen BEFORE data reaches renderers.
-    /// Uses the pre-computed axis ranges for this specific facet cell.
-    ///
-    /// Filter DataFrame to only include rows for a specific facet cell
-    ///
-    /// For single facet: Returns data as-is (no filtering needed)
-    /// For multiple facets: Filters by .ci and .ri, then drops those columns
-    fn filter_by_facet(
-        &self,
-        df: DataFrame,
-        col_idx: usize,
-        row_idx: usize,
-    ) -> Result<DataFrame, Box<dyn std::error::Error>> {
-        use polars::prelude::lit;
+    // NOTE: Dequantization now happens in GGRS, not in the operator
+    // Coordinates: .xs/.ys (uint16 0-65535) → .x/.y (actual data values)
+    // This transformation is backend-agnostic and happens in GGRS before rendering
+    // Uses the pre-computed axis ranges for each specific facet cell
 
-        let single_facet = self.facet_info.total_facets() == 1;
-        let mut polars_df = df.inner().clone();
-
-        // Filter by facet indices if multiple facets
-        if !single_facet {
-            // Filter: .ci == col_idx AND .ri == row_idx
-            polars_df = polars_df
-                .lazy()
-                .filter(
-                    col(".ci")
-                        .eq(lit(col_idx as i64))
-                        .and(col(".ri").eq(lit(row_idx as i64))),
-                )
-                .collect()
-                .map_err(|e| format!("Failed to filter by facet: {}", e))?;
-
-            // Drop .ci and .ri columns after filtering (renderers don't need them)
-            let col_names_to_drop: Vec<String> = vec![".ci".to_string(), ".ri".to_string()];
-            polars_df = polars_df.drop_many(col_names_to_drop);
-        }
-
-        // Return DataFrame with .xs, .ys (will be dequantized to .x, .y in caller)
-        Ok(ggrs_core::data::DataFrame::from_polars(polars_df))
-    }
+    // NOTE: Facet filtering not used - commented out since GGRS does internal filtering in bulk mode
+    // Filter DataFrame to only include rows for a specific facet cell
+    // For single facet: Returns data as-is (no filtering needed)
+    // For multiple facets: Filters by .ci and .ri, then drops those columns
+    // fn filter_by_facet(
+    //     &self,
+    //     df: DataFrame,
+    //     col_idx: usize,
+    //     row_idx: usize,
+    // ) -> Result<DataFrame, Box<dyn std::error::Error>> {
+    //     use polars::prelude::lit;
+    //
+    //     let single_facet = self.facet_info.total_facets() == 1;
+    //     let mut polars_df = df.inner().clone();
+    //
+    //     // Filter by facet indices if multiple facets
+    //     if !single_facet {
+    //         // Filter: .ci == col_idx AND .ri == row_idx
+    //         polars_df = polars_df
+    //             .lazy()
+    //             .filter(
+    //                 col(".ci")
+    //                     .eq(lit(col_idx as i64))
+    //                     .and(col(".ri").eq(lit(row_idx as i64))),
+    //             )
+    //             .collect()
+    //             .map_err(|e| format!("Failed to filter by facet: {}", e))?;
+    //
+    //         // Drop .ci and .ri columns after filtering (renderers don't need them)
+    //         let col_names_to_drop: Vec<String> = vec![".ci".to_string(), ".ri".to_string()];
+    //         polars_df = polars_df.drop_many(col_names_to_drop);
+    //     }
+    //
+    //     // Return DataFrame with .xs, .ys (will be dequantized to .x, .y in caller)
+    //     Ok(ggrs_core::data::DataFrame::from_polars(polars_df))
+    // }
 }
 
 impl StreamGenerator for TercenStreamGenerator {
     fn n_col_facets(&self) -> usize {
-        self.facet_info.n_col_facets()
+        let count = self.facet_info.n_col_facets();
+        eprintln!("DEBUG PHASE 2: n_col_facets() returning {}", count);
+        count
     }
 
     fn n_row_facets(&self) -> usize {
-        self.facet_info.n_row_facets()
+        let count = self.facet_info.n_row_facets();
+        eprintln!("DEBUG PHASE 2: n_row_facets() returning {}", count);
+        count
     }
 
     fn n_total_data_rows(&self) -> usize {
         // Return total row count across ALL facets
+        eprintln!("DEBUG PHASE 2: n_total_data_rows() returning {}", self.total_rows);
         self.total_rows
     }
 
@@ -619,11 +683,21 @@ impl StreamGenerator for TercenStreamGenerator {
             .map(|group| group.label.clone())
             .collect();
 
+        eprintln!("DEBUG PHASE 2: query_col_facet_labels() returning {} labels: {:?}",
+                  labels.len(),
+                  labels.iter().take(3).collect::<Vec<_>>());
+
         if labels.is_empty() {
             return ggrs_core::data::DataFrame::new();
         }
 
-        let series = Series::new("label".into(), labels);
+        // Use the first non-empty column name from the facet metadata, or "label" as fallback
+        let column_name = self.facet_info.col_facets.column_names
+            .first()
+            .and_then(|name| if name.is_empty() { None } else { Some(name.clone()) })
+            .unwrap_or_else(|| "label".to_string());
+
+        let series = Series::new(column_name.into(), labels);
         let polars_df = polars::frame::DataFrame::new(vec![series.into_column()])
             .unwrap_or_else(|_| polars::frame::DataFrame::empty());
 
@@ -642,11 +716,22 @@ impl StreamGenerator for TercenStreamGenerator {
             .map(|group| group.label.clone())
             .collect();
 
+        eprintln!("DEBUG PHASE 2: query_row_facet_labels() returning {} labels", labels.len());
+        if !labels.is_empty() {
+            eprintln!("  First 3 labels: {:?}", labels.iter().take(3).collect::<Vec<_>>());
+        }
+
         if labels.is_empty() {
             return ggrs_core::data::DataFrame::new();
         }
 
-        let series = Series::new("label".into(), labels);
+        // Use the first non-empty column name from the facet metadata, or "label" as fallback
+        let column_name = self.facet_info.row_facets.column_names
+            .first()
+            .and_then(|name| if name.is_empty() { None } else { Some(name.clone()) })
+            .unwrap_or_else(|| "label".to_string());
+
+        let series = Series::new(column_name.into(), labels);
         let polars_df = polars::frame::DataFrame::new(vec![series.into_column()])
             .unwrap_or_else(|_| polars::frame::DataFrame::empty());
 
@@ -669,7 +754,7 @@ impl StreamGenerator for TercenStreamGenerator {
     }
 
     fn query_y_axis(&self, col_idx: usize, row_idx: usize) -> AxisData {
-        self.axis_ranges
+        let axis = self.axis_ranges
             .get(&(col_idx, row_idx))
             .map(|(_, y_axis)| y_axis.clone())
             .unwrap_or_else(|| {
@@ -680,7 +765,18 @@ impl StreamGenerator for TercenStreamGenerator {
                     max_axis: 1.0,
                     transform: None,
                 })
-            })
+            });
+
+        // Log first call for each facet
+        static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            if let AxisData::Numeric(ref data) = axis {
+                eprintln!("DEBUG PHASE 2: query_y_axis({}, {}) called", col_idx, row_idx);
+                eprintln!("  Returning Y range: [{}, {}]", data.min_value, data.max_value);
+            }
+        }
+
+        axis
     }
 
     fn query_legend_scale(&self) -> LegendScale {
@@ -704,16 +800,9 @@ impl StreamGenerator for TercenStreamGenerator {
         Some(self.chunk_size)
     }
 
-    fn query_data_chunk(&self, col_idx: usize, row_idx: usize, data_range: Range) -> DataFrame {
-        // Block on async within sync trait method
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current()
-                .block_on(async { self.stream_facet_data(col_idx, row_idx, data_range).await })
-        })
-        .unwrap_or_else(|e| {
-            eprintln!("Error querying data chunk: {}", e);
-            DataFrame::new()
-        })
+    // NOTE: Per-facet streaming not used - GGRS uses bulk mode for faceted plots
+    fn query_data_chunk(&self, _col_idx: usize, _row_idx: usize, _data_range: Range) -> DataFrame {
+        panic!("query_data_chunk should not be called - GGRS uses bulk mode (query_data_multi_facet)")
     }
 
     fn query_data_multi_facet(&self, data_range: Range) -> DataFrame {

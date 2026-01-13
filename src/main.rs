@@ -203,7 +203,7 @@ async fn process_task(
     println!("\n[4/5] Generating plot...");
     use ggrs_core::{EnginePlotSpec, Geom, ImageRenderer, PlotGenerator};
 
-    let plot_spec = EnginePlotSpec::new().add_layer(Geom::point());
+    let plot_spec = EnginePlotSpec::new().add_layer(Geom::point_sized(config.point_size as f64));
     let plot_gen = PlotGenerator::new(Box::new(stream_gen), plot_spec)?;
     let renderer = ImageRenderer::new(
         plot_gen,
