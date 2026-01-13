@@ -15,7 +15,7 @@ Plot operator using ggrs
 
 ### 0.0.2
 
-- [ ] Scatter plot with multiple facets (row/column/grid faceting with FreeY scales)
+- [x] Scatter plot with multiple facets (row/column/grid faceting with FreeY scales)
 - [x] Optimize bulk streaming for multi-facet (currently uses per-facet chunking)
 - [ ] Add operator properties - Plot width and height
 - [ ] Review and optimize dependencies
