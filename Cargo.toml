@@ -8,7 +8,7 @@ license = "MIT"
 
 [lib]
 name = "ggrs_plot_operator"
-path = "src/main.rs"
+path = "src/lib.rs"
 
 [[bin]]
 name = "ggrs_plot_operator"
@@ -17,19 +17,6 @@ path = "src/main.rs"
 [[bin]]
 name = "test_stream_generator"
 path = "src/bin/test_stream_generator.rs"
-
-# Disabled test binaries (outdated, need updating)
-# [[bin]]
-# name = "test_api_exploration"
-# path = "src/bin/test_api_exploration.rs"
-#
-# [[bin]]
-# name = "test_facet_counts"
-# path = "src/bin/test_facet_counts.rs"
-#
-# [[bin]]
-# name = "explore_schemas"
-# path = "src/bin/explore_schemas.rs"
 
 [dependencies]
 # Async runtime

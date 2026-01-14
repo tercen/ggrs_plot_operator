@@ -40,8 +40,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let step_id = std::env::var("STEP_ID").expect("STEP_ID environment variable is required");
 
-    // Load operator configuration
-    let config = OperatorConfig::load();
+    // Load operator configuration (no properties in test mode, using defaults)
+    let config = OperatorConfig::from_properties(None);
 
     println!("Configuration:");
     println!("  URI: {}", uri);
@@ -422,16 +422,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating plot generator...");
     let plot_gen = PlotGenerator::new(Box::new(stream_gen), plot_spec)?;
 
+    // Resolve plot dimensions from config (handles "auto" based on facet counts)
+    let (plot_width, plot_height) = config.resolve_dimensions(
+        plot_gen.generator().n_col_facets(),
+        plot_gen.generator().n_row_facets(),
+    );
+    println!(
+        "  Resolved plot size: {}×{} pixels",
+        plot_width, plot_height
+    );
+
     log_phase(
         start,
         "PHASE 5.2: Creating PlotRenderer (optimized streaming)",
     );
     println!("Creating plot renderer...");
-    let renderer = PlotRenderer::new(
-        &plot_gen,
-        config.default_plot_width,
-        config.default_plot_height,
-    );
+    let renderer = PlotRenderer::new(&plot_gen, plot_width as u32, plot_height as u32);
 
     log_phase(start, "PHASE 5.3: Rendering plot (optimized streaming)");
     println!("Rendering plot with optimized streaming...");

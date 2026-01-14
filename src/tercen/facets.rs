@@ -158,41 +158,6 @@ impl FacetMetadata {
         })
     }
 
-    /// Parse facet TSON data into structured metadata
-    fn parse_facet_arrow(arrow_data: &[u8]) -> Result<Self> {
-        let df = tson_to_dataframe(arrow_data)?;
-
-        let column_names: Vec<String> = df.columns().iter().map(|s| s.to_string()).collect();
-
-        // Parse each row as a facet group
-        let mut groups = Vec::new();
-        for index in 0..df.nrow() {
-            let mut values = HashMap::new();
-            let mut label_parts = Vec::new();
-
-            for col_name in &column_names {
-                if let Ok(value) = df.get_value(index, col_name) {
-                    let value_str = value.as_string();
-                    values.insert(col_name.clone(), value_str.clone());
-                    label_parts.push(value_str);
-                }
-            }
-
-            let label = label_parts.join(", ");
-
-            groups.push(FacetGroup {
-                index,
-                label,
-                values,
-            });
-        }
-
-        Ok(FacetMetadata {
-            groups,
-            column_names,
-        })
-    }
-
     /// Get number of facet groups
     pub fn len(&self) -> usize {
         self.groups.len()

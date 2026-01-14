@@ -1,79 +1,84 @@
-//! Operator configuration
+//! Operator configuration from Tercen properties
 //!
-//! Loads configuration from operator_config.json
+//! Configuration is loaded from operator properties (defined in operator.json)
+//! rather than config files. When testing locally with no properties set,
+//! explicit defaults are used.
 
-use serde::Deserialize;
-use std::fs;
+use crate::tercen::client::proto::OperatorSettings;
+use crate::tercen::properties::{PlotDimension, PropertyReader};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct OperatorConfig {
-    /// Number of rows to fetch per chunk when streaming data
+    /// Number of rows per chunk (internal constant, not configurable)
     pub chunk_size: usize,
 
-    /// Maximum number of chunks to process (safety limit)
-    pub max_chunks: usize,
+    /// Plot width (pixels or Auto)
+    pub plot_width: PlotDimension,
 
-    /// Whether to cache computed axis ranges
-    pub cache_axis_ranges: bool,
-
-    /// Default plot width in pixels
-    pub default_plot_width: u32,
-
-    /// Default plot height in pixels
-    pub default_plot_height: u32,
+    /// Plot height (pixels or Auto)
+    pub plot_height: PlotDimension,
 
     /// Render backend: "cpu" or "gpu"
-    #[serde(default = "default_backend")]
-    pub render_backend: String,
+    pub backend: String,
 
-    /// Point size (default: 4, range: 1-10)
-    #[serde(default = "default_point_size")]
-    pub point_size: u32,
-}
-
-fn default_backend() -> String {
-    "cpu".to_string()
-}
-
-fn default_point_size() -> u32 {
-    4
-}
-
-impl Default for OperatorConfig {
-    fn default() -> Self {
-        Self {
-            chunk_size: 10_000,
-            max_chunks: 1000,
-            cache_axis_ranges: true,
-            default_plot_width: 2000,
-            default_plot_height: 2000,
-            render_backend: "cpu".to_string(),
-            point_size: 4,
-        }
-    }
+    /// Point size (hardcoded, TODO: get from crosstab aesthetics)
+    pub point_size: i32,
 }
 
 impl OperatorConfig {
-    /// Load configuration from operator_config.json
+    /// Create config from operator properties with explicit defaults
     ///
-    /// Falls back to default values if file doesn't exist or can't be parsed
-    pub fn load() -> Self {
-        match fs::read_to_string("operator_config.json") {
-            Ok(contents) => match serde_json::from_str(&contents) {
-                Ok(config) => {
-                    println!("✓ Loaded configuration from operator_config.json");
-                    config
-                }
-                Err(e) => {
-                    eprintln!("⚠ Failed to parse operator_config.json: {}", e);
-                    eprintln!("  Using default configuration");
-                    Self::default()
-                }
-            },
-            Err(_) => {
-                println!("ℹ operator_config.json not found, using default configuration");
-                Self::default()
+    /// When testing locally (no properties set), uses these defaults:
+    /// - plot_width: "auto" (derive from column facet count)
+    /// - plot_height: "auto" (derive from row facet count)
+    /// - backend: "cpu"
+    ///
+    /// Properties come from operator.json definitions and are set via Tercen UI.
+    /// Note: point_size is hardcoded (4) - should come from crosstab aesthetics in future.
+    pub fn from_properties(operator_settings: Option<&OperatorSettings>) -> Self {
+        let props = PropertyReader::from_operator_settings(operator_settings);
+
+        // Parse plot dimensions with "auto" support
+        // Empty string or "auto" → Auto (derive from facet count)
+        // "1500" → Pixels(1500) if valid range [100-10000]
+        let plot_width =
+            PlotDimension::from_str(&props.get_string("plot.width", ""), PlotDimension::Auto);
+
+        let plot_height =
+            PlotDimension::from_str(&props.get_string("plot.height", ""), PlotDimension::Auto);
+
+        // Parse backend with validation
+        let backend = props.get_string("backend", "cpu");
+        let backend = match backend.to_lowercase().as_str() {
+            "gpu" | "webgpu" => "gpu",
+            "cpu" | "cairo" => "cpu",
+            other => {
+                eprintln!("⚠ Invalid backend '{}', using 'cpu'", other);
+                "cpu"
             }
         }
+        .to_string();
+
+        Self {
+            chunk_size: 10_000, // Internal constant
+            plot_width,
+            plot_height,
+            backend,
+            point_size: 4, // Hardcoded for now, TODO: get from crosstab aesthetics
+        }
+    }
+
+    /// Resolve plot dimensions to actual pixels
+    ///
+    /// Called after knowing facet counts. For "auto" dimensions,
+    /// derives size from facet count using:
+    /// - base_size (800px) + (n_facets - 1) * 400px
+    /// - Capped at 4000px
+    ///
+    /// Returns (width, height) in pixels
+    pub fn resolve_dimensions(&self, n_col_facets: usize, n_row_facets: usize) -> (i32, i32) {
+        let width = self.plot_width.resolve(n_col_facets);
+        let height = self.plot_height.resolve(n_row_facets);
+        (width, height)
     }
 }

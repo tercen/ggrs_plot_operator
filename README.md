@@ -13,18 +13,21 @@ Plot operator using ggrs
 - [x] Plot saving
 
 
-### 0.0.2
+### 0.0.2 ✅ COMPLETE
 
 - [x] Scatter plot with multiple facets (row/column/grid faceting with FreeY scales)
 - [x] Optimize bulk streaming for multi-facet (currently uses per-facet chunking)
-- [ ] Add operator properties - Plot width and height
-- [ ] Review and optimize dependencies
+- [x] Add operator properties - Plot width/height with "auto", backend (cpu/gpu)
+- [x] Review and optimize dependencies
+
+Note: Point size is hardcoded (4) - should come from crosstab model aesthetics.
 
 ### 0.0.3
 
 - [ ] Support for minimal and white themes
 - [ ] Add support for colors
 - [ ] Add plot legend
+- [ ] Further optimize bulk streaming for multi-facet
 
 ### 0.0.4
 

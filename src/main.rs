@@ -8,8 +8,6 @@
 //! - `ggrs_integration`: GGRS-specific integration code
 //! - `config`: Operator configuration
 
-#![allow(dead_code)] // Allow unused functions when building as lib
-
 pub mod config;
 pub mod ggrs_integration;
 pub mod tercen;
@@ -33,9 +31,6 @@ async fn main() {
     let args: Vec<String> = std::env::args().collect();
     parse_args(&args);
 
-    // Load operator configuration
-    let config = config::OperatorConfig::load();
-
     // Print environment info
     print_env_info();
 
@@ -49,9 +44,8 @@ async fn main() {
             if let Ok(task_id) = std::env::var("TERCEN_TASK_ID") {
                 // Create Arc for sharing client across async operations
                 let client_arc = std::sync::Arc::new(client);
-                let logger = tercen::TercenLogger::new(&client_arc, task_id.clone());
 
-                match process_task(client_arc.clone(), &task_id, &logger, &config).await {
+                match process_task(client_arc.clone(), &task_id).await {
                     Ok(()) => {
                         println!("\n✓ Task processed successfully!");
                     }
@@ -137,8 +131,6 @@ fn print_env_info() {
 async fn process_task(
     client_arc: std::sync::Arc<tercen::TercenClient>,
     task_id: &str,
-    _logger: &tercen::TercenLogger<'_>,
-    config: &config::OperatorConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use tercen::client::proto::GetRequest;
 
@@ -158,9 +150,12 @@ async fn process_task(
 
     println!("✓ Task retrieved");
 
-    // Step 2: Extract cube query, project_id, and namespace from task
-    println!("\n[2/5] Extracting cube query...");
-    let (cube_query, project_id, namespace) = extract_cube_query(&task)?;
+    // Step 2: Extract cube query, project_id, namespace, and operator settings from task
+    println!("\n[2/5] Extracting cube query and properties...");
+    let (cube_query, project_id, namespace, operator_settings) = extract_cube_query(&task)?;
+
+    // Load operator configuration from properties
+    let config = config::OperatorConfig::from_properties(operator_settings.as_ref());
 
     println!("✓ Cube query extracted");
     println!("  Main table: {}", cube_query.qt_hash);
@@ -168,6 +163,13 @@ async fn process_task(
     println!("  Row facets: {}", cube_query.row_hash);
     println!("  Project ID: {}", project_id);
     println!("  Namespace: {}", namespace);
+    println!("\n✓ Configuration loaded");
+    println!("  Backend: {}", config.backend);
+    println!("  Point size: {}", config.point_size);
+    println!(
+        "  Plot dimensions: {:?} × {:?}",
+        config.plot_width, config.plot_height
+    );
 
     // Find Y-axis table (4th table in schema_ids, if it exists)
     let y_axis_table_id = find_y_axis_table(&client_arc, &task).await.ok();
@@ -199,6 +201,14 @@ async fn process_task(
         stream_gen.n_col_facets() * stream_gen.n_row_facets()
     );
 
+    // Resolve "auto" plot dimensions now that we know facet counts
+    let (plot_width, plot_height) =
+        config.resolve_dimensions(stream_gen.n_col_facets(), stream_gen.n_row_facets());
+    println!(
+        "  Resolved plot size: {}×{} pixels",
+        plot_width, plot_height
+    );
+
     // Step 4: Generate plot
     println!("\n[4/5] Generating plot...");
     use ggrs_core::renderer::{BackendChoice, OutputFormat};
@@ -207,14 +217,10 @@ async fn process_task(
 
     let plot_spec = EnginePlotSpec::new().add_layer(Geom::point_sized(config.point_size as f64));
     let plot_gen = PlotGenerator::new(Box::new(stream_gen), plot_spec)?;
-    let renderer = PlotRenderer::new(
-        &plot_gen,
-        config.default_plot_width,
-        config.default_plot_height,
-    );
+    let renderer = PlotRenderer::new(&plot_gen, plot_width as u32, plot_height as u32);
 
-    println!("  Rendering plot (backend: {})...", config.render_backend);
-    let backend = match config.render_backend.as_str() {
+    println!("  Rendering plot (backend: {})...", config.backend);
+    let backend = match config.backend.as_str() {
         "gpu" => BackendChoice::WebGPU,
         _ => BackendChoice::Cairo,
     };
@@ -236,8 +242,8 @@ async fn process_task(
         &project_id,
         &namespace,
         png_buffer,
-        config.default_plot_width as i32,
-        config.default_plot_height as i32,
+        plot_width,
+        plot_height,
         &mut task,
     )
     .await?;
@@ -247,10 +253,18 @@ async fn process_task(
     Ok(())
 }
 
-/// Extract CubeQuery, project_id, and namespace from task
+/// Type alias for cube query extraction result
+type CubeQueryResult = (
+    CubeQuery,
+    String,
+    String,
+    Option<tercen::client::proto::OperatorSettings>,
+);
+
+/// Extract CubeQuery, project_id, namespace, and operator settings from task
 fn extract_cube_query(
     task: &tercen::client::proto::ETask,
-) -> Result<(CubeQuery, String, String), Box<dyn std::error::Error>> {
+) -> Result<CubeQueryResult, Box<dyn std::error::Error>> {
     use tercen::client::proto::e_task;
 
     let task_obj = task.object.as_ref().ok_or("Task has no object")?;
@@ -263,7 +277,13 @@ fn extract_cube_query(
                 .as_ref()
                 .map(|os| os.namespace.clone())
                 .unwrap_or_default();
-            Ok((query.clone().into(), ct.project_id.clone(), namespace))
+            let operator_settings = query.operator_settings.clone();
+            Ok((
+                query.clone().into(),
+                ct.project_id.clone(),
+                namespace,
+                operator_settings,
+            ))
         }
         e_task::Object::Runcomputationtask(rct) => {
             let query = rct
@@ -275,7 +295,13 @@ fn extract_cube_query(
                 .as_ref()
                 .map(|os| os.namespace.clone())
                 .unwrap_or_default();
-            Ok((query.clone().into(), rct.project_id.clone(), namespace))
+            let operator_settings = query.operator_settings.clone();
+            Ok((
+                query.clone().into(),
+                rct.project_id.clone(),
+                namespace,
+                operator_settings,
+            ))
         }
         e_task::Object::Cubequerytask(cqt) => {
             let query = cqt.query.as_ref().ok_or("CubeQueryTask has no query")?;
@@ -284,7 +310,13 @@ fn extract_cube_query(
                 .as_ref()
                 .map(|os| os.namespace.clone())
                 .unwrap_or_default();
-            Ok((query.clone().into(), cqt.project_id.clone(), namespace))
+            let operator_settings = query.operator_settings.clone();
+            Ok((
+                query.clone().into(),
+                cqt.project_id.clone(),
+                namespace,
+                operator_settings,
+            ))
         }
         _ => Err("Unsupported task type".into()),
     }

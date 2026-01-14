@@ -7,28 +7,23 @@
   "container": "ghcr.io/tercen/ggrs_plot_operator:main",
   "properties": [
     {
-      "kind": "DoubleProperty",
-      "name": "width",
-      "defaultValue": 800,
-      "description": "Plot width in pixels"
-    },
-    {
-      "kind": "DoubleProperty",
-      "name": "height",
-      "defaultValue": 600,
-      "description": "Plot height in pixels"
+      "kind": "StringProperty",
+      "name": "plot.width",
+      "defaultValue": "",
+      "description": "Plot width in pixels. If left empty or 'auto', dimensions will be derived from the crosstab/facet layout."
     },
     {
       "kind": "StringProperty",
-      "name": "theme",
-      "defaultValue": "gray",
-      "description": "Plot theme (gray, classic, minimal, dark)"
+      "name": "plot.height",
+      "defaultValue": "",
+      "description": "Plot height in pixels. If left empty or 'auto', dimensions will be derived from the crosstab/facet layout."
     },
     {
-      "kind": "StringProperty",
-      "name": "title",
-      "defaultValue": "Plot",
-      "description": "Plot title"
+      "kind": "EnumeratedProperty",
+      "name": "backend",
+      "defaultValue": "cpu",
+      "values": ["cpu", "gpu"],
+      "description": "Render backend. CPU uses Cairo (slower, lower memory), GPU uses OpenGL (faster, higher memory)."
     }
   ]
 }

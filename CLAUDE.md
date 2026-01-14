@@ -8,20 +8,23 @@ The **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the G
 
 ## ⚠️ IMPORTANT: Current Status & Known Issues
 
-**Phase**: 🚧 Version 0.0.2 IN PROGRESS - Faceting Support | **Status**: ✅ Phase 1 & 2 COMPLETE, Phase 3 pending
+**Phase**: ✅ Version 0.0.2 COMPLETE - Faceting Support + Operator Properties
 
 **Deployment Status**: ✅ Working (with logging disabled)
 
-**Latest Changes (2025-01-13)**:
-- ✅ **Phase 1 COMPLETE** - Operator reads all data correctly (facet counts, labels, Y ranges from metadata)
-- ✅ **Phase 2 COMPLETE** - GGRS bulk streaming implemented
-  - Modified `render.rs` and `render_v2.rs` to use `query_data_multi_facet()`
-  - Added `filter_by_rows()` method to GGRS DataFrame for facet filtering
-  - GGRS now filters data internally by `.ri` and `.ci` indices
-  - Both GGRS and operator compile cleanly with zero warnings
-- ✅ **Faceting support implemented** - Row/column/grid faceting now enabled
-- ✅ **Plot size increased** - Default 2000×2000px for better facet visibility
-- 🎯 **Next: Phase 3** - Test full multi-facet rendering with real workflow data
+**Latest Changes (2025-01-14)**:
+- ✅ **Operator Properties Implemented** (Version 0.0.2)
+  - Replaced `operator_config.json` with properties from `operator.json`
+  - Properties read from Tercen's OperatorSettings proto
+  - Support for "auto" plot dimensions derived from facet counts
+  - Properties: `plot.width`, `plot.height` (string with "auto"), `backend` (cpu/gpu)
+  - Explicit defaults for local testing (when properties not set)
+  - Auto dimension formula: 800px + (n_facets - 1) * 400px, capped at 4000px
+  - Point size hardcoded (4) - should come from crosstab aesthetics in future
+- ✅ **Phase 1 & 2 COMPLETE** - Faceting support with bulk streaming
+  - Operator reads all data correctly (facet counts, labels, Y ranges from metadata)
+  - GGRS bulk streaming implemented with facet filtering
+  - Row/column/grid faceting enabled with independent Y-axes
 
 **Critical Issue**: EventService returns `UnimplementedError` in production
 - **Impact**: All logging via TercenLogger is disabled
@@ -275,6 +278,173 @@ User provided working Python OperatorResult structure showing:
 
 ---
 
+## 📋 Operator Properties (2025-01-14) - Version 0.0.2
+
+### Overview
+
+The operator now uses **property-based configuration** from Tercen's `operator.json` instead of config files. This aligns with Tercen's architecture where operators are configured through the UI via properties.
+
+### Property Reading Flow
+
+```
+1. Tercen UI (user sets properties)
+   ↓
+2. OperatorSettings proto (passed via gRPC)
+   ↓
+3. PropertyReader (src/tercen/properties.rs)
+   ↓
+4. OperatorConfig (src/config.rs)
+   ↓
+5. main.rs (resolve dimensions after knowing facet counts)
+```
+
+### Available Properties
+
+Defined in `operator.json`:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `plot.width` | String | `""` (auto) | Plot width in pixels or "auto" to derive from column facets |
+| `plot.height` | String | `""` (auto) | Plot height in pixels or "auto" to derive from row facets |
+| `backend` | Enum | `"cpu"` | Render backend: "cpu" (Cairo) or "gpu" (OpenGL) |
+
+**Note**: Point size is hardcoded (4) for now. In future, it should come from the crosstab model aesthetics, not operator properties.
+
+### Auto Plot Dimensions
+
+When `plot.width` or `plot.height` are empty or "auto", dimensions are derived from facet counts:
+
+**Formula**: `base_size (800px) + (n_facets - 1) × 400px`, capped at 4000px
+
+**Examples**:
+- 1 facet → 800px
+- 2 facets → 1200px
+- 3 facets → 1600px
+- 4 facets → 2000px
+- 10+ facets → 4000px (capped)
+
+### Implementation Details
+
+**PropertyReader** (`src/tercen/properties.rs`):
+```rust
+pub struct PropertyReader {
+    properties: Vec<PropertyValue>,  // From OperatorSettings proto
+}
+
+impl PropertyReader {
+    // Create from OperatorSettings (None if no properties set)
+    pub fn from_operator_settings(settings: Option<&OperatorSettings>) -> Self;
+
+    // Type-safe accessors with explicit defaults
+    pub fn get_string(&self, name: &str, default: &str) -> String;
+    pub fn get_i32(&self, name: &str, default: i32) -> i32;
+    pub fn get_bool(&self, name: &str, default: bool) -> bool;
+}
+```
+
+**PlotDimension** (`src/tercen/properties.rs`):
+```rust
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum PlotDimension {
+    #[default]
+    Auto,           // Derive from facet count
+    Pixels(i32),    // Explicit pixel value
+}
+
+impl PlotDimension {
+    // Parse from property string ("auto", "", or "1500")
+    pub fn from_str(value: &str, default: PlotDimension) -> Self;
+
+    // Resolve to actual pixels (uses formula for Auto)
+    pub fn resolve(&self, n_facets: usize) -> i32;
+}
+```
+
+**OperatorConfig** (`src/config.rs`):
+```rust
+pub struct OperatorConfig {
+    pub chunk_size: usize,           // Internal constant (10,000)
+    pub plot_width: PlotDimension,   // Auto or Pixels(i32)
+    pub plot_height: PlotDimension,  // Auto or Pixels(i32)
+    pub backend: String,             // "cpu" or "gpu"
+    pub point_size: i32,             // Hardcoded (4), TODO: get from crosstab
+}
+
+impl OperatorConfig {
+    // Create from operator properties with explicit defaults
+    pub fn from_properties(operator_settings: Option<&OperatorSettings>) -> Self;
+
+    // Resolve "auto" dimensions to pixels (called after knowing facet counts)
+    pub fn resolve_dimensions(&self, n_col_facets: usize, n_row_facets: usize) -> (i32, i32);
+}
+```
+
+### Usage in main.rs
+
+```rust
+// Extract properties from task
+let (cube_query, project_id, namespace, operator_settings) = extract_cube_query(&task)?;
+
+// Create config from properties (uses defaults if None)
+let config = config::OperatorConfig::from_properties(operator_settings.as_ref());
+
+// ... create stream generator (knows facet counts) ...
+
+// Resolve "auto" dimensions
+let (plot_width, plot_height) = config.resolve_dimensions(
+    stream_gen.n_col_facets(),
+    stream_gen.n_row_facets(),
+);
+
+// Use resolved dimensions
+let renderer = PlotRenderer::new(&plot_gen, plot_width as u32, plot_height as u32);
+```
+
+### Local Testing (No Properties)
+
+When testing locally without Tercen (e.g., `test_stream_generator`), properties are not available. The operator uses explicit defaults:
+
+- `plot.width`: `""` (Auto) → resolves based on column facets
+- `plot.height`: `""` (Auto) → resolves based on row facets
+- `backend`: `"cpu"`
+
+Point size is hardcoded to 4 regardless of properties (should come from crosstab aesthetics in future).
+
+**Example**:
+```rust
+let config = OperatorConfig::from_properties(None);  // Uses defaults
+```
+
+### Property Validation
+
+All properties are validated with fallback to defaults:
+
+- **plot.width/height**: Accepts "auto", "", or integers 100-10000
+- **backend**: Only "cpu", "gpu", "cairo", "webgpu" (normalized to "cpu"/"gpu")
+
+Invalid values print warnings but don't fail the operator.
+
+### Files Modified
+
+- `src/tercen/properties.rs` - New module with PropertyReader and PlotDimension
+- `src/config.rs` - Complete rewrite for property-based config
+- `src/main.rs` - Extract operator_settings, resolve dimensions after stream gen
+- `src/bin/test_stream_generator.rs` - Use from_properties(None) for defaults
+- `operator.json` - Updated with new property definitions
+- **Removed**: `operator_config.json` (obsolete)
+
+### Tests
+
+Unit tests in `src/tercen/properties.rs` cover:
+- PropertyReader with empty/valid/invalid values
+- PlotDimension parsing ("auto", "", "1500", invalid)
+- PlotDimension resolution with various facet counts
+- Range validation (100-10000 for pixels)
+
+All tests pass: `cargo test`
+
+---
+
 ## Quick Reference
 
 ### Common Commands
@@ -342,13 +512,17 @@ See `TEST_LOCAL.md` and `WORKFLOW_TEST_INSTRUCTIONS.md` for testing details.
 ```
 ggrs_plot_operator/
 ├── src/
+│   ├── lib.rs                       # Library root (re-exports modules)
 │   ├── main.rs                      # Entry point (⚠️ logging disabled!)
+│   ├── config.rs                    # Operator configuration (from properties)
 │   ├── tercen/                      # Pure Tercen gRPC client (future crate)
 │   │   ├── client.rs               # TercenClient with auth
 │   │   ├── table.rs                # TableStreamer (chunked streaming)
 │   │   ├── tson_convert.rs         # TSON → Polars DataFrame (columnar)
 │   │   ├── facets.rs               # Facet metadata loading
+│   │   ├── properties.rs           # PropertyReader and PlotDimension (Version 0.0.2)
 │   │   ├── result.rs               # Result upload (Phase 8)
+│   │   ├── table_convert.rs        # DataFrame → TSON conversion
 │   │   ├── logger.rs               # TercenLogger (currently disabled)
 │   │   └── error.rs                # TercenError types
 │   ├── ggrs_integration/           # GGRS-specific code
@@ -361,6 +535,7 @@ ggrs_plot_operator/
 │       └── tercen_model.proto      # Data model definitions
 ├── build.rs                        # Proto compilation (references submodule)
 ├── Cargo.toml                      # Dependencies (ggrs-core from GitHub)
+├── operator.json                   # Operator manifest (properties defined here)
 └── .gitmodules                     # Submodule configuration
 ```
 
@@ -483,7 +658,7 @@ BD,M
 
 ### GPU Backend
 
-- **Configuration**: `operator_config.json` - `"backend": "cpu"` or `"gpu"`
+- **Configuration**: Property `backend` in `operator.json` - `"cpu"` or `"gpu"`
 - **OpenGL vs Vulkan**: OpenGL selected (162 MB vs 314 MB, 49% reduction)
 - **Performance**: 10x speedup for same quality
 - **Trade-off**: 3.3x memory overhead acceptable for 10x speed
@@ -558,7 +733,7 @@ base64 = "0.22"             # PNG encoding
 6. ✅ Axis range loading from Y-axis table or computation fallback
 7. ✅ Full plot rendering: 475K rows → PNG in 9.5s (CPU) or 0.5s (GPU)
 8. ✅ GPU acceleration with OpenGL backend
-9. ✅ Configuration system (operator_config.json)
+9. ✅ Property-based configuration (operator.json properties)
 10. ✅ Test binary (test_stream_generator)
 11. ✅ **Result upload with full Tercen model format**
 12. ✅ **FileService integration for result uploads**
@@ -594,17 +769,19 @@ base64 = "0.22"             # PNG encoding
 
 ### Future Enhancements (See README.md Roadmap)
 
-**Version 0.0.2** (Current):
+**Version 0.0.2** (COMPLETE):
 - ✅ Scatter plot with multiple facets (row/column/grid faceting with FreeY scales)
-- 🎯 Optimize bulk streaming for multi-facet (currently uses per-facet chunking)
-- 🎯 Add plot legend
-- 🎯 Add support for colors
-- 🎯 Review and optimize dependencies
+- ✅ Operator properties (plot.width, plot.height with "auto", backend)
+- ✅ Auto plot dimensions derived from facet counts
+- ✅ GPU/CPU backend switching via operator properties
+- Note: Point size hardcoded (should come from crosstab aesthetics)
 
 **Version 0.0.3** (Future):
-- Operator properties for plot width/height
-- Switching between GPU/CPU via operator config
-- Support for minimal and white themes
+- 🎯 Add plot legend
+- 🎯 Add support for colors
+- 🎯 Support for minimal and white themes
+- 🎯 Optimize bulk streaming for multi-facet (currently uses per-facet chunking)
+- 🎯 Review and optimize dependencies
 
 **Version 0.0.4** (Future):
 - Textual elements (axis labels, legend, title)

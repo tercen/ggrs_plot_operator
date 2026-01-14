@@ -17,7 +17,6 @@ pub mod client;
 pub mod logger;
 
 // Data modules (Phase 4)
-pub mod data;
 pub mod table;
 pub mod tson_convert;
 
@@ -28,15 +27,17 @@ pub mod facets;
 pub mod result;
 pub mod table_convert;
 
+// Operator properties (Phase 9 - Version 0.0.2)
+pub mod properties;
+
 // Re-exports for convenience
 pub use client::TercenClient;
-#[allow(unused_imports)]
-pub use data::{DataRow, DataSummary, ParsedData};
 #[allow(unused_imports)]
 pub use error::{Result, TercenError};
 #[allow(unused_imports)]
 pub use facets::{FacetGroup, FacetInfo, FacetMetadata};
 pub use logger::TercenLogger;
+pub use properties::{PlotDimension, PropertyReader};
 #[allow(unused_imports)]
 pub use table::TableStreamer;
 pub use tson_convert::tson_to_dataframe;
