@@ -18,7 +18,10 @@ impl PropertyReader {
             .map(|op_ref| op_ref.property_values.clone())
             .unwrap_or_default();
 
-        eprintln!("DEBUG PropertyReader: Found {} properties", properties.len());
+        eprintln!(
+            "DEBUG PropertyReader: Found {} properties",
+            properties.len()
+        );
         for prop in &properties {
             eprintln!("  DEBUG: '{}' = '{}'", prop.name, prop.value);
         }
