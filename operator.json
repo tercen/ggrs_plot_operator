@@ -6,6 +6,92 @@
   "authors": ["Tercen"],
   "urls": ["https://github.com/tercen/ggrs_plot_operator"],
   "container": "ghcr.io/tercen/ggrs_plot_operator:main",
+  "operatorSpec": {
+    "inputSpecs": [
+      {
+        "kind": "CrosstabSpec",
+        "metaFactors": [
+          {
+            "kind": "MetaFactor",
+            "name": "Page",
+            "type": "",
+            "description": "These factor(s) will be used to produce one plot file per category.",
+            "ontologyMapping": "page",
+            "crosstabMapping": "row",
+            "cardinality": "0..n",
+            "factors": []
+          },
+          {
+            "kind": "MetaFactor",
+            "name": "Rows",
+            "type": "",
+            "description": "Factor(s) to stratify per row.",
+            "ontologyMapping": "sample",
+            "crosstabMapping": "row",
+            "cardinality": "0..n",
+            "factors": []
+          },
+          {
+            "kind": "MetaFactor",
+            "name": "Columns",
+            "type": "",
+            "description": "Factor(s) to stratify per column.",
+            "ontologyMapping": "variable",
+            "crosstabMapping": "column",
+            "cardinality": "0..n",
+            "factors": []
+          }
+        ],
+        "axis": [
+          {
+            "kind": "AxisSpec",
+            "metaFactors": [
+              {
+                "kind": "MetaFactor",
+                "name": "Y Axis",
+                "type": "numeric",
+                "description": "Factor to use for the graph's Y axis.",
+                "ontologyMapping": "y-axis",
+                "crosstabMapping": "y",
+                "cardinality": "1",
+                "factors": []
+              },
+              {
+                "kind": "MetaFactor",
+                "name": "X Axis",
+                "type": "",
+                "description": "Factor to use for the graph's X axis (optional).",
+                "ontologyMapping": "x-axis",
+                "crosstabMapping": "x",
+                "cardinality": "0..1",
+                "factors": []
+              },
+              {
+                "kind": "MetaFactor",
+                "name": "Colors",
+                "type": "",
+                "description": "Factor(s) to use as colors.",
+                "ontologyMapping": "variable",
+                "crosstabMapping": "color",
+                "cardinality": "0..n",
+                "factors": []
+              },
+              {
+                "kind": "MetaFactor",
+                "name": "Labels",
+                "type": "",
+                "description": "Factor(s) to use as labels.",
+                "ontologyMapping": "variable",
+                "crosstabMapping": "label",
+                "cardinality": "0..n",
+                "factors": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
   "properties": [
     {
       "kind": "StringProperty",

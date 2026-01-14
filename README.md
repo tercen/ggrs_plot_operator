@@ -24,6 +24,12 @@ Note: Point size is hardcoded (4) - should come from crosstab model aesthetics.
 
 ### 0.0.3
 
+- [ ] Use operator input specs to get projection information
+- [ ] Dynamic point size
+- [x] Specify gRPC as communication protocol
+- [ ] Add pages
+- [ ] Add x axis support
+
 ### 0.0.4
 
 - [ ] Support for minimal and white themes
