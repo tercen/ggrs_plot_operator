@@ -150,7 +150,7 @@ mod tests {
         let reader = PropertyReader::from_operator_settings(None);
         assert_eq!(reader.get_string("foo", "default"), "default");
         assert_eq!(reader.get_i32("bar", 42), 42);
-        assert_eq!(reader.get_bool("baz", true), true);
+        assert!(reader.get_bool("baz", true));
     }
 
     #[test]
