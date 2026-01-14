@@ -98,7 +98,7 @@ impl PlotDimension {
     ///
     /// Valid formats:
     /// - "auto" or "" (empty) → Auto
-    /// - "1500" → Pixels(1500) if in valid range [100, 10000]
+    /// - "1500" → Pixels(1500) if in valid range [100, 128000]
     pub fn from_str(value: &str, default: PlotDimension) -> Self {
         let trimmed = value.trim();
 
@@ -109,10 +109,10 @@ impl PlotDimension {
 
         // Parse as integer
         match trimmed.parse::<i32>() {
-            Ok(px) if (100..=10000).contains(&px) => PlotDimension::Pixels(px),
+            Ok(px) if (100..=128000).contains(&px) => PlotDimension::Pixels(px),
             Ok(px) => {
                 eprintln!(
-                    "⚠ Plot dimension {} out of valid range [100-10000], using default: {:?}",
+                    "⚠ Plot dimension {} out of valid range [100-128000], using default: {:?}",
                     px, default
                 );
                 default
@@ -203,7 +203,7 @@ mod tests {
         assert_eq!(dim, PlotDimension::Auto);
 
         // Too large
-        let dim = PlotDimension::from_str("20000", PlotDimension::Auto);
+        let dim = PlotDimension::from_str("200000", PlotDimension::Auto);
         assert_eq!(dim, PlotDimension::Auto);
     }
 
@@ -214,7 +214,7 @@ mod tests {
         assert_eq!(dim, PlotDimension::Pixels(100));
 
         // Maximum valid
-        let dim = PlotDimension::from_str("10000", PlotDimension::Auto);
-        assert_eq!(dim, PlotDimension::Pixels(10000));
+        let dim = PlotDimension::from_str("128000", PlotDimension::Auto);
+        assert_eq!(dim, PlotDimension::Pixels(128000));
     }
 }

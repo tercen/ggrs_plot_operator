@@ -419,7 +419,7 @@ let config = OperatorConfig::from_properties(None);  // Uses defaults
 
 All properties are validated with fallback to defaults:
 
-- **plot.width/height**: Accepts "auto", "", or integers 100-10000
+- **plot.width/height**: Accepts "auto", "", or integers 100-128000
 - **backend**: Only "cpu", "gpu", "cairo", "webgpu" (normalized to "cpu"/"gpu")
 
 Invalid values print warnings but don't fail the operator.
@@ -439,7 +439,7 @@ Unit tests in `src/tercen/properties.rs` cover:
 - PropertyReader with empty/valid/invalid values
 - PlotDimension parsing ("auto", "", "1500", invalid)
 - PlotDimension resolution with various facet counts
-- Range validation (100-10000 for pixels)
+- Range validation (100-128000 for pixels)
 
 All tests pass: `cargo test`
 
