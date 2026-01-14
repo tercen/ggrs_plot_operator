@@ -3,7 +3,7 @@ Plot operator using ggrs
 
 # Roadmap
 
-### 0.0.1
+### 0.0.1 ✅ COMPLETE
 
 - [x] Data load
 - [x] Streaming and chunking architecture
@@ -24,18 +24,20 @@ Note: Point size is hardcoded (4) - should come from crosstab model aesthetics.
 
 ### 0.0.3
 
+### 0.0.4
+
 - [ ] Support for minimal and white themes
 - [ ] Add support for colors
 - [ ] Add plot legend
 - [ ] Further optimize bulk streaming for multi-facet
 
-### 0.0.4
+### 0.0.5
 
 - [ ] Add bar plot
 - [ ] Add line plot
 - [ ] Add support for manual axis ranges
 
-### 0.0.5
+### 0.0.6
 
 - [ ] Add heatmap
 - [ ] Configurable textual elements in plot (axis labels, legend, title)

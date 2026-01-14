@@ -17,13 +17,6 @@
       "name": "plot.height",
       "defaultValue": "",
       "description": "Plot height in pixels. If left empty or 'auto', dimensions will be derived from the crosstab/facet layout."
-    },
-    {
-      "kind": "EnumeratedProperty",
-      "name": "backend",
-      "defaultValue": "cpu",
-      "values": ["cpu", "gpu"],
-      "description": "Render backend. CPU uses Cairo (slower, lower memory), GPU uses OpenGL (faster, higher memory)."
     }
   ]
 }
