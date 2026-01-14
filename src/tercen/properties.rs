@@ -18,6 +18,11 @@ impl PropertyReader {
             .map(|op_ref| op_ref.property_values.clone())
             .unwrap_or_default();
 
+        eprintln!("DEBUG PropertyReader: Found {} properties", properties.len());
+        for prop in &properties {
+            eprintln!("  DEBUG: '{}' = '{}'", prop.name, prop.value);
+        }
+
         Self { properties }
     }
 
@@ -37,7 +42,12 @@ impl PropertyReader {
 
     /// Get string property with explicit default
     pub fn get_string(&self, name: &str, default: &str) -> String {
-        self.get_raw(name).unwrap_or(default).to_string()
+        let value = self.get_raw(name).unwrap_or(default);
+        eprintln!(
+            "DEBUG PropertyReader::get_string('{}') -> '{}' (default: '{}')",
+            name, value, default
+        );
+        value.to_string()
     }
 
     /// Get i32 property with validation and explicit default

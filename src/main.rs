@@ -154,10 +154,26 @@ async fn process_task(
     println!("\n[2/5] Extracting cube query and properties...");
     let (cube_query, project_id, namespace, operator_settings) = extract_cube_query(&task)?;
 
+    // Debug: Print operator settings if available
+    if let Some(ref settings) = operator_settings {
+        println!("\n=== Debug: Operator Settings ===");
+        if let Some(ref op_ref) = settings.operator_ref {
+            println!("  Operator ID: {}", op_ref.operator_id);
+            println!("  Property values count: {}", op_ref.property_values.len());
+            for prop in &op_ref.property_values {
+                println!("    Property '{}' = '{}'", prop.name, prop.value);
+            }
+        } else {
+            println!("  No operator_ref in settings");
+        }
+    } else {
+        println!("\n=== Debug: No operator settings in task ===");
+    }
+
     // Load operator configuration from properties
     let config = config::OperatorConfig::from_properties(operator_settings.as_ref());
 
-    println!("✓ Cube query extracted");
+    println!("\n✓ Cube query extracted");
     println!("  Main table: {}", cube_query.qt_hash);
     println!("  Column facets: {}", cube_query.column_hash);
     println!("  Row facets: {}", cube_query.row_hash);
