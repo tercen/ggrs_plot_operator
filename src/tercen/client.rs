@@ -169,7 +169,6 @@ impl TercenClient {
     }
 
     /// Get a WorkflowService client with authentication
-    #[allow(dead_code)]
     pub fn workflow_service(&self) -> Result<AuthWorkflowServiceClient> {
         let interceptor = AuthInterceptor::new(self.token.clone())?;
         Ok(WorkflowServiceClient::with_interceptor(

@@ -23,6 +23,10 @@ pub enum TercenError {
     #[error("Connection error: {0}")]
     Connection(String),
 
+    /// Data processing or validation error
+    #[error("Data error: {0}")]
+    Data(String),
+
     /// Generic error
     #[allow(dead_code)]
     #[error("{0}")]

@@ -316,6 +316,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
+    // Extract color information from workflow
+    println!("\n=== Extracting Color Information ===");
+    let color_infos = {
+        use ggrs_plot_operator::tercen;
+        // Fetch workflow
+        let mut workflow_service = client_arc_temp.workflow_service()?;
+        let request = tonic::Request::new(tercen::client::proto::GetRequest {
+            id: workflow_id.clone(),
+            ..Default::default()
+        });
+        let response = workflow_service.get(request).await?;
+        let e_workflow = response.into_inner();
+
+        // Extract the Workflow from EWorkflow
+        let workflow = e_workflow
+            .object
+            .as_ref()
+            .map(|obj| match obj {
+                tercen::client::proto::e_workflow::Object::Workflow(wf) => wf,
+            })
+            .ok_or("EWorkflow has no workflow object")?;
+
+        // Extract color info from step
+        tercen::extract_color_info_from_step(workflow, &step_id)?
+    };
+
+    if color_infos.is_empty() {
+        println!("  No color factors defined");
+    } else {
+        for (i, info) in color_infos.iter().enumerate() {
+            println!("  Color {} : '{}'", i + 1, info.factor_name);
+            println!("    Type: {}", info.factor_type);
+            if let Some((min, max)) = info.palette.range() {
+                println!("    Range: {} to {}", min, max);
+                println!("    Stops: {}", info.palette.stops.len());
+            }
+        }
+    }
+
     // Create stream generator (includes loading facets and axis ranges)
     log_phase(
         start,
@@ -332,6 +371,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         cube_query.row_hash.clone(),
         y_axis_table_id,
         config.chunk_size,
+        color_infos, // Pass extracted color info
     )
     .await?;
 
@@ -398,11 +438,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("\nFirst 5 rows:");
         for i in 0..5.min(data.nrow()) {
             print!("  Row {}: ", i);
-            if let Ok(x) = data.get_value(i, ".x") {
-                print!(".x={:?} ", x);
+
+            // Print Age value
+            if let Ok(age) = data.get_value(i, "Age") {
+                print!("Age={:?} ", age);
             }
-            if let Ok(y) = data.get_value(i, ".y") {
-                print!(".y={:?}", y);
+
+            // Print color RGB values if present
+            if let Ok(r) = data.get_value(i, ".color_r") {
+                if let Ok(g) = data.get_value(i, ".color_g") {
+                    if let Ok(b) = data.get_value(i, ".color_b") {
+                        print!("RGB=({:?},{:?},{:?})", r, g, b);
+                    }
+                }
             }
             println!();
         }

@@ -30,8 +30,15 @@ pub mod table_convert;
 // Operator properties (Phase 9 - Version 0.0.2)
 pub mod properties;
 
+// Color handling (Version 0.0.3)
+pub mod colors;
+
 // Re-exports for convenience
 pub use client::TercenClient;
+pub use colors::{
+    extract_color_info_from_step, interpolate_color, parse_palette, ColorInfo, ColorPalette,
+    ColorStop,
+};
 #[allow(unused_imports)]
 pub use error::{Result, TercenError};
 #[allow(unused_imports)]

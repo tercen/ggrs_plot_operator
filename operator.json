@@ -1,7 +1,7 @@
 {
   "name": "GGRS Plot Operator",
   "description": "High-performance faceted plotting using the GGRS library",
-  "tags": ["visualization", "plot", "ggrs"],
+  "tags": ["data visualisation", "export", "reporting", "workflow"],
   "communicationProtocol": "grpc",
   "authors": ["Tercen"],
   "urls": ["https://github.com/tercen/ggrs_plot_operator"],

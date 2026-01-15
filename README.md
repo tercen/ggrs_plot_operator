@@ -18,22 +18,25 @@ Plot operator using ggrs
 - [x] Scatter plot with multiple facets (row/column/grid faceting with FreeY scales)
 - [x] Optimize bulk streaming for multi-facet (currently uses per-facet chunking)
 - [x] Add operator properties - Plot width/height with "auto", backend (cpu/gpu)
+- [x] **Add support for continuous colors** (numeric color factors with palette interpolation)
 - [x] Review and optimize dependencies
 
 Note: Point size is hardcoded (4) - should come from crosstab model aesthetics.
 
 ### 0.0.3
 
-- [ ] Use operator input specs to get projection information
+- [x] Use operator input specs to get projection information
 - [ ] Dynamic point size
 - [x] Specify gRPC as communication protocol
 - [ ] Add pages
 - [ ] Add x axis support
+- [x] Add support for continuous color scale 
+- [ ] Add support for categorical colors (ColorLevels column)
+- [ ] Add color scale legend
 
 ### 0.0.4
 
 - [ ] Support for minimal and white themes
-- [ ] Add support for colors
 - [ ] Add plot legend
 - [ ] Further optimize bulk streaming for multi-facet
 

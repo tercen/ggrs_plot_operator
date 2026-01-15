@@ -79,6 +79,9 @@ pub struct TercenStreamGenerator {
 
     /// Chunk size for streaming
     chunk_size: usize,
+
+    /// Color information (factors and palettes)
+    color_infos: Vec<crate::tercen::ColorInfo>,
 }
 
 impl TercenStreamGenerator {
@@ -93,6 +96,7 @@ impl TercenStreamGenerator {
         row_facet_table_id: String,
         y_axis_table_id: Option<String>,
         chunk_size: usize,
+        color_infos: Vec<crate::tercen::ColorInfo>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         // Load facet metadata
         let facet_info = FacetInfo::load(&client, &col_facet_table_id, &row_facet_table_id).await?;
@@ -122,7 +126,21 @@ impl TercenStreamGenerator {
         // Create default aesthetics
         // Dequantization happens in GGRS render.rs using axis ranges
         // After dequantization, columns are .x and .y (actual data values)
-        let aes = Aes::new().x(".x").y(".y");
+        // Add color aesthetic if colors are defined
+        let mut aes = Aes::new().x(".x").y(".y");
+        eprintln!("DEBUG: color_infos.len() = {}", color_infos.len());
+        if !color_infos.is_empty() {
+            eprintln!("DEBUG: Adding .color aesthetic to Aes");
+            eprintln!("DEBUG: Color factor: '{}'", color_infos[0].factor_name);
+            eprintln!("DEBUG: Palette has {} color stops", color_infos[0].palette.stops.len());
+            for (i, stop) in color_infos[0].palette.stops.iter().enumerate() {
+                eprintln!("  Stop {}: value={:.2}, color=RGB({}, {}, {})",
+                    i, stop.value, stop.color[0], stop.color[1], stop.color[2]);
+            }
+            aes = aes.color(".color");
+        } else {
+            eprintln!("DEBUG: No color_infos, NOT adding .color aesthetic");
+        }
 
         // Create facet spec based on facet metadata
         // Use actual column names from facet tables for labels
@@ -184,6 +202,7 @@ impl TercenStreamGenerator {
             aes,
             facet_spec,
             chunk_size,
+            color_infos,
         })
     }
 
@@ -211,10 +230,15 @@ impl TercenStreamGenerator {
         axis_ranges: HashMap<(usize, usize), (AxisData, AxisData)>,
         total_rows: usize,
         chunk_size: usize,
+        color_infos: Vec<crate::tercen::ColorInfo>,
     ) -> Self {
         // Aesthetics use dequantized coordinates: .x and .y (actual data values)
         // Dequantization happens in stream_facet_data() before data reaches renderers
-        let aes = Aes::new().x(".x").y(".y");
+        // Add color aesthetic if colors are defined
+        let mut aes = Aes::new().x(".x").y(".y");
+        if !color_infos.is_empty() {
+            aes = aes.color(".color");
+        }
 
         // Create facet spec based on facet metadata
         // Use .ri/.ci as faceting variables since our data uses indices
@@ -244,6 +268,7 @@ impl TercenStreamGenerator {
             aes,
             facet_spec,
             chunk_size,
+            color_infos,
         }
     }
 
@@ -601,12 +626,17 @@ impl TercenStreamGenerator {
         let streamer = TableStreamer::new(&self.client);
 
         // For bulk streaming, ALWAYS include facet indices
-        let columns = vec![
+        let mut columns = vec![
             ".ci".to_string(),
             ".ri".to_string(),
             ".xs".to_string(),
             ".ys".to_string(),
         ];
+
+        // Add color factor columns
+        for color_info in &self.color_infos {
+            columns.push(color_info.factor_name.clone());
+        }
 
         // Fetch the requested range directly (GGRS handles chunking)
         let offset = data_range.start as i64;
@@ -628,11 +658,90 @@ impl TercenStreamGenerator {
             return Ok(ggrs_core::data::DataFrame::new());
         }
 
-        // Parse TSON to DataFrame - contains .ci, .ri, .xs, .ys
-        let df = tson_to_dataframe(&tson_data)?;
+        // Parse TSON to DataFrame - contains .ci, .ri, .xs, .ys, and color factors
+        let mut df = tson_to_dataframe(&tson_data)?;
         eprintln!("DEBUG: Parsed DataFrame with {} rows", df.nrow());
 
+        // Map color values to RGB if color factors are defined
+        if !self.color_infos.is_empty() {
+            eprintln!(
+                "DEBUG: Adding color columns for {} color factors",
+                self.color_infos.len()
+            );
+            df = self.add_color_columns(df)?;
+            eprintln!("DEBUG: Color columns added successfully");
+        }
+
         Ok(df)
+    }
+
+    /// Add RGB color columns to DataFrame based on color factors
+    ///
+    /// For each color factor, interpolates values using the palette and adds
+    /// three new columns: `.color_r`, `.color_g`, `.color_b` (u8 values 0-255)
+    ///
+    /// Currently supports single color factor (first in color_infos).
+    /// Multiple color factors would require a strategy (e.g., blend, choose first, etc.)
+    fn add_color_columns(
+        &self,
+        df: ggrs_core::data::DataFrame,
+    ) -> Result<ggrs_core::data::DataFrame, Box<dyn std::error::Error>> {
+        use polars::prelude::*;
+
+        // For now, only use the first color factor
+        // TODO: Handle multiple color factors (blend? choose first? user option?)
+        let color_info = &self.color_infos[0];
+
+        let mut polars_df = df.inner().clone();
+
+        // Get the color factor column
+        let color_col_name = &color_info.factor_name;
+        let color_series = polars_df
+            .column(color_col_name)
+            .map_err(|e| format!("Color column '{}' not found: {}", color_col_name, e))?;
+
+        // Extract f64 values
+        let color_values = color_series
+            .f64()
+            .map_err(|e| format!("Color column '{}' is not f64: {}", color_col_name, e))?;
+
+        // Map each value to RGB using palette interpolation
+        let mut r_values = Vec::with_capacity(color_values.len());
+        let mut g_values = Vec::with_capacity(color_values.len());
+        let mut b_values = Vec::with_capacity(color_values.len());
+
+        for opt_value in color_values.iter() {
+            if let Some(value) = opt_value {
+                let rgb = crate::tercen::interpolate_color(value, &color_info.palette);
+                r_values.push(rgb[0]);
+                g_values.push(rgb[1]);
+                b_values.push(rgb[2]);
+            } else {
+                // Handle null values with a default color (gray)
+                r_values.push(128);
+                g_values.push(128);
+                b_values.push(128);
+            }
+        }
+
+        // Convert RGB values to hex color strings for GGRS
+        let color_hex_strings: Vec<String> = (0..r_values.len())
+            .map(|i| format!("#{:02X}{:02X}{:02X}", r_values[i], g_values[i], b_values[i]))
+            .collect();
+
+        // Add color column as hex strings
+        polars_df.with_column(Series::new(".color".into(), color_hex_strings))?;
+
+        // Debug: Print first color values
+        if polars_df.height() > 0 {
+            if let Ok(color_col) = polars_df.column(".color") {
+                let str_col = color_col.str().unwrap();
+                let first_colors: Vec<&str> = str_col.into_iter().take(3).map(|opt| opt.unwrap_or("NULL")).collect();
+                eprintln!("DEBUG: First 3 .color hex values: {:?}", first_colors);
+            }
+        }
+
+        Ok(ggrs_core::data::DataFrame::from_polars(polars_df))
     }
 
     // NOTE: Dequantization now happens in GGRS, not in the operator

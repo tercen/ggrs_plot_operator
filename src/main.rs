@@ -195,6 +195,22 @@ async fn process_task(
         println!("  Y-axis table: None (will compute from data)");
     }
 
+    // Step 2.5: Fetch workflow and extract color information
+    println!("\n[2.5/5] Extracting color information...");
+    let color_infos = extract_color_info(&client_arc).await?;
+    if color_infos.is_empty() {
+        println!("  No color factors defined");
+    } else {
+        for (i, info) in color_infos.iter().enumerate() {
+            println!("  Color {} : '{}'", i + 1, info.factor_name);
+            println!("    Type: {}", info.factor_type);
+            if let Some((min, max)) = info.palette.range() {
+                println!("    Range: {} to {}", min, max);
+                println!("    Stops: {}", info.palette.stops.len());
+            }
+        }
+    }
+
     // Step 3: Create stream generator
     println!("\n[3/5] Creating stream generator...");
     use ggrs_core::stream::StreamGenerator;
@@ -206,6 +222,7 @@ async fn process_task(
         cube_query.row_hash.clone(),
         y_axis_table_id,
         config.chunk_size,
+        color_infos,
     )
     .await?;
 
@@ -380,6 +397,48 @@ async fn find_y_axis_table(
     }
 
     Err("Y-axis table not found".into())
+}
+
+/// Extract color information from workflow
+async fn extract_color_info(
+    client: &std::sync::Arc<tercen::TercenClient>,
+) -> Result<Vec<tercen::ColorInfo>, Box<dyn std::error::Error>> {
+    // Get workflow_id and step_id from environment
+    let workflow_id = std::env::var("WORKFLOW_ID").ok();
+    let step_id = std::env::var("STEP_ID").ok();
+
+    // If either is missing, return empty (no colors)
+    let (workflow_id, step_id) = match (workflow_id, step_id) {
+        (Some(wid), Some(sid)) => (wid, sid),
+        _ => {
+            println!("  Workflow/Step IDs not provided - skipping color extraction");
+            return Ok(Vec::new());
+        }
+    };
+
+    // Fetch workflow using WorkflowService
+    let mut workflow_service = client.workflow_service()?;
+    let request = tonic::Request::new(tercen::client::proto::GetRequest {
+        id: workflow_id.clone(),
+        ..Default::default()
+    });
+
+    let response = workflow_service.get(request).await?;
+    let e_workflow = response.into_inner();
+
+    // Extract the Workflow from EWorkflow
+    let workflow = e_workflow
+        .object
+        .as_ref()
+        .map(|obj| match obj {
+            tercen::client::proto::e_workflow::Object::Workflow(wf) => wf,
+        })
+        .ok_or("EWorkflow has no workflow object")?;
+
+    // Extract color info from step
+    let color_infos = tercen::extract_color_info_from_step(workflow, &step_id)?;
+
+    Ok(color_infos)
 }
 
 /// Simplified CubeQuery struct
