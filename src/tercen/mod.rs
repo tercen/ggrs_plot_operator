@@ -36,8 +36,8 @@ pub mod colors;
 // Re-exports for convenience
 pub use client::TercenClient;
 pub use colors::{
-    extract_color_info_from_step, interpolate_color, parse_palette, ColorInfo, ColorPalette,
-    ColorStop,
+    categorical_color_from_level, extract_color_info_from_step, interpolate_color, parse_palette,
+    CategoryColorMap, ColorInfo, ColorMapping, ColorPalette, ColorStop,
 };
 #[allow(unused_imports)]
 pub use error::{Result, TercenError};

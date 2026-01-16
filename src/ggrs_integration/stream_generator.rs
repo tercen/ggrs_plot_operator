@@ -132,10 +132,19 @@ impl TercenStreamGenerator {
         if !color_infos.is_empty() {
             eprintln!("DEBUG: Adding .color aesthetic to Aes");
             eprintln!("DEBUG: Color factor: '{}'", color_infos[0].factor_name);
-            eprintln!("DEBUG: Palette has {} color stops", color_infos[0].palette.stops.len());
-            for (i, stop) in color_infos[0].palette.stops.iter().enumerate() {
-                eprintln!("  Stop {}: value={:.2}, color=RGB({}, {}, {})",
-                    i, stop.value, stop.color[0], stop.color[1], stop.color[2]);
+            match &color_infos[0].mapping {
+                crate::tercen::ColorMapping::Continuous(palette) => {
+                    eprintln!("DEBUG: Continuous palette with {} color stops", palette.stops.len());
+                    for (i, stop) in palette.stops.iter().enumerate() {
+                        eprintln!(
+                            "  Stop {}: value={:.2}, color=RGB({}, {}, {})",
+                            i, stop.value, stop.color[0], stop.color[1], stop.color[2]
+                        );
+                    }
+                }
+                crate::tercen::ColorMapping::Categorical(color_map) => {
+                    eprintln!("DEBUG: Categorical palette with {} categories", color_map.mappings.len());
+                }
             }
             aes = aes.color(".color");
         } else {
@@ -633,9 +642,22 @@ impl TercenStreamGenerator {
             ".ys".to_string(),
         ];
 
-        // Add color factor columns
+        // Add color columns
+        // For categorical colors, we need .colorLevels (int32) not the factor column
+        // For continuous colors, we need the factor column (f64)
         for color_info in &self.color_infos {
-            columns.push(color_info.factor_name.clone());
+            match &color_info.mapping {
+                crate::tercen::ColorMapping::Categorical(_) => {
+                    // Add .colorLevels for categorical colors
+                    if !columns.contains(&".colorLevels".to_string()) {
+                        columns.push(".colorLevels".to_string());
+                    }
+                }
+                crate::tercen::ColorMapping::Continuous(_) => {
+                    // Add the factor column for continuous colors
+                    columns.push(color_info.factor_name.clone());
+                }
+            }
         }
 
         // Fetch the requested range directly (GGRS handles chunking)
@@ -646,9 +668,10 @@ impl TercenStreamGenerator {
             "DEBUG: Calling stream_tson with offset={}, limit={}",
             offset, limit
         );
+        eprintln!("DEBUG: Requested columns: {:?}", columns);
 
         let tson_data = streamer
-            .stream_tson(&self.main_table_id, Some(columns), offset, limit)
+            .stream_tson(&self.main_table_id, Some(columns.clone()), offset, limit)
             .await?;
 
         eprintln!("DEBUG: stream_tson returned {} bytes", tson_data.len());
@@ -661,6 +684,7 @@ impl TercenStreamGenerator {
         // Parse TSON to DataFrame - contains .ci, .ri, .xs, .ys, and color factors
         let mut df = tson_to_dataframe(&tson_data)?;
         eprintln!("DEBUG: Parsed DataFrame with {} rows", df.nrow());
+        eprintln!("DEBUG: Returned columns: {:?}", df.columns());
 
         // Map color values to RGB if color factors are defined
         if !self.color_infos.is_empty() {
@@ -694,33 +718,120 @@ impl TercenStreamGenerator {
 
         let mut polars_df = df.inner().clone();
 
-        // Get the color factor column
-        let color_col_name = &color_info.factor_name;
-        let color_series = polars_df
-            .column(color_col_name)
-            .map_err(|e| format!("Color column '{}' not found: {}", color_col_name, e))?;
+        // Generate RGB values based on mapping type
+        let nrows = polars_df.height();
+        let mut r_values = Vec::with_capacity(nrows);
+        let mut g_values = Vec::with_capacity(nrows);
+        let mut b_values = Vec::with_capacity(nrows);
 
-        // Extract f64 values
-        let color_values = color_series
-            .f64()
-            .map_err(|e| format!("Color column '{}' is not f64: {}", color_col_name, e))?;
+        match &color_info.mapping {
+            crate::tercen::ColorMapping::Continuous(palette) => {
+                let color_col_name = &color_info.factor_name;
+                eprintln!(
+                    "DEBUG add_color_columns: Using continuous color mapping for '{}'",
+                    color_col_name
+                );
 
-        // Map each value to RGB using palette interpolation
-        let mut r_values = Vec::with_capacity(color_values.len());
-        let mut g_values = Vec::with_capacity(color_values.len());
-        let mut b_values = Vec::with_capacity(color_values.len());
+                // Get the color factor column
+                let color_series = polars_df
+                    .column(color_col_name)
+                    .map_err(|e| format!("Color column '{}' not found: {}", color_col_name, e))?;
 
-        for opt_value in color_values.iter() {
-            if let Some(value) = opt_value {
-                let rgb = crate::tercen::interpolate_color(value, &color_info.palette);
-                r_values.push(rgb[0]);
-                g_values.push(rgb[1]);
-                b_values.push(rgb[2]);
-            } else {
-                // Handle null values with a default color (gray)
-                r_values.push(128);
-                g_values.push(128);
-                b_values.push(128);
+                // Extract f64 values
+                let color_values = color_series.f64().map_err(|e| {
+                    format!(
+                        "Color column '{}' is not f64 for continuous mapping: {}",
+                        color_col_name, e
+                    )
+                })?;
+
+                // Map each value to RGB using palette interpolation
+                for opt_value in color_values.iter() {
+                    if let Some(value) = opt_value {
+                        let rgb = crate::tercen::interpolate_color(value, palette);
+                        r_values.push(rgb[0]);
+                        g_values.push(rgb[1]);
+                        b_values.push(rgb[2]);
+                    } else {
+                        // Handle null values with a default color (gray)
+                        r_values.push(128);
+                        g_values.push(128);
+                        b_values.push(128);
+                    }
+                }
+            }
+
+            crate::tercen::ColorMapping::Categorical(color_map) => {
+                eprintln!("DEBUG add_color_columns: Using categorical color mapping");
+                eprintln!(
+                    "DEBUG add_color_columns: Category map has {} entries",
+                    color_map.mappings.len()
+                );
+
+                // For categorical colors, Tercen uses .colorLevels column (int32) with level indices
+                // If color_map has explicit mappings, use them; otherwise generate from levels
+                let use_levels = color_map.mappings.is_empty();
+
+                if use_levels {
+                    eprintln!("DEBUG add_color_columns: Using .colorLevels column for categorical colors");
+
+                    // Get .colorLevels column instead of the factor column
+                    let levels_series = polars_df
+                        .column(".colorLevels")
+                        .map_err(|e| format!("Categorical colors require .colorLevels column: {}", e))?;
+
+                    // Schema says int32 but it comes back as i64, so accept both
+                    let levels = levels_series
+                        .i64()
+                        .map_err(|e| format!(".colorLevels column is not i64: {}", e))?;
+
+                    // Map each level to RGB using default categorical palette
+                    for opt_level in levels.iter() {
+                        if let Some(level) = opt_level {
+                            let rgb = crate::tercen::categorical_color_from_level(level as i32);
+                            r_values.push(rgb[0]);
+                            g_values.push(rgb[1]);
+                            b_values.push(rgb[2]);
+                        } else {
+                            // Handle null values with a default color (gray)
+                            r_values.push(128);
+                            g_values.push(128);
+                            b_values.push(128);
+                        }
+                    }
+                } else {
+                    // Use explicit category→color mappings from palette
+                    let color_col_name = &color_info.factor_name;
+                    eprintln!("DEBUG add_color_columns: Using explicit category mappings for '{}'", color_col_name);
+
+                    // Get the color factor column
+                    let color_series = polars_df
+                        .column(color_col_name)
+                        .map_err(|e| format!("Color column '{}' not found: {}", color_col_name, e))?;
+
+                    let color_values = color_series.str().map_err(|e| {
+                        format!(
+                            "Color column '{}' is not string for categorical mapping: {}",
+                            color_col_name, e
+                        )
+                    })?;
+
+                    for opt_value in color_values.iter() {
+                        if let Some(category) = opt_value {
+                            let rgb = color_map
+                                .mappings
+                                .get(category)
+                                .unwrap_or(&color_map.default_color);
+                            r_values.push(rgb[0]);
+                            g_values.push(rgb[1]);
+                            b_values.push(rgb[2]);
+                        } else {
+                            r_values.push(128);
+                            g_values.push(128);
+                            b_values.push(128);
+                        }
+                    }
+                }
             }
         }
 
@@ -736,7 +847,11 @@ impl TercenStreamGenerator {
         if polars_df.height() > 0 {
             if let Ok(color_col) = polars_df.column(".color") {
                 let str_col = color_col.str().unwrap();
-                let first_colors: Vec<&str> = str_col.into_iter().take(3).map(|opt| opt.unwrap_or("NULL")).collect();
+                let first_colors: Vec<&str> = str_col
+                    .into_iter()
+                    .take(3)
+                    .map(|opt| opt.unwrap_or("NULL"))
+                    .collect();
                 eprintln!("DEBUG: First 3 .color hex values: {:?}", first_colors);
             }
         }

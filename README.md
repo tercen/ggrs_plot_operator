@@ -31,7 +31,7 @@ Note: Point size is hardcoded (4) - should come from crosstab model aesthetics.
 - [ ] Add pages
 - [ ] Add x axis support
 - [x] Add support for continuous color scale 
-- [ ] Add support for categorical colors (ColorLevels column)
+- [x] Add support for categorical colors (ColorLevels column)
 - [ ] Add color scale legend
 
 ### 0.0.4

@@ -212,47 +212,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
 
-                    // Try fetching specific columns
-                    println!(
-                        "      Fetching first row with specific columns [.ri, .minY, .maxY]..."
-                    );
-                    let columns = vec![".ri".to_string(), ".minY".to_string(), ".maxY".to_string()];
-                    let data_specific = streamer
-                        .stream_tson(schema_id, Some(columns.clone()), 0, 1)
-                        .await?;
-                    println!("        Got {} bytes of data", data_specific.len());
+                    // Only try fetching axis-specific columns for Y-axis tables, not color tables
+                    if cqts.query_table_type == "y" {
+                        // Try fetching specific columns
+                        println!(
+                            "      Fetching first row with specific columns [.ri, .minY, .maxY]..."
+                        );
+                        let columns = vec![".ri".to_string(), ".minY".to_string(), ".maxY".to_string()];
+                        let data_specific = streamer
+                            .stream_tson(schema_id, Some(columns.clone()), 0, 1)
+                            .await?;
+                        println!("        Got {} bytes of data", data_specific.len());
 
-                    if !data_specific.is_empty() {
-                        use ggrs_plot_operator::tercen::tson_convert::tson_to_dataframe;
-                        match tson_to_dataframe(&data_specific) {
-                            Ok(df) => {
-                                println!("        Parsed {} rows", df.nrow());
-                                println!("        Columns: {:?}", df.columns());
-                                if df.nrow() > 0 {
-                                    println!("        First row values:");
-                                    for col_name in &columns {
-                                        if let Ok(val) = df.get_value(0, col_name) {
-                                            println!("          {} = {:?}", col_name, val);
+                        if !data_specific.is_empty() {
+                            use ggrs_plot_operator::tercen::tson_convert::tson_to_dataframe;
+                            match tson_to_dataframe(&data_specific) {
+                                Ok(df) => {
+                                    println!("        Parsed {} rows", df.nrow());
+                                    println!("        Columns: {:?}", df.columns());
+                                    if df.nrow() > 0 {
+                                        println!("        First row values:");
+                                        for col_name in &columns {
+                                            if let Ok(val) = df.get_value(0, col_name) {
+                                                println!("          {} = {:?}", col_name, val);
+                                            }
                                         }
+                                    } else {
+                                        println!("        WARNING: Got data bytes but parsed 0 rows!");
+                                        println!(
+                                            "        Raw TSON bytes (first 200): {:?}",
+                                            &data_specific[..data_specific.len().min(200)]
+                                        );
                                     }
-                                } else {
-                                    println!("        WARNING: Got data bytes but parsed 0 rows!");
+                                }
+                                Err(e) => {
+                                    println!("        Error parsing: {}", e);
                                     println!(
                                         "        Raw TSON bytes (first 200): {:?}",
                                         &data_specific[..data_specific.len().min(200)]
                                     );
                                 }
                             }
-                            Err(e) => {
-                                println!("        Error parsing: {}", e);
-                                println!(
-                                    "        Raw TSON bytes (first 200): {:?}",
-                                    &data_specific[..data_specific.len().min(200)]
-                                );
-                            }
+                        } else {
+                            println!("        WARNING: No data returned (0 bytes)");
                         }
                     } else {
-                        println!("        WARNING: No data returned (0 bytes)");
+                        println!("      Skipping axis column fetch for non-Y table ({})", cqts.query_table_type);
                     }
                 }
             }
@@ -303,10 +308,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let axis_schema = streamer.get_schema(schema_id).await?;
                 use ggrs_plot_operator::tercen::client::proto::e_schema;
                 if let Some(e_schema::Object::Cubequerytableschema(cqts)) = axis_schema.object {
+                    // Only use tables with query_table_type == "y" for axis ranges
+                    // Skip color tables (e.g., "color_0", "color_1") and other types
                     if cqts.query_table_type == "y" {
                         println!("  Found Y-axis table: {}", schema_id);
                         y_table_id = Some(schema_id.clone());
                         break;
+                    } else if cqts.query_table_type.starts_with("color_") {
+                        println!(
+                            "  Skipping color table ({}): {}",
+                            cqts.query_table_type, schema_id
+                        );
                     }
                 }
             }
@@ -348,9 +360,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         for (i, info) in color_infos.iter().enumerate() {
             println!("  Color {} : '{}'", i + 1, info.factor_name);
             println!("    Type: {}", info.factor_type);
-            if let Some((min, max)) = info.palette.range() {
-                println!("    Range: {} to {}", min, max);
-                println!("    Stops: {}", info.palette.stops.len());
+            match &info.mapping {
+                ggrs_plot_operator::tercen::ColorMapping::Continuous(palette) => {
+                    if let Some((min, max)) = palette.range() {
+                        println!("    Range: {} to {}", min, max);
+                        println!("    Stops: {}", palette.stops.len());
+                    }
+                }
+                ggrs_plot_operator::tercen::ColorMapping::Categorical(color_map) => {
+                    println!("    Categories: {}", color_map.mappings.len());
+                }
             }
         }
     }

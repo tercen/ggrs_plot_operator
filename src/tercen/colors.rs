@@ -1,22 +1,33 @@
-//! Color palette handling and RGB interpolation for continuous color scales
+//! Color palette handling and RGB interpolation for continuous and categorical color scales
 //!
 //! This module provides functionality to:
-//! - Parse Tercen color palettes (JetPalette, RampPalette)
-//! - Interpolate color values to RGB
+//! - Parse Tercen color palettes (JetPalette, RampPalette, CategoryPalette)
+//! - Interpolate color values to RGB (continuous)
+//! - Map category strings to RGB (categorical)
 //! - Extract color information from workflow steps
 
 use super::client::proto;
 use super::error::{Result, TercenError};
+use std::collections::HashMap;
 
 /// Information about a color factor and its associated palette
 #[derive(Debug, Clone)]
 pub struct ColorInfo {
-    /// Name of the column containing color values (e.g., "Age")
+    /// Name of the column containing color values (e.g., "Age", "Country")
     pub factor_name: String,
-    /// Type of the factor (e.g., "double", "int32")
+    /// Type of the factor (e.g., "double", "int32", "string")
     pub factor_type: String,
-    /// The color palette for this factor
-    pub palette: ColorPalette,
+    /// The color mapping for this factor
+    pub mapping: ColorMapping,
+}
+
+/// Color mapping - either continuous interpolation or categorical lookup
+#[derive(Debug, Clone)]
+pub enum ColorMapping {
+    /// Continuous color scale: numeric value → RGB via interpolation
+    Continuous(ColorPalette),
+    /// Categorical color scale: string value → RGB via lookup
+    Categorical(CategoryColorMap),
 }
 
 /// A color palette with sorted color stops for interpolation
@@ -33,6 +44,15 @@ pub struct ColorStop {
     pub value: f64,
     /// RGB color at this stop
     pub color: [u8; 3], // [r, g, b]
+}
+
+/// Categorical color mapping: string → RGB
+#[derive(Debug, Clone)]
+pub struct CategoryColorMap {
+    /// Map from category string to RGB color
+    pub mappings: HashMap<String, [u8; 3]>,
+    /// Default color for unknown categories
+    pub default_color: [u8; 3],
 }
 
 impl ColorPalette {
@@ -73,19 +93,23 @@ impl Default for ColorPalette {
     }
 }
 
-/// Parse a Tercen EPalette proto into a ColorPalette
-pub fn parse_palette(e_palette: &proto::EPalette) -> Result<ColorPalette> {
+/// Parse a Tercen EPalette proto into a ColorMapping
+pub fn parse_palette(e_palette: &proto::EPalette) -> Result<ColorMapping> {
     let palette_obj = e_palette
         .object
         .as_ref()
         .ok_or_else(|| TercenError::Data("EPalette has no object".to_string()))?;
 
     match palette_obj {
-        proto::e_palette::Object::Jetpalette(jet) => parse_jet_palette(jet),
-        proto::e_palette::Object::Ramppalette(ramp) => parse_ramp_palette(ramp),
-        proto::e_palette::Object::Categorypalette(_) => Err(TercenError::Data(
-            "CategoryPalette not supported for continuous colors".to_string(),
-        )),
+        proto::e_palette::Object::Jetpalette(jet) => {
+            Ok(ColorMapping::Continuous(parse_jet_palette(jet)?))
+        }
+        proto::e_palette::Object::Ramppalette(ramp) => {
+            Ok(ColorMapping::Continuous(parse_ramp_palette(ramp)?))
+        }
+        proto::e_palette::Object::Categorypalette(cat) => {
+            Ok(ColorMapping::Categorical(parse_category_palette(cat)?))
+        }
         proto::e_palette::Object::Palette(_) => Err(TercenError::Data(
             "Base Palette type not supported".to_string(),
         )),
@@ -102,6 +126,54 @@ fn parse_ramp_palette(ramp: &proto::RampPalette) -> Result<ColorPalette> {
     parse_double_color_elements(&ramp.double_color_elements)
 }
 
+/// Parse a CategoryPalette into a CategoryColorMap
+///
+/// For categorical colors, Tercen stores color levels (indices) in the `.colorLevels` column
+/// of the main data table. The actual category strings are in a separate color table.
+///
+/// If the palette has `stringColorElements`, use those explicit mappings.
+/// Otherwise, we'll create mappings later from the data (using `.colorLevels`).
+fn parse_category_palette(cat: &proto::CategoryPalette) -> Result<CategoryColorMap> {
+    let mut mappings = HashMap::new();
+
+    eprintln!(
+        "DEBUG parse_category_palette: Processing {} string color elements",
+        cat.string_color_elements.len()
+    );
+
+    // If we have explicit string→color mappings, use them
+    if !cat.string_color_elements.is_empty() {
+        for (i, element) in cat.string_color_elements.iter().enumerate() {
+            let category = element.string_value.clone();
+            let rgb = int_to_rgb(element.color);
+
+            eprintln!(
+                "DEBUG parse_category_palette: [{}] '{}' → RGB({}, {}, {})",
+                i, category, rgb[0], rgb[1], rgb[2]
+            );
+
+            mappings.insert(category, rgb);
+        }
+    } else {
+        // No explicit mappings - colors will be generated from .colorLevels in the data
+        // The actual mapping happens in the stream generator when we see the data
+        eprintln!(
+            "DEBUG parse_category_palette: No string_color_elements, will use .colorLevels from data"
+        );
+        if let Some(ref color_list) = cat.color_list {
+            eprintln!(
+                "DEBUG parse_category_palette: ColorList name: '{}'",
+                color_list.name
+            );
+        }
+    }
+
+    Ok(CategoryColorMap {
+        mappings,
+        default_color: [128, 128, 128], // Gray for unknown categories
+    })
+}
+
 /// Parse DoubleColorElement array into ColorPalette
 fn parse_double_color_elements(elements: &[proto::DoubleColorElement]) -> Result<ColorPalette> {
     let mut palette = ColorPalette::new();
@@ -114,8 +186,10 @@ fn parse_double_color_elements(elements: &[proto::DoubleColorElement]) -> Result
             ))
         })?;
 
-        eprintln!("DEBUG parse_palette: element color_int={}, stringValue={}",
-            element.color, element.string_value);
+        eprintln!(
+            "DEBUG parse_palette: element color_int={}, stringValue={}",
+            element.color, element.string_value
+        );
 
         // Tercen uses -1 as a sentinel for "no color defined" - use default gradient
         let color = if element.color == -1 {
@@ -129,13 +203,17 @@ fn parse_double_color_elements(elements: &[proto::DoubleColorElement]) -> Result
             let r = (t * 255.0) as u8;
             let g = (t * 255.0) as u8;
             let b = ((1.0 - t) * 255.0) as u8;
-            eprintln!("DEBUG parse_palette: Using default gradient at t={:.2}, RGB({}, {}, {})",
-                t, r, g, b);
+            eprintln!(
+                "DEBUG parse_palette: Using default gradient at t={:.2}, RGB({}, {}, {})",
+                t, r, g, b
+            );
             [r, g, b]
         } else {
             let rgb = int_to_rgb(element.color);
-            eprintln!("DEBUG parse_palette: Parsed to RGB({}, {}, {})",
-                rgb[0], rgb[1], rgb[2]);
+            eprintln!(
+                "DEBUG parse_palette: Parsed to RGB({}, {}, {})",
+                rgb[0], rgb[1], rgb[2]
+            );
             rgb
         };
 
@@ -221,23 +299,44 @@ pub fn extract_color_info_from_step(
         }
     };
 
-    eprintln!("DEBUG extract_color_info: Found colors object with {} factors", colors.factors.len());
-    eprintln!("DEBUG extract_color_info: Palette present: {}", colors.palette.is_some());
+    eprintln!(
+        "DEBUG extract_color_info: Found colors object with {} factors",
+        colors.factors.len()
+    );
+    eprintln!(
+        "DEBUG extract_color_info: Palette present: {}",
+        colors.palette.is_some()
+    );
 
     // Parse each color factor
     let mut color_infos = Vec::new();
     for (i, factor) in colors.factors.iter().enumerate() {
-        eprintln!("DEBUG extract_color_info: Processing factor {}: name='{}', type='{}'",
-            i, factor.name, factor.r#type);
+        eprintln!(
+            "DEBUG extract_color_info: Processing factor {}: name='{}', type='{}'",
+            i, factor.name, factor.r#type
+        );
 
-        // Parse the palette
-        let palette = match &colors.palette {
+        // Parse the palette/mapping
+        let mapping = match &colors.palette {
             Some(p) => {
                 eprintln!("DEBUG extract_color_info: Calling parse_palette...");
                 let parsed = parse_palette(p)?;
-                eprintln!("DEBUG extract_color_info: Palette parsed with {} stops", parsed.stops.len());
+                match &parsed {
+                    ColorMapping::Continuous(palette) => {
+                        eprintln!(
+                            "DEBUG extract_color_info: Continuous palette with {} stops",
+                            palette.stops.len()
+                        );
+                    }
+                    ColorMapping::Categorical(color_map) => {
+                        eprintln!(
+                            "DEBUG extract_color_info: Categorical palette with {} categories",
+                            color_map.mappings.len()
+                        );
+                    }
+                }
                 parsed
-            },
+            }
             None => {
                 return Err(TercenError::Data(
                     "Color factors defined but no palette provided".to_string(),
@@ -248,12 +347,41 @@ pub fn extract_color_info_from_step(
         color_infos.push(ColorInfo {
             factor_name: factor.name.clone(),
             factor_type: factor.r#type.clone(),
-            palette,
+            mapping,
         });
     }
 
-    eprintln!("DEBUG extract_color_info: Returning {} ColorInfo objects", color_infos.len());
+    eprintln!(
+        "DEBUG extract_color_info: Returning {} ColorInfo objects",
+        color_infos.len()
+    );
     Ok(color_infos)
+}
+
+/// Generate a categorical color from a level index using a default palette
+///
+/// Uses a qualitative color scheme similar to R's default categorical colors.
+/// Colors repeat after 12 levels.
+pub fn categorical_color_from_level(level: i32) -> [u8; 3] {
+    // Default categorical palette (similar to R's default colors)
+    // Based on a qualitative color scheme with good distinguishability
+    const CATEGORICAL_COLORS: [[u8; 3]; 12] = [
+        [228, 26, 28],    // Red
+        [55, 126, 184],   // Blue
+        [77, 175, 74],    // Green
+        [152, 78, 163],   // Purple
+        [255, 127, 0],    // Orange
+        [255, 255, 51],   // Yellow
+        [166, 86, 40],    // Brown
+        [247, 129, 191],  // Pink
+        [153, 153, 153],  // Gray
+        [102, 194, 165],  // Teal
+        [252, 141, 98],   // Coral
+        [141, 160, 203],  // Lavender
+    ];
+
+    let index = (level as usize) % CATEGORICAL_COLORS.len();
+    CATEGORICAL_COLORS[index]
 }
 
 /// Interpolate a color value using the palette

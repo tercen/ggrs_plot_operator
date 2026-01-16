@@ -204,9 +204,16 @@ async fn process_task(
         for (i, info) in color_infos.iter().enumerate() {
             println!("  Color {} : '{}'", i + 1, info.factor_name);
             println!("    Type: {}", info.factor_type);
-            if let Some((min, max)) = info.palette.range() {
-                println!("    Range: {} to {}", min, max);
-                println!("    Stops: {}", info.palette.stops.len());
+            match &info.mapping {
+                tercen::ColorMapping::Continuous(palette) => {
+                    if let Some((min, max)) = palette.range() {
+                        println!("    Range: {} to {}", min, max);
+                        println!("    Stops: {}", palette.stops.len());
+                    }
+                }
+                tercen::ColorMapping::Categorical(color_map) => {
+                    println!("    Categories: {}", color_map.mappings.len());
+                }
             }
         }
     }
