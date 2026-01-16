@@ -32,12 +32,13 @@ Note: Point size is hardcoded (4) - should come from crosstab model aesthetics.
 - [ ] Add x axis support
 - [x] Add support for continuous color scale 
 - [x] Add support for categorical colors (ColorLevels column)
-- [ ] Add color scale legend
+- [x] Add color scale legend
+
+Note: Legend positioning still requires fine-tuning
 
 ### 0.0.4
 
 - [ ] Support for minimal and white themes
-- [ ] Add plot legend
 - [ ] Further optimize bulk streaming for multi-facet
 
 ### 0.0.5

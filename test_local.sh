@@ -1,39 +1,93 @@
 #!/bin/bash
-# Test script for TercenStreamGenerator with memory tracking
+# Test script for TercenStreamGenerator with memory tracking and legend positioning
 #
 # Usage:
-#   ./test_local.sh [backend]
+#   ./test_local.sh [backend] [legend_position] [legend_position_inside] [legend_justification]
 #
-# Example:
-#   ./test_local.sh          # Test with CPU backend (default)
-#   ./test_local.sh cpu      # Test with CPU backend
-#   ./test_local.sh gpu      # Test with GPU backend
+# Examples:
+#   ./test_local.sh                           # CPU, legend right (default)
+#   ./test_local.sh cpu left                  # Legend on left (default center)
+#   ./test_local.sh cpu left "" "0,0"         # Legend on left, bottom-left corner
+#   ./test_local.sh cpu left "" "0,1"         # Legend on left, top-left corner
+#   ./test_local.sh cpu top "" "0.5,1"        # Legend on top, centered
+#   ./test_local.sh cpu inside 0.95,0.05      # Legend inside at bottom-right
+#   ./test_local.sh cpu inside 0.95,0.05 1,0  # Inside bottom-right, legend's bottom-right corner anchored
+#   ./test_local.sh cpu none                  # No legend
+#
+# Property explanation (matches ggplot2 3.5.0):
+#   - legend.position: "left", "right", "top", "bottom", "inside", "none"
+#   - legend.position.inside: "x,y" coordinates for inside positioning
+#   - legend.justification: "x,y" anchor point
+#     - For left/right: y-value controls vertical (0=bottom, 0.5=center, 1=top)
+#     - For top/bottom: x-value controls horizontal (0=left, 0.5=center, 1=right)
+#     - For inside: which corner of legend aligns with position.inside coords
 
 set -e
 
 # Configuration
 export TERCEN_URI="http://127.0.0.1:50051"
-export TERCEN_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjU0MDAiLCJleHAiOjE3NzA0MTYzMjMsImRhdGEiOnsiZCI6IiIsInUiOiJ0ZXN0IiwiZSI6MTc3MDQxNjMyMzQyOX19.oc5mv3ZxGIJs3m1yWpKPXC2m6cf3VNC8ezeD6IQ-q3o"
+export TERCEN_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjU0MDAiLCJleHAiOjE3NzExNTYwMjksImRhdGEiOnsiZCI6IiIsInUiOiJ0ZXN0IiwiZSI6MTc3MTE1NjAyOTEzMH19.MKGl8pfmw8bkqiJ4_msNpGBpabIHtVfZ2-4tYNEc93c"
 export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
 export STEP_ID="b9659735-27db-4480-b398-4e391431480f"
 
 # Memory tracker path
 MEMORY_TRACKER="/home/thiago/workspaces/tercen/main/memory_tracker/target/release/memory_tracker"
 
-# Get backend from argument or use default
-BACKEND="cpu"
+# Parse arguments
+BACKEND="${1:-cpu}"
+LEGEND_POSITION="right"
+LEGEND_POSITION_INSIDE="${3:-}"
+LEGEND_JUSTIFICATION="0.1,0.1"
+
+# Valid values for properties (from operator.json)
+VALID_BACKENDS=("cpu" "gpu")
+VALID_LEGEND_POSITIONS=("left" "right" "top" "bottom" "inside" "none")
 
 # Validate backend
-if [[ "$BACKEND" != "cpu" && "$BACKEND" != "gpu" ]]; then
-    echo "ERROR: Invalid backend '$BACKEND'. Use 'cpu' or 'gpu'"
+if [[ ! " ${VALID_BACKENDS[@]} " =~ " ${BACKEND} " ]]; then
+    echo "ERROR: Invalid backend '$BACKEND'"
+    echo "Valid values: ${VALID_BACKENDS[*]}"
     exit 1
+fi
+
+# Validate legend position
+if [[ ! " ${VALID_LEGEND_POSITIONS[@]} " =~ " ${LEGEND_POSITION} " ]]; then
+    echo "ERROR: Invalid legend position '$LEGEND_POSITION'"
+    echo "Valid values: ${VALID_LEGEND_POSITIONS[*]}"
+    exit 1
+fi
+
+# Validate legend.position.inside (if provided)
+if [[ -n "$LEGEND_POSITION_INSIDE" ]]; then
+    # Check format: x,y where x,y are numbers in [0,1]
+    if ! [[ "$LEGEND_POSITION_INSIDE" =~ ^[0-9.]+,[0-9.]+$ ]]; then
+        echo "ERROR: Invalid legend.position.inside format '$LEGEND_POSITION_INSIDE'"
+        echo "Expected format: 'x,y' where x,y are numbers (e.g., '0.95,0.05')"
+        exit 1
+    fi
+fi
+
+# Validate legend.justification (if provided)
+if [[ -n "$LEGEND_JUSTIFICATION" ]]; then
+    # Check format: x,y where x,y are numbers in [0,1]
+    if ! [[ "$LEGEND_JUSTIFICATION" =~ ^[0-9.]+,[0-9.]+$ ]]; then
+        echo "ERROR: Invalid legend.justification format '$LEGEND_JUSTIFICATION'"
+        echo "Expected format: 'x,y' where x,y are numbers (e.g., '0.5,0.5')"
+        exit 1
+    fi
 fi
 
 # Fixed chunk size (not configurable from command line anymore)
 CHUNK_SIZE=15000
 
-# Update operator_config.json with backend setting
-echo "Setting backend to $BACKEND in operator_config.json..."
+# Update operator_config.json with backend and legend settings
+echo "Creating operator_config.json..."
+echo "  Backend: $BACKEND"
+echo "  Legend position: $LEGEND_POSITION"
+[[ -n "$LEGEND_POSITION_INSIDE" ]] && echo "  Legend position inside: $LEGEND_POSITION_INSIDE"
+[[ -n "$LEGEND_JUSTIFICATION" ]] && echo "  Legend justification: $LEGEND_JUSTIFICATION"
+
+# Build JSON dynamically based on what's provided
 cat > operator_config.json <<EOF
 {
   "chunk_size": $CHUNK_SIZE,
@@ -41,7 +95,14 @@ cat > operator_config.json <<EOF
   "cache_axis_ranges": true,
   "default_plot_width": 6000,
   "default_plot_height": 2000,
-  "render_backend": "$BACKEND"
+  "render_backend": "$BACKEND",
+  "legend.position": "$LEGEND_POSITION"$(
+    [[ -n "$LEGEND_POSITION_INSIDE" ]] && echo ",
+  \"legend.position.inside\": \"$LEGEND_POSITION_INSIDE\""
+  )$(
+    [[ -n "$LEGEND_JUSTIFICATION" ]] && echo ",
+  \"legend.justification\": \"$LEGEND_JUSTIFICATION\""
+  )
 }
 EOF
 

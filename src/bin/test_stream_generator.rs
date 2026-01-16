@@ -40,8 +40,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let step_id = std::env::var("STEP_ID").expect("STEP_ID environment variable is required");
 
-    // Load operator configuration (no properties in test mode, using defaults)
-    let config = OperatorConfig::from_properties(None);
+    // Load operator configuration from operator_config.json if it exists, otherwise use defaults
+    let config = load_test_config();
 
     println!("Configuration:");
     println!("  URI: {}", uri);
@@ -218,7 +218,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!(
                             "      Fetching first row with specific columns [.ri, .minY, .maxY]..."
                         );
-                        let columns = vec![".ri".to_string(), ".minY".to_string(), ".maxY".to_string()];
+                        let columns =
+                            vec![".ri".to_string(), ".minY".to_string(), ".maxY".to_string()];
                         let data_specific = streamer
                             .stream_tson(schema_id, Some(columns.clone()), 0, 1)
                             .await?;
@@ -238,7 +239,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             }
                                         }
                                     } else {
-                                        println!("        WARNING: Got data bytes but parsed 0 rows!");
+                                        println!(
+                                            "        WARNING: Got data bytes but parsed 0 rows!"
+                                        );
                                         println!(
                                             "        Raw TSON bytes (first 200): {:?}",
                                             &data_specific[..data_specific.len().min(200)]
@@ -257,7 +260,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             println!("        WARNING: No data returned (0 bytes)");
                         }
                     } else {
-                        println!("      Skipping axis column fetch for non-Y table ({})", cqts.query_table_type);
+                        println!(
+                            "      Skipping axis column fetch for non-Y table ({})",
+                            cqts.query_table_type
+                        );
                     }
                 }
             }
@@ -350,8 +356,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
             .ok_or("EWorkflow has no workflow object")?;
 
+        // Extract color table IDs from task.schema_ids
+        let mut color_table_ids: Vec<Option<String>> = Vec::new();
+        if let Some(ref task) = cube_query_task {
+            let known_tables = [
+                full_cube_query.qt_hash.as_str(),
+                full_cube_query.column_hash.as_str(),
+                full_cube_query.row_hash.as_str(),
+            ];
+            for schema_id in &task.schema_ids {
+                if !known_tables.contains(&schema_id.as_str()) {
+                    let schema = streamer.get_schema(schema_id).await?;
+                    use ggrs_plot_operator::tercen::client::proto::e_schema;
+                    if let Some(e_schema::Object::Cubequerytableschema(cqts)) = schema.object {
+                        if cqts.query_table_type.starts_with("color_") {
+                            // Parse the index from "color_0", "color_1", etc.
+                            if let Some(idx_str) = cqts.query_table_type.strip_prefix("color_") {
+                                if let Ok(idx) = idx_str.parse::<usize>() {
+                                    // Ensure the vector is large enough
+                                    while color_table_ids.len() <= idx {
+                                        color_table_ids.push(None);
+                                    }
+                                    color_table_ids[idx] = Some(schema_id.clone());
+                                    println!(
+                                        "  Found color table {}: {} ({})",
+                                        idx, schema_id, cqts.query_table_type
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Extract color info from step
-        tercen::extract_color_info_from_step(workflow, &step_id)?
+        tercen::extract_color_info_from_step(workflow, &step_id, &color_table_ids)?
     };
 
     if color_infos.is_empty() {
@@ -479,11 +519,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log_phase(start, "PHASE 5: Starting plot generation");
     println!("\n=== Generating Plot ===");
     use ggrs_core::renderer::{BackendChoice, OutputFormat};
-    use ggrs_core::{EnginePlotSpec, Geom, PlotGenerator, PlotRenderer};
+    use ggrs_core::{EnginePlotSpec, Geom, PlotGenerator, PlotRenderer, Theme};
 
     println!("Creating plot specification...");
     println!("  Point size: {}", config.point_size);
-    let plot_spec = EnginePlotSpec::new().add_layer(Geom::point_sized(config.point_size as f64));
+    println!("  Legend position: {:?}", config.to_legend_position());
+
+    // Create theme with configured legend position and justification
+    let theme = Theme {
+        legend_position: config.to_legend_position(),
+        legend_justification: config.legend_justification,
+        ..Default::default()
+    };
+
+    let plot_spec = EnginePlotSpec::new()
+        .add_layer(Geom::point_sized(config.point_size as f64))
+        .theme(theme);
 
     log_phase(start, "PHASE 5.1: Creating PlotGenerator");
     println!("Creating plot generator...");
@@ -700,4 +751,70 @@ impl From<ggrs_plot_operator::tercen::client::proto::CubeQuery> for CubeQuery {
             row_hash: cq.row_hash,
         }
     }
+}
+
+/// Load test configuration from operator_config.json if it exists
+///
+/// This function reads the operator_config.json file (created by test_local.sh)
+/// and converts it to an OperatorConfig. If the file doesn't exist or can't be
+/// parsed, falls back to default configuration.
+fn load_test_config() -> OperatorConfig {
+    use ggrs_plot_operator::tercen::client::proto::{OperatorRef, OperatorSettings, PropertyValue};
+    use std::fs;
+
+    // Try to read operator_config.json
+    let config_path = "operator_config.json";
+    let config_json = match fs::read_to_string(config_path) {
+        Ok(json) => json,
+        Err(_) => {
+            println!("  No operator_config.json found, using defaults");
+            return OperatorConfig::from_properties(None);
+        }
+    };
+
+    // Parse JSON
+    let config_map: serde_json::Map<String, serde_json::Value> =
+        match serde_json::from_str(&config_json) {
+            Ok(map) => map,
+            Err(e) => {
+                eprintln!("  Failed to parse operator_config.json: {}", e);
+                eprintln!("  Using defaults");
+                return OperatorConfig::from_properties(None);
+            }
+        };
+
+    // Convert JSON map to PropertyValue list for OperatorSettings
+    let mut property_values = Vec::new();
+    for (key, value) in config_map {
+        let value_str = match value {
+            serde_json::Value::String(s) => s,
+            serde_json::Value::Number(n) => n.to_string(),
+            serde_json::Value::Bool(b) => b.to_string(),
+            _ => continue, // Skip complex types
+        };
+
+        property_values.push(PropertyValue {
+            name: key,
+            value: value_str,
+        });
+    }
+
+    // Create OperatorSettings with properties
+    let operator_settings = OperatorSettings {
+        operator_ref: Some(OperatorRef {
+            operator_id: "test".to_string(),
+            name: String::new(),
+            operator_kind: String::new(),
+            operator_spec: None,
+            version: String::new(),
+            url: None,
+            property_values,
+        }),
+        namespace: String::new(),
+        environment: Vec::new(),
+        operator_model: None,
+    };
+
+    println!("  Loaded configuration from operator_config.json");
+    OperatorConfig::from_properties(Some(&operator_settings))
 }

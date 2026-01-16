@@ -4,26 +4,110 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-**ggrs_plot_operator** is a Rust-based Tercen operator that integrates the GGRS plotting library with Tercen's gRPC API. It receives tabular data, generates high-performance plots, and returns PNG images for visualization.
+**ggrs_plot_operator** is a Rust-based Tercen operator that integrates the GGRS plotting library with Tercen's gRPC API. It receives tabular data, generates high-performance plots with faceting and colors, and returns PNG images for visualization.
 
-**Version**: 0.0.2 (Faceting Support + Operator Properties)
-
+**Version**: 0.0.3-dev (Legend Support - In Progress)
 **Status**: ✅ Production-ready (logging disabled due to EventService issue)
 
-## Current Status
+---
 
-**What's Working**:
-- ✅ Full plot pipeline: gRPC → TSON → Polars → GGRS → PNG
-- ✅ GPU acceleration (OpenGL: 0.5s vs CPU: 3.1s for 475K rows)
-- ✅ Faceting with independent Y-axes (row/column/grid)
-- ✅ Property-based config (plot.width, plot.height with "auto", backend)
-- ✅ **Continuous color support** (numeric color factors with palette interpolation)
-- ✅ Result upload with Tercen model format
-- ✅ CI/CD release workflow
+## 🎯 Current Development Session (2025-01-15)
 
-**Known Issues**:
-- ❌ EventService logging disabled (returns UnimplementedError)
-- See `DEPLOYMENT_DEBUG.md` for details
+### Session Summary: Legend Rendering Infrastructure
+
+**Completed Today:**
+1. ✅ **GGRS Legend Rendering** - Implemented complete legend system in `ggrs/crates/ggrs-core/src/render.rs`:
+   - `draw_continuous_legend()`: Gradient bars with min/max labels for numeric color scales
+   - `draw_discrete_legend()`: Colored circles with category labels for categorical scales
+   - `parse_hex_color()`: Hex color string parser for theme colors
+   - Integration in `render_to_file_cairo()` with proper surface flushing
+   - Theme-aware styling (extracts colors/sizes from Element enum via pattern matching)
+
+2. ✅ **Type System Fixes**:
+   - Element enum pattern matching (no helper methods, must match Text/Rect/Line/Blank)
+   - LegendPosition::Inside type cast (f64 → i32 for pixel coordinates)
+   - String/&str handling (format!() returns String, need .as_str())
+   - Proper None handling in LegendPosition match
+
+3. ✅ **Build & Test**:
+   - GGRS builds cleanly (4.8s release build)
+   - Operator builds cleanly (12.7s dev-release)
+   - Test workflow runs successfully (44K rows, 1608 facet cells, 0.6s total)
+
+**Current Issue - Legend Not Displayed:**
+- The legend rendering code works, but `query_legend_scale()` returns `LegendScale::None`
+- **Root Cause**: Line 1116-1120 in `stream_generator.rs`
+  ```rust
+  // Level-based categorical colors (.colorLevels)
+  // TODO: Implement by streaming a sample or full data to extract unique categories
+  LegendScale::None
+  ```
+- Test workflow uses `.colorLevels` (level indices 0-7) without explicit category mappings
+- Category names exist in color table (05d2ba1b9d4b123ae85f75cc061a3a00) but aren't loaded
+
+**Tomorrow's Task:**
+Implement `query_legend_scale()` for `.colorLevels`-based categorical colors:
+
+**File**: `/home/thiago/workspaces/tercen/main/ggrs_plot_operator/src/ggrs_integration/stream_generator.rs`
+**Lines**: 1116-1120
+
+**Implementation Plan**:
+1. **Stream color table data** to get category names:
+   ```rust
+   // In query_legend_scale(), for Categorical with empty mappings:
+   if let Some(color_table_id) = self.color_table_ids.get(0) {
+       // Stream the color table (e.g., "Country" column)
+       let streamer = TableStreamer::new(&self.client);
+       let data = streamer.stream_tson(color_table_id, None, 0, 1000).await?;
+       let df = tson_to_dataframe(&data)?;
+
+       // Extract unique category names from column (factor_name = "Country")
+       let categories: Vec<String> = df.column(&color_info.factor_name)?
+           .unique()?
+           .iter()
+           .map(|v| v.to_string())
+           .collect();
+
+       return LegendScale::Discrete {
+           values: categories,
+           aesthetic_name: color_info.factor_name.clone(),
+       };
+   }
+   ```
+
+2. **Key Data Structures**:
+   - `self.color_table_ids: Vec<String>` - Already stored during init (from `extract_color_info_from_step()`)
+   - Color table ID: `05d2ba1b9d4b123ae85f75cc061a3a00` (query_table_type = "color_0")
+   - Contains column: `"Country"` (string type)
+   - Has unique category values that map to `.colorLevels` indices
+
+3. **Design Considerations**:
+   - This requires async streaming, but `query_legend_scale()` is sync
+   - **Option A**: Make query_legend_scale() load categories during init (preferred)
+   - **Option B**: Cache categories in TercenStreamGenerator struct during `new()`
+   - **Option C**: Load on-demand with tokio::block_in_place (current pattern)
+
+4. **Testing**:
+   ```bash
+   TERCEN_URI="http://127.0.0.1:50051" \
+   TERCEN_TOKEN="eyJ0eXAi..." \
+   WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c" \
+   STEP_ID="b9659735-27db-4480-b398-4e391431480f" \
+   cargo run --profile dev-release --bin test_stream_generator
+   ```
+   - Should see: "DEBUG: Drawing legend" in output
+   - Plot.png should show legend on right side with colored circles and country names
+
+**Files Modified Today**:
+- `/home/thiago/workspaces/tercen/main/ggrs/crates/ggrs-core/src/render.rs` (lines 68, 73, 493-501, 573-658, 1283-1537)
+- CLAUDE.md (this file)
+
+**Key References**:
+- Color table investigation: Phase 2.5 in test output shows color table structure
+- Legend scale types: `/home/thiago/workspaces/tercen/main/ggrs/crates/ggrs-core/src/legend.rs`
+- Color extraction: `src/tercen/colors.rs` - `extract_color_info_from_step()`
+
+---
 
 ## Quick Reference
 
@@ -46,13 +130,16 @@ docker build -t ggrs_plot_operator:local .
 git tag 0.1.0 && git push origin 0.1.0  # NO 'v' prefix
 ```
 
-See `BUILD.md`, `TEST_LOCAL.md` for comprehensive instructions.
-
 ### Quick Debugging
 
 - **Not connecting?** Check `TERCEN_URI`, `TERCEN_TOKEN` env vars
 - **Build failing?** Run `cargo clean && cargo build --profile dev-release`
-- **Faceting issues?** Verify `.ci`/`.ri` columns, check facet metadata tables
+- **Faceting issues?** Verify `.ci`/`.ri` columns exist, check facet metadata tables
+- **Legend not showing?** Check `query_legend_scale()` returns Continuous/Discrete (not None)
+
+See `BUILD.md`, `TEST_LOCAL.md`, `DEPLOYMENT_DEBUG.md` for comprehensive instructions.
+
+---
 
 ## Architecture
 
@@ -62,239 +149,115 @@ See `BUILD.md`, `TEST_LOCAL.md` for comprehensive instructions.
 src/
 ├── main.rs                      # Entry point (logging disabled)
 ├── config.rs                    # Property-based configuration
-├── tercen/                      # Pure Tercen gRPC client
+├── tercen/                      # Pure Tercen gRPC client (future crate)
 │   ├── client.rs               # TercenClient with auth
-│   ├── table.rs                # TableStreamer (chunked)
-│   ├── tson_convert.rs         # TSON → Polars (columnar)
+│   ├── table.rs                # TableStreamer (chunked streaming)
+│   ├── tson_convert.rs         # TSON → Polars DataFrame (columnar)
 │   ├── facets.rs               # Facet metadata loading
 │   ├── properties.rs           # PropertyReader, PlotDimension
 │   ├── colors.rs               # Color palette parsing & interpolation
-│   ├── result.rs               # Result upload
+│   ├── result.rs               # Result upload (Phase 8)
 │   └── error.rs                # TercenError types
 ├── ggrs_integration/
-│   └── stream_generator.rs     # TercenStreamGenerator (GGRS trait)
+│   └── stream_generator.rs     # TercenStreamGenerator (GGRS StreamGenerator trait)
 └── bin/
     └── test_stream_generator.rs # Test binary
+
+tercen_grpc_api/                # Git submodule (canonical proto files)
 ```
 
 ### Three-Layer Design
 
-1. **gRPC Client** (`src/tercen/`): TercenClient, TableStreamer, services (tonic, prost, tokio)
-2. **Data Transform** (Columnar!): TSON → Polars DataFrame (NO row-by-row processing)
+1. **gRPC Client** (`src/tercen/`): Connection, auth, streaming (tonic, prost, tokio)
+2. **Data Transform** (Columnar): TSON → Polars DataFrame - **NO row-by-row processing!**
 3. **GGRS Integration**: TercenStreamGenerator, lazy facet loading, GPU rendering
 
 ### Data Flow
 
 ```
 1. TercenStreamGenerator::new()
-   → Connect via gRPC
-   → Load facet metadata (row.csv, column.csv)
-   → Load/compute Y-axis ranges
+   → Connect via gRPC, load facets, load Y-axis ranges, load color info
 
 2. GGRS calls query_data_chunk(col_idx, row_idx)
-   → Stream TSON chunks (offset + limit)
-   → Parse TSON → Polars DataFrame (columnar!)
-   → Filter: .ci == col_idx AND .ri == row_idx
+   → Stream TSON chunks → Parse to Polars → Filter by .ci/.ri
+   → Add .color column based on color mappings
    → Return quantized coords (.xs/.ys as i64)
 
 3. GGRS dequantizes in render pipeline
-   → Formula: value = (quantized / 65535) × (max - min) + min
-   → Creates .x/.y columns with actual values
+   → Converts (.xs/.ys) to (.x/.y) using axis ranges
+   → Renders with GPU (OpenGL) or CPU (Cairo)
 
-4. GGRS renders → PNG
-   → GPU (OpenGL): 0.5s, 162 MB
-   → CPU (Cairo): 3.1s, 49 MB
-
-5. Upload to Tercen
-   → Encode PNG to base64
-   → Create result table (.content, filename, mimetype, plot_width, plot_height)
-   → Upload via TableSchemaService with full Tercen model format
+4. Legend rendering (NEW!)
+   → query_legend_scale() returns Continuous/Discrete/None
+   → draw_legend() renders gradient or discrete keys
 ```
 
-### Data Structure
+---
 
-**Main data** (TSON):
-```
-.ci, .ri, .xs, .ys, sp, ...
-0,   0,   12845, 15632, "B", ...
-```
-- `.ci`/`.ri`: Facet indices (i64)
-- `.xs`/`.ys`: Quantized coords (uint16 as i64, range 0-65535)
+## Features
 
-**Facet metadata**: `column.csv`, `row.csv` with factor values
+### Current Features (Version 0.0.2)
 
-## Operator Properties
+**Core Functionality**:
+- ✅ Full plot pipeline: gRPC → TSON → Polars → GGRS → PNG
+- ✅ GPU acceleration (OpenGL: 0.5s vs CPU: 3.1s for 475K points)
+- ✅ Columnar architecture (Polars) - 10x+ performance vs row-by-row
+- ✅ Chunked streaming with schema-based row limits
+- ✅ Quantized coordinates (.xs/.ys uint16) with dequantization
 
-Defined in `operator.json`:
+**Faceting**:
+- ✅ Row/column/grid faceting with independent Y-axes
+- ✅ FacetSpec auto-detection from `.ci`/.ri` columns
+- ✅ Facet labels from metadata tables (row.csv, column.csv)
+- ✅ Per-facet Y-axis ranges from Y-axis table
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `plot.width` | String | `""` (auto) | Width in pixels or "auto" (derives from col facets) |
-| `plot.height` | String | `""` (auto) | Height in pixels or "auto" (derives from row facets) |
-| `backend` | Enum | `"cpu"` | Render backend: "cpu" (Cairo) or "gpu" (OpenGL) |
+**Colors**:
+- ✅ **Continuous colors**: Numeric factors with palette interpolation
+- ✅ **Categorical colors**: String factors with explicit color mappings
+- ✅ **Level-based colors**: `.colorLevels` integer indices (0-7) with default palette
+- ✅ Palette parsing from Tercen ColorList (ColorElement with numeric/string values)
 
-**Auto dimensions**: `800px + (n_facets - 1) × 400px`, capped at 4000px
+**Configuration**:
+- ✅ Property-based config from `operator.json`
+- ✅ Auto plot dimensions (800px + (n_facets-1) × 400px, cap 4000px)
+- ✅ Backend selection (cpu/gpu via properties)
+- ✅ Point size (hardcoded 4, should come from crosstab aesthetics)
 
-**Example**: 1 facet → 800px, 4 facets → 2000px, 10+ facets → 4000px
+**Result Upload**:
+- ✅ PNG encoding to base64
+- ✅ Full Tercen model TSON format (matches Python toJson)
+- ✅ FileService integration
+- ✅ Task update with fileResultId
 
-**Note**: Point size hardcoded (4) - should come from crosstab aesthetics in future.
+**Legend Rendering (Version 0.0.3 - In Progress)**:
+- ✅ **GGRS legend infrastructure**: draw_continuous_legend(), draw_discrete_legend()
+- ✅ **Theme-aware styling**: Extracts colors/sizes from theme elements
+- ⚠️ **Partially working**: Renders when query_legend_scale() returns Continuous/Discrete
+- ❌ **Blocked**: Need to load category names for `.colorLevels`-based colors
 
-## Color Support (Version 0.0.2)
+**Known Issues**:
+- ❌ EventService logging disabled (returns UnimplementedError in production)
+- ⚠️ Legend not showing for `.colorLevels` categorical colors (TODO in stream_generator.rs:1116-1120)
 
-### Overview
+### Roadmap
 
-The operator supports **continuous color mapping** from numeric color factors to RGB colors using palette interpolation.
+**Version 0.0.3** (Current - Legend Support):
+- ✅ GGRS legend rendering infrastructure
+- 🚧 Load category names from color tables for `.colorLevels`-based legends
+- 🎯 Test with continuous color workflow
+- 🎯 Test with explicit categorical color mappings
 
-### Architecture
+**Version 0.0.4** (Future):
+- Textual elements (axis labels, legend text, plot title)
+- Manual axis ranges (override auto-computed ranges)
+- Additional themes (minimal, white)
 
-**Color Pipeline**:
-```
-1. Extract color info from workflow
-   → WorkflowService.get(workflow_id)
-   → Find step.model.axis.xyAxis[0].colors
-   → Parse palette (JetPalette, RampPalette)
+**Version 0.0.5** (Future):
+- Additional output formats (SVG, PDF)
+- Re-enable EventService logging when available
+- Bulk streaming optimization for multi-facet (reduce per-facet data redundancy)
 
-2. Stream color data alongside coordinates
-   → Include color factor column (e.g., "Age") in streaming request
-   → Raw f64 values (8 bytes per value)
-
-3. Map values to RGB using palette interpolation
-   → Binary search for surrounding color stops
-   → Linear interpolation: rgb = (1-t)×lower + t×upper
-   → Convert to hex strings (#FFFFFF format)
-
-4. Pass to GGRS
-   → Add .color aesthetic conditionally
-   → GGRS renders points with interpolated colors
-```
-
-### Implementation Details
-
-**Module**: `src/tercen/colors.rs` (323 lines)
-
-**Core Types**:
-```rust
-pub struct ColorInfo {
-    pub factor_name: String,      // e.g., "Age"
-    pub factor_type: String,       // e.g., "double"
-    pub palette: ColorPalette,
-}
-
-pub struct ColorPalette {
-    pub stops: Vec<ColorStop>,     // Sorted by value
-}
-
-pub struct ColorStop {
-    pub value: f64,
-    pub color: [u8; 3],            // RGB
-}
-```
-
-**Key Functions**:
-- `extract_color_info_from_step()`: Extract color factors and palettes from workflow
-- `parse_palette()`: Convert Tercen EPalette (JetPalette, RampPalette) to ColorPalette
-- `interpolate_color()`: Linear interpolation between color stops
-- `int_to_rgb()`: Convert AARRGGBB (32-bit) to RGB bytes
-
-**Color Format**:
-- Tercen stores colors as 32-bit integers: AARRGGBB (alpha-red-green-blue)
-- Operator converts to hex strings: `#FFFFFF` (GGRS requirement)
-- Missing values default to gray: `#808080`
-
-### Usage in Stream Generator
-
-**Location**: `src/ggrs_integration/stream_generator.rs`
-
-```rust
-// Store color info
-color_infos: Vec<ColorInfo>,
-
-// Constructor
-pub async fn new(
-    // ... other params ...
-    color_infos: Vec<ColorInfo>,
-) -> Result<Self>
-
-// Add color aesthetic conditionally
-let mut aes = Aes::new().x(".x").y(".y");
-if !color_infos.is_empty() {
-    aes = aes.color(".color");
-}
-
-// Stream color column alongside coordinates
-let mut columns = vec![".ci", ".ri", ".xs", ".ys"];
-for color_info in &self.color_infos {
-    columns.push(color_info.factor_name.clone());
-}
-
-// Add .color column with hex strings
-fn add_color_columns(&self, df: DataFrame) -> Result<DataFrame> {
-    // Extract f64 values
-    // Interpolate to RGB using palette
-    // Convert to hex strings (#FFFFFF)
-    // Add .color column
-}
-```
-
-### Limitations
-
-1. **Single Color Factor**: Only first color factor used if multiple exist
-   - GGRS currently supports single color aesthetic
-   - Future: Map to size, alpha, or other aesthetics
-
-2. **Continuous Colors Only**: Categorical colors not yet implemented
-   - `.colorLevels` column not supported
-   - `CategoryPalette` type not handled
-   - Future: Version 0.0.4
-
-3. **No Color Legend**: Plot doesn't include color scale legend yet
-   - Future: Add legend showing color-to-value mapping
-
-4. **No Color Optimization**: Color values sent as raw f64 (8 bytes)
-   - X/Y use quantization (2 bytes)
-   - Color quantization not available in Tercen data format
-
-### Performance
-
-**Test Dataset**: 475,688 rows with "Age" color factor (9.5 to 60.5)
-
-**Results**:
-- Processing time: 12.6 seconds (< 5% overhead)
-- Peak memory: 138 MB
-- Throughput: ~37,700 points/second
-- Color interpolation: < 0.1s
-
-**Impact**: Minimal overhead from color support
-
-### Testing
-
-**Unit Tests** (`src/tercen/colors.rs`):
-- Palette parsing (JetPalette, RampPalette)
-- Color interpolation (in-range, edge cases, out-of-bounds)
-- int_to_rgb conversion
-
-**Integration Test** (`./test_local.sh`):
-- Workflow: 28e3c9888e9935f667aed6f07c007c7c
-- Color factor: "Age" (numeric)
-- Output: plot.png with colored points
-
-All tests passing.
-
-### Implementation
-
-```rust
-// Extract from task
-let (cube_query, project_id, namespace, operator_settings) = extract_cube_query(&task)?;
-
-// Create config (uses defaults if None)
-let config = OperatorConfig::from_properties(operator_settings.as_ref());
-
-// Resolve "auto" after knowing facet counts
-let (plot_width, plot_height) = config.resolve_dimensions(
-    stream_gen.n_col_facets(),
-    stream_gen.n_row_facets(),
-);
-```
+---
 
 ## Key Technical Decisions
 
@@ -302,132 +265,200 @@ let (plot_width, plot_height) = config.resolve_dimensions(
 
 **Never build row-by-row structures. Always stay columnar.**
 
-✅ **DO**: Use Polars lazy API, `vstack_mut()`, zero-copy operations
-❌ **DON'T**: Build `Vec<Record>` or iterate rows
+```rust
+// ✅ GOOD: Columnar operations
+let filtered = df.lazy()
+    .filter(col(".ci").eq(lit(0)))
+    .collect()?;
 
-**Why**: 10x+ performance, lower memory usage
+// ❌ BAD: Row-by-row iteration
+for row in 0..df.height() {
+    let record = build_record(df, row); // NO!
+}
+```
+
+**Why**: 10x+ performance, lower memory, aligns with Polars/GGRS architecture.
 
 ### NO FALLBACK STRATEGIES
 
-**Never add fallback logic unless explicitly requested.**
+**Never implement fallback logic unless explicitly requested.**
 
 ```rust
 // ❌ BAD: Fallback pattern
-if data.has_column(".ys") { use_ys() } else { use_y() }
+if data.has_column(".ys") {
+    use_ys()
+} else {
+    use_y()  // Masks bugs!
+}
 
 // ✅ GOOD: Trust the specification
 data.column(".ys")  // User said .ys exists
 ```
 
-**Rationale**: Fallbacks mask bugs, add complexity, hurt performance
-
-**Only use fallbacks for**:
-1. User-requested backward compatibility
-2. Error recovery at system boundaries (user input validation)
+**Rationale**: Fallbacks mask bugs, add complexity, hurt performance. Only use for backward compatibility or user input validation.
 
 ### Memory Efficiency
 
-- **Streaming**: Process in chunks (default: 10K rows)
-- **Lazy Faceting**: Only load data for rendered facet cells
-- **Quantized Coords**: Transmit 2 bytes/coord, dequantize on demand
-- **Schema-Based Limiting**: Use row count to prevent infinite loops
+- **Streaming**: Process in chunks (default: 10K rows), don't load entire table
+- **Lazy Faceting**: Only load data for facet cells being rendered
+- **Schema-Based Limiting**: Use table schema row count to prevent infinite loops
+- **Quantized Coordinates**: Transmit 2 bytes/coordinate (uint16), dequantize on demand
+- **Progressive Dequantization**: Process and discard chunks immediately
 
-**Results**: 475K rows in 0.5s (GPU), memory stable at 162MB
+**Results**: 475K rows in 0.5s (GPU) or 3.1s (CPU), memory stable at 162MB (GPU) or 49MB (CPU).
 
 ### GPU Backend
 
-- OpenGL selected over Vulkan (162 MB vs 314 MB, 49% reduction)
-- 10x speedup with 3.3x memory overhead (acceptable trade-off)
-- Property `backend` in `operator.json`: "cpu" or "gpu"
+- **Configuration**: Property `backend` = "cpu" or "gpu" in `operator.json`
+- **OpenGL vs Vulkan**: OpenGL selected (162MB vs 314MB, 49% reduction)
+- **Performance**: 10x speedup vs CPU for same quality
+- **Trade-off**: 3.3x memory overhead acceptable for 10x speed
+
+---
+
+## Operator Properties
+
+Properties defined in `operator.json`, read via `PropertyReader`:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `plot.width` | String | `""` (auto) | Plot width in pixels or "auto" |
+| `plot.height` | String | `""` (auto) | Plot height in pixels or "auto" |
+| `backend` | Enum | `"cpu"` | Render backend: "cpu" or "gpu" |
+
+**Auto Dimensions**: `800px + (n_facets - 1) × 400px`, capped at 4000px
+
+**Implementation**: See `src/tercen/properties.rs` (PropertyReader, PlotDimension) and `src/config.rs` (OperatorConfig).
+
+---
+
+## Color Support
+
+### Color Types
+
+1. **Continuous Colors** (numeric factors):
+   - Color palette with numeric stops (e.g., [0.0, 0.5, 1.0])
+   - Interpolation between stops using `interpolate_color()`
+   - Returns gradient colors based on normalized value
+
+2. **Categorical Colors** (string factors):
+   - Explicit color mappings: `{category → "#RRGGBB"}`
+   - Parsed from Tercen ColorList (ColorElement with string values)
+   - Direct lookup in CategoryColorMap
+
+3. **Level-Based Colors** (`.colorLevels` integers):
+   - Default palette (8 colors) when no explicit mappings
+   - Level indices (0-7) map to palette positions
+   - **Issue**: Category names not loaded → No legend (TODO for tomorrow!)
+
+### Implementation Files
+
+- `src/tercen/colors.rs`: Palette parsing, color interpolation, category mapping
+- `src/ggrs_integration/stream_generator.rs`: Color column addition (`add_color_columns()`)
+- Color data stored in `color_table_ids` (e.g., "Country" column table)
+
+---
 
 ## Development Workflow
 
 ### Pre-Commit Checklist (MANDATORY!)
 
 ```bash
-cargo fmt --check          # Must pass
-cargo fmt                  # Apply formatting
-cargo clippy -- -D warnings # Zero warnings required
+# 1. Format check
+cargo fmt --check
+cargo fmt
+
+# 2. Lint (zero warnings required)
+cargo clippy -- -D warnings
+
+# 3. Build check
 cargo build --profile dev-release
+
+# 4. Test check
 cargo test
 ```
 
-**NEVER consider code complete until all checks pass.**
+**NEVER consider code complete until all checks pass.** CI will fail otherwise.
 
-### Testing
+### Testing Workflow
 
-**⚠️ CRITICAL: ALWAYS use credentials from test_local.sh**
+**⚠️ CRITICAL: Use credentials from test_local.sh**
 
 ```bash
-# Recommended
+# Recommended: Use test script
 ./test_local.sh
 
-# Manual
+# Manual testing
 export TERCEN_URI="http://127.0.0.1:50051"
 export TERCEN_TOKEN="eyJ0eXAi..."
-export WORKFLOW_ID="workflow_id"
-export STEP_ID="step_id"
+export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
+export STEP_ID="b9659735-27db-4480-b398-4e391431480f"
 cargo run --profile dev-release --bin test_stream_generator
 ```
 
-### Git Policy
+### Git Policy for Claude Code
 
-❌ Never commit/push without explicit user request
-✅ Run quality checks
-✅ Use `git status`, `git diff` to show changes
-✅ Create commits only when user explicitly asks
+- ❌ Never commit/push unless explicitly requested
+- ✅ Run quality checks: fmt, clippy, build, test
+- ✅ Use `git status` and `git diff` to show changes
+- ✅ Stage with `git add` if requested
+- ✅ Create commits only when user explicitly asks
+
+**Default behavior: User handles commits/pushes manually.**
+
+---
 
 ## Proto Files (Submodule)
 
-**Important**: Proto files are in `tercen_grpc_api` submodule (NOT copied locally)
-
+Proto files managed via `tercen_grpc_api` submodule:
 - Repository: https://github.com/tercen/tercen_grpc_api
-- Files: `tercen.proto`, `tercen_model.proto`
+- Files: `tercen.proto` (services), `tercen_model.proto` (data models)
 - Setup: `git submodule update --init --recursive`
-- Compiled via `build.rs` at build time
+- Compiled at build time via `build.rs`
+
+---
 
 ## Core Dependencies
 
 ```toml
 tokio = "1.49"              # Async runtime
 tonic = "0.14"              # gRPC client
-prost = "0.14"              # Protobuf serialization
-polars = "0.51"             # Columnar DataFrame operations
-ggrs-core = { git = "https://github.com/tercen/ggrs", features = ["webgpu-backend", "cairo-backend"] }
+prost = "0.14"              # Protobuf
+polars = "0.51"             # Columnar DataFrame (CRITICAL!)
 rustson = { git = "..." }   # TSON parsing
-thiserror = "1.0"           # Error derive macros
+ggrs-core = { git = "https://github.com/tercen/ggrs", features = ["webgpu-backend", "cairo-backend"] }
+thiserror = "1.0"           # Error macros
 anyhow = "1.0"              # Error context
 base64 = "0.22"             # PNG encoding
 ```
 
-## Roadmap
-
-**Version 0.0.2** (COMPLETE):
-- ✅ Multi-facet scatter plots (row/column/grid with FreeY scales)
-- ✅ Property-based config (auto plot dimensions)
-- ✅ GPU/CPU backend switching
-- ✅ **Continuous color support** (numeric color factors with palette interpolation)
-
-**Version 0.0.3** (Future):
-- 🎯 Plot legend (including color scale legend)
-- 🎯 Categorical color support (ColorLevels column)
-- 🎯 Minimal/white themes
-- 🎯 Optimize bulk streaming for multi-facet
-
-**Version 0.0.4** (Future):
-- Textual elements (axis labels, legend, title)
-- Manual axis ranges
-- SVG, PDF output formats
+---
 
 ## Documentation
 
-**Primary**:
-- `DEPLOYMENT_DEBUG.md` - Current issues and workarounds
+### Primary Docs (Read These First!)
+- **CLAUDE.md** (this file) - Overview, current status, session logs
+- **DEPLOYMENT_DEBUG.md** - Current issues and debugging
+- **BUILD.md** - Build instructions
+- **TEST_LOCAL.md** - Local testing procedures
+
+### Supporting Docs
 - `docs/09_FINAL_DESIGN.md` - Complete architecture
 - `docs/10_IMPLEMENTATION_PHASES.md` - Implementation roadmap
-- `BUILD.md` - Build guide
-- `TEST_LOCAL.md` - Testing procedures
+- `docs/GPU_BACKEND_MEMORY.md` - GPU optimization analysis
 
-**External**:
+### External Resources
 - [Tercen gRPC API](https://github.com/tercen/tercen_grpc_api)
 - [GGRS Library](https://github.com/tercen/ggrs)
+- [Tercen C# Client](https://github.com/tercen/TercenCSharpClient) - Reference implementation
+
+---
+
+## Appendix: Historical Issue Logs
+
+*Moved to separate files for brevity:*
+- Result upload fixes → See git history (2025-01-09)
+- Faceting implementation → See git history (2025-01-12)
+- Operator properties → See git history (2025-01-14)
+- Categorical colors → See git history (2025-01-14)
+- **Legend rendering → THIS SESSION (2025-01-15)**

@@ -19,6 +19,9 @@ pub struct ColorInfo {
     pub factor_type: String,
     /// The color mapping for this factor
     pub mapping: ColorMapping,
+    /// Optional color table ID (for categorical colors with .colorLevels)
+    /// This table contains the mapping from level index to category name
+    pub color_table_id: Option<String>,
 }
 
 /// Color mapping - either continuous interpolation or categorical lookup
@@ -248,11 +251,13 @@ fn int_to_rgb(color_int: i32) -> [u8; 3] {
 /// Navigates to step.model.axis.xyAxis[0].colors and extracts:
 /// - Color factors (column names and types)
 /// - Associated palettes
+/// - Optional color table IDs (indexed by factor position, e.g., color_0, color_1)
 ///
 /// Returns a Vec<ColorInfo> (can be empty if no colors defined)
 pub fn extract_color_info_from_step(
     workflow: &proto::Workflow,
     step_id: &str,
+    color_table_ids: &[Option<String>],
 ) -> Result<Vec<ColorInfo>> {
     // Find the step by ID
     let step = workflow
@@ -344,10 +349,14 @@ pub fn extract_color_info_from_step(
             }
         };
 
+        // Get the color table ID for this factor (if available)
+        let color_table_id = color_table_ids.get(i).and_then(|opt| opt.clone());
+
         color_infos.push(ColorInfo {
             factor_name: factor.name.clone(),
             factor_type: factor.r#type.clone(),
             mapping,
+            color_table_id,
         });
     }
 
@@ -366,18 +375,18 @@ pub fn categorical_color_from_level(level: i32) -> [u8; 3] {
     // Default categorical palette (similar to R's default colors)
     // Based on a qualitative color scheme with good distinguishability
     const CATEGORICAL_COLORS: [[u8; 3]; 12] = [
-        [228, 26, 28],    // Red
-        [55, 126, 184],   // Blue
-        [77, 175, 74],    // Green
-        [152, 78, 163],   // Purple
-        [255, 127, 0],    // Orange
-        [255, 255, 51],   // Yellow
-        [166, 86, 40],    // Brown
-        [247, 129, 191],  // Pink
-        [153, 153, 153],  // Gray
-        [102, 194, 165],  // Teal
-        [252, 141, 98],   // Coral
-        [141, 160, 203],  // Lavender
+        [228, 26, 28],   // Red
+        [55, 126, 184],  // Blue
+        [77, 175, 74],   // Green
+        [152, 78, 163],  // Purple
+        [255, 127, 0],   // Orange
+        [255, 255, 51],  // Yellow
+        [166, 86, 40],   // Brown
+        [247, 129, 191], // Pink
+        [153, 153, 153], // Gray
+        [102, 194, 165], // Teal
+        [252, 141, 98],  // Coral
+        [141, 160, 203], // Lavender
     ];
 
     let index = (level as usize) % CATEGORICAL_COLORS.len();

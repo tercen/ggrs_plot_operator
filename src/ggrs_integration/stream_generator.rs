@@ -82,6 +82,9 @@ pub struct TercenStreamGenerator {
 
     /// Color information (factors and palettes)
     color_infos: Vec<crate::tercen::ColorInfo>,
+
+    /// Cached legend scale (loaded during initialization)
+    cached_legend_scale: LegendScale,
 }
 
 impl TercenStreamGenerator {
@@ -123,6 +126,11 @@ impl TercenStreamGenerator {
             total_rows
         );
 
+        // Load legend scale data
+        println!("Loading legend scale data...");
+        let cached_legend_scale = Self::load_legend_scale(&client, &color_infos).await?;
+        eprintln!("DEBUG: Cached legend scale: {:?}", cached_legend_scale);
+
         // Create default aesthetics
         // Dequantization happens in GGRS render.rs using axis ranges
         // After dequantization, columns are .x and .y (actual data values)
@@ -134,7 +142,10 @@ impl TercenStreamGenerator {
             eprintln!("DEBUG: Color factor: '{}'", color_infos[0].factor_name);
             match &color_infos[0].mapping {
                 crate::tercen::ColorMapping::Continuous(palette) => {
-                    eprintln!("DEBUG: Continuous palette with {} color stops", palette.stops.len());
+                    eprintln!(
+                        "DEBUG: Continuous palette with {} color stops",
+                        palette.stops.len()
+                    );
                     for (i, stop) in palette.stops.iter().enumerate() {
                         eprintln!(
                             "  Stop {}: value={:.2}, color=RGB({}, {}, {})",
@@ -143,7 +154,10 @@ impl TercenStreamGenerator {
                     }
                 }
                 crate::tercen::ColorMapping::Categorical(color_map) => {
-                    eprintln!("DEBUG: Categorical palette with {} categories", color_map.mappings.len());
+                    eprintln!(
+                        "DEBUG: Categorical palette with {} categories",
+                        color_map.mappings.len()
+                    );
                 }
             }
             aes = aes.color(".color");
@@ -212,6 +226,7 @@ impl TercenStreamGenerator {
             facet_spec,
             chunk_size,
             color_infos,
+            cached_legend_scale,
         })
     }
 
@@ -278,6 +293,7 @@ impl TercenStreamGenerator {
             facet_spec,
             chunk_size,
             color_infos,
+            cached_legend_scale: LegendScale::None, // TODO: Load async if needed
         }
     }
 
@@ -534,6 +550,135 @@ impl TercenStreamGenerator {
         Ok((axis_ranges, total_rows as usize))
     }
 
+    /// Create a generic legend for level-based colors
+    ///
+    /// When we can't get actual category names, use generic labels: "Level 0", "Level 1", etc.
+    /// Assumes 8 levels (the default tercen palette size)
+    fn create_generic_level_legend(
+        factor_name: &str,
+    ) -> Result<LegendScale, Box<dyn std::error::Error>> {
+        let categories: Vec<String> = (0..8).map(|i| format!("Level {}", i)).collect();
+        Ok(LegendScale::Discrete {
+            values: categories,
+            aesthetic_name: factor_name.to_string(),
+        })
+    }
+
+    /// Load legend scale data during initialization
+    ///
+    /// For categorical colors with .colorLevels, this streams the color table
+    /// to extract unique category names.
+    /// For continuous colors, this extracts the min/max from the palette.
+    async fn load_legend_scale(
+        client: &TercenClient,
+        color_infos: &[crate::tercen::ColorInfo],
+    ) -> Result<LegendScale, Box<dyn std::error::Error>> {
+        if color_infos.is_empty() {
+            return Ok(LegendScale::None);
+        }
+
+        // Only handle the first color factor for now
+        let color_info = &color_infos[0];
+
+        match &color_info.mapping {
+            crate::tercen::ColorMapping::Continuous(palette) => {
+                // For continuous colors, get the min/max from the palette
+                if let Some((min_val, max_val)) = palette.range() {
+                    Ok(LegendScale::Continuous {
+                        min: min_val,
+                        max: max_val,
+                        aesthetic_name: color_info.factor_name.clone(),
+                    })
+                } else {
+                    // Empty palette - no legend
+                    Ok(LegendScale::None)
+                }
+            }
+            crate::tercen::ColorMapping::Categorical(color_map) => {
+                // For categorical colors, check if we have explicit mappings
+                if !color_map.mappings.is_empty() {
+                    let mut values: Vec<String> = color_map.mappings.keys().cloned().collect();
+                    values.sort();
+
+                    Ok(LegendScale::Discrete {
+                        values,
+                        aesthetic_name: color_info.factor_name.clone(),
+                    })
+                } else if let Some(ref color_table_id) = color_info.color_table_id {
+                    // Level-based categorical colors (.colorLevels)
+                    // Try to stream the color table to get unique category names
+                    eprintln!(
+                        "DEBUG: Loading category names from color table {}",
+                        color_table_id
+                    );
+
+                    let streamer = TableStreamer::new(client);
+
+                    // Stream the entire color table (it's usually small)
+                    // The table contains the mapping from level index to category name
+                    let tson_data = streamer
+                        .stream_tson(color_table_id, None, 0, 100000)
+                        .await?;
+
+                    let df = tson_to_dataframe(&tson_data)?;
+                    eprintln!(
+                        "DEBUG: Color table has {} rows, columns: {:?}",
+                        df.nrow(),
+                        df.columns()
+                    );
+
+                    // Check if we got any data from the color table
+                    if df.nrow() > 0 {
+                        // Extract unique category names from the factor column
+                        // The color table should have a column matching the factor name
+                        if let Ok(column) = df.column(&color_info.factor_name) {
+                            // Collect unique values and convert to strings
+                            use std::collections::HashSet;
+                            let mut seen = HashSet::new();
+                            let mut categories: Vec<String> = Vec::new();
+
+                            for val in column {
+                                let s = val.to_string();
+                                if seen.insert(s.clone()) {
+                                    categories.push(s);
+                                }
+                            }
+
+                            categories.sort();
+                            eprintln!(
+                                "DEBUG: Extracted {} unique categories: {:?}",
+                                categories.len(),
+                                categories
+                            );
+
+                            Ok(LegendScale::Discrete {
+                                values: categories,
+                                aesthetic_name: color_info.factor_name.clone(),
+                            })
+                        } else {
+                            eprintln!(
+                                "DEBUG: Color table does not have column '{}'",
+                                color_info.factor_name
+                            );
+                            // Fall back to generic level labels
+                            Self::create_generic_level_legend(&color_info.factor_name)
+                        }
+                    } else {
+                        // Color table is empty - fall back to generic level labels
+                        eprintln!("DEBUG: Color table is empty, using generic level labels");
+                        Self::create_generic_level_legend(&color_info.factor_name)
+                    }
+                } else {
+                    // No explicit mappings and no color table - use generic level labels
+                    eprintln!(
+                        "DEBUG: No explicit mappings or color table, using generic level labels"
+                    );
+                    Self::create_generic_level_legend(&color_info.factor_name)
+                }
+            }
+        }
+    }
+
     // Stream data for a specific facet cell in chunks
     // NOTE: Per-facet streaming not used - commented out since GGRS uses bulk mode
     // async fn stream_facet_data(
@@ -773,12 +918,14 @@ impl TercenStreamGenerator {
                 let use_levels = color_map.mappings.is_empty();
 
                 if use_levels {
-                    eprintln!("DEBUG add_color_columns: Using .colorLevels column for categorical colors");
+                    eprintln!(
+                        "DEBUG add_color_columns: Using .colorLevels column for categorical colors"
+                    );
 
                     // Get .colorLevels column instead of the factor column
-                    let levels_series = polars_df
-                        .column(".colorLevels")
-                        .map_err(|e| format!("Categorical colors require .colorLevels column: {}", e))?;
+                    let levels_series = polars_df.column(".colorLevels").map_err(|e| {
+                        format!("Categorical colors require .colorLevels column: {}", e)
+                    })?;
 
                     // Schema says int32 but it comes back as i64, so accept both
                     let levels = levels_series
@@ -802,12 +949,15 @@ impl TercenStreamGenerator {
                 } else {
                     // Use explicit category→color mappings from palette
                     let color_col_name = &color_info.factor_name;
-                    eprintln!("DEBUG add_color_columns: Using explicit category mappings for '{}'", color_col_name);
+                    eprintln!(
+                        "DEBUG add_color_columns: Using explicit category mappings for '{}'",
+                        color_col_name
+                    );
 
                     // Get the color factor column
-                    let color_series = polars_df
-                        .column(color_col_name)
-                        .map_err(|e| format!("Color column '{}' not found: {}", color_col_name, e))?;
+                    let color_series = polars_df.column(color_col_name).map_err(|e| {
+                        format!("Color column '{}' not found: {}", color_col_name, e)
+                    })?;
 
                     let color_values = color_series.str().map_err(|e| {
                         format!(
@@ -1066,9 +1216,8 @@ impl StreamGenerator for TercenStreamGenerator {
     }
 
     fn query_legend_scale(&self) -> LegendScale {
-        // For now, return empty legend
-        // TODO: Implement legend based on color aesthetics
-        LegendScale::None
+        // Return cached legend scale (loaded during initialization)
+        self.cached_legend_scale.clone()
     }
 
     fn facet_spec(&self) -> &FacetSpec {

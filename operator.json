@@ -108,6 +108,32 @@
       "name": "plot.height",
       "defaultValue": "",
       "description": "Plot height in pixels. If left empty or 'auto', dimensions will be derived from the crosstab/facet layout."
+    },
+    {
+      "kind": "EnumerationProperty",
+      "name": "backend",
+      "defaultValue": "cpu",
+      "description": "Render backend: 'cpu' (Cairo) or 'gpu' (OpenGL). GPU is ~10x faster but uses 3x more memory.",
+      "values": ["cpu", "gpu"]
+    },
+    {
+      "kind": "EnumerationProperty",
+      "name": "legend.position",
+      "defaultValue": "right",
+      "description": "Legend position: where the legend appears relative to the plot.",
+      "values": ["right", "left", "top", "bottom", "inside", "none"]
+    },
+    {
+      "kind": "StringProperty",
+      "name": "legend.position.inside",
+      "defaultValue": "",
+      "description": "Legend coordinates when position='inside'. Format: 'x,y' where x,y ∈ [0,1]. Example: '0.95,0.05' for bottom-right. Only used when legend.position='inside'."
+    },
+    {
+      "kind": "StringProperty",
+      "name": "legend.justification",
+      "defaultValue": "",
+      "description": "Legend anchor point. Format: 'x,y' where x,y ∈ [0,1]. Controls which corner of the legend aligns with the position. (0,0)=bottom-left, (1,1)=top-right, (0.5,0.5)=center. For left/right: y controls vertical alignment. For top/bottom: x controls horizontal alignment."
     }
   ]
 }

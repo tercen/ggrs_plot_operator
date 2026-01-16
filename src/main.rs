@@ -197,7 +197,7 @@ async fn process_task(
 
     // Step 2.5: Fetch workflow and extract color information
     println!("\n[2.5/5] Extracting color information...");
-    let color_infos = extract_color_info(&client_arc).await?;
+    let color_infos = extract_color_info(&client_arc, &task).await?;
     if color_infos.is_empty() {
         println!("  No color factors defined");
     } else {
@@ -252,10 +252,19 @@ async fn process_task(
     // Step 4: Generate plot
     println!("\n[4/5] Generating plot...");
     use ggrs_core::renderer::{BackendChoice, OutputFormat};
-    use ggrs_core::{EnginePlotSpec, Geom, PlotGenerator, PlotRenderer};
+    use ggrs_core::{EnginePlotSpec, Geom, PlotGenerator, PlotRenderer, Theme};
     use std::fs;
 
-    let plot_spec = EnginePlotSpec::new().add_layer(Geom::point_sized(config.point_size as f64));
+    // Create theme with configured legend position and justification
+    let theme = Theme {
+        legend_position: config.to_legend_position(),
+        legend_justification: config.legend_justification,
+        ..Default::default()
+    };
+
+    let plot_spec = EnginePlotSpec::new()
+        .add_layer(Geom::point_sized(config.point_size as f64))
+        .theme(theme);
     let plot_gen = PlotGenerator::new(Box::new(stream_gen), plot_spec)?;
     let renderer = PlotRenderer::new(&plot_gen, plot_width as u32, plot_height as u32);
 
@@ -409,7 +418,19 @@ async fn find_y_axis_table(
 /// Extract color information from workflow
 async fn extract_color_info(
     client: &std::sync::Arc<tercen::TercenClient>,
+    task: &tercen::client::proto::ETask,
 ) -> Result<Vec<tercen::ColorInfo>, Box<dyn std::error::Error>> {
+    // Extract ComputationTask from ETask
+    use tercen::client::proto::e_task;
+    let computation_task = match task.object.as_ref() {
+        Some(e_task::Object::Computationtask(ct)) => ct,
+        Some(e_task::Object::Cubequerytask(_cqt)) => {
+            // For CubeQueryTask, we need to get schema_ids differently
+            // For now, just return empty
+            return Ok(Vec::new());
+        }
+        _ => return Ok(Vec::new()), // Other task types don't have color info
+    };
     // Get workflow_id and step_id from environment
     let workflow_id = std::env::var("WORKFLOW_ID").ok();
     let step_id = std::env::var("STEP_ID").ok();
@@ -442,8 +463,46 @@ async fn extract_color_info(
         })
         .ok_or("EWorkflow has no workflow object")?;
 
+    // Extract color table IDs from task.schema_ids
+    // Color tables have query_table_type = "color_0", "color_1", etc.
+    let mut color_table_ids: Vec<Option<String>> = Vec::new();
+    let streamer = tercen::TableStreamer::new(client);
+
+    // Get cube query to know which tables are main/col/row
+    let cube_query = computation_task
+        .query
+        .as_ref()
+        .ok_or("ComputationTask has no query")?;
+    let known_tables = [
+        cube_query.qt_hash.as_str(),
+        cube_query.column_hash.as_str(),
+        cube_query.row_hash.as_str(),
+    ];
+
+    for schema_id in &computation_task.schema_ids {
+        if !known_tables.contains(&schema_id.as_str()) {
+            // Check if this is a color table
+            let schema = streamer.get_schema(schema_id).await?;
+            use tercen::client::proto::e_schema;
+            if let Some(e_schema::Object::Cubequerytableschema(cqts)) = schema.object {
+                if cqts.query_table_type.starts_with("color_") {
+                    // Parse the index from "color_0", "color_1", etc.
+                    if let Some(idx_str) = cqts.query_table_type.strip_prefix("color_") {
+                        if let Ok(idx) = idx_str.parse::<usize>() {
+                            // Ensure the vector is large enough
+                            while color_table_ids.len() <= idx {
+                                color_table_ids.push(None);
+                            }
+                            color_table_ids[idx] = Some(schema_id.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Extract color info from step
-    let color_infos = tercen::extract_color_info_from_step(workflow, &step_id)?;
+    let color_infos = tercen::extract_color_info_from_step(workflow, &step_id, &color_table_ids)?;
 
     Ok(color_infos)
 }
