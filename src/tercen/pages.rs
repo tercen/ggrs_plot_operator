@@ -26,7 +26,7 @@ use std::collections::HashMap;
 /// 4. Extract factors[].name from that MetaFactor
 ///
 /// # Example
-/// ```
+/// ```ignore
 /// // Operator spec has Page metafactor with factors: [{name: "Country"}]
 /// let page_factors = extract_page_factors(&operator_settings);
 /// // Returns: vec!["Country"]
