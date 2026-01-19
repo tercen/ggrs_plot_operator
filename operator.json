@@ -110,14 +110,14 @@
       "description": "Plot height in pixels. If left empty or 'auto', dimensions will be derived from the crosstab/facet layout."
     },
     {
-      "kind": "EnumerationProperty",
+      "kind": "EnumeratedProperty",
       "name": "backend",
       "defaultValue": "cpu",
       "description": "Render backend: 'cpu' (Cairo) or 'gpu' (OpenGL). GPU is ~10x faster but uses 3x more memory.",
       "values": ["cpu", "gpu"]
     },
     {
-      "kind": "EnumerationProperty",
+      "kind": "EnumeratedProperty",
       "name": "legend.position",
       "defaultValue": "right",
       "description": "Legend position: where the legend appears relative to the plot.",
@@ -136,7 +136,7 @@
       "description": "Legend anchor point. Format: 'x,y' where x,y ∈ [0,1]. Controls which corner of the legend aligns with the position. (0,0)=bottom-left, (1,1)=top-right, (0.5,0.5)=center. For left/right: y controls vertical alignment. For top/bottom: x controls horizontal alignment."
     },
     {
-      "kind": "EnumerationProperty",
+      "kind": "EnumeratedProperty",
       "name": "png.compression",
       "defaultValue": "fast",
       "description": "PNG compression level: 'fast' (~30% speedup, +15% file size), 'default' (balanced), or 'best' (~40% slower, -10% file size).",

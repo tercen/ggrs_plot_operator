@@ -24,13 +24,6 @@ use std::collections::HashMap;
 /// 2. Get inputSpecs[0].metaFactors[] (array of MetaFactor)
 /// 3. Find MetaFactor where name matches "Page" or "page"
 /// 4. Extract factors[].name from that MetaFactor
-///
-/// # Example
-/// ```ignore
-/// // Operator spec has Page metafactor with factors: [{name: "Country"}]
-/// let page_factors = extract_page_factors(&operator_settings);
-/// // Returns: vec!["Country"]
-/// ```
 pub fn extract_page_factors(operator_settings: Option<&OperatorSettings>) -> Vec<String> {
     let operator_settings = match operator_settings {
         Some(os) => os,
