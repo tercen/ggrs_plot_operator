@@ -2,17 +2,19 @@
 # Test script for TercenStreamGenerator with memory tracking and legend positioning
 #
 # Usage:
-#   ./test_local.sh [backend] [legend_position] [legend_position_inside] [legend_justification]
+#   ./test_local.sh [backend] [legend_position] [legend_position_inside] [legend_justification] [png_compression]
 #
 # Examples:
-#   ./test_local.sh                           # CPU, legend right (default)
-#   ./test_local.sh cpu left                  # Legend on left (default center)
-#   ./test_local.sh cpu left "" "0,0"         # Legend on left, bottom-left corner
-#   ./test_local.sh cpu left "" "0,1"         # Legend on left, top-left corner
-#   ./test_local.sh cpu top "" "0.5,1"        # Legend on top, centered
-#   ./test_local.sh cpu inside 0.95,0.05      # Legend inside at bottom-right
-#   ./test_local.sh cpu inside 0.95,0.05 1,0  # Inside bottom-right, legend's bottom-right corner anchored
-#   ./test_local.sh cpu none                  # No legend
+#   ./test_local.sh                              # CPU, legend right, default compression
+#   ./test_local.sh cpu left                     # Legend on left (default center)
+#   ./test_local.sh cpu left "" "0,0"            # Legend on left, bottom-left corner
+#   ./test_local.sh cpu left "" "0,1"            # Legend on left, top-left corner
+#   ./test_local.sh cpu top "" "0.5,1"           # Legend on top, centered
+#   ./test_local.sh cpu inside 0.95,0.05         # Legend inside at bottom-right
+#   ./test_local.sh cpu inside 0.95,0.05 1,0     # Inside bottom-right, legend's bottom-right corner anchored
+#   ./test_local.sh cpu none                     # No legend
+#   ./test_local.sh cpu right "" "" fast         # Fast PNG compression (~30% speedup, +15% file size)
+#   ./test_local.sh cpu right "" "" best         # Best PNG compression (~40% slower, -10% file size)
 #
 # Property explanation (matches ggplot2 3.5.0):
 #   - legend.position: "left", "right", "top", "bottom", "inside", "none"
@@ -21,6 +23,7 @@
 #     - For left/right: y-value controls vertical (0=bottom, 0.5=center, 1=top)
 #     - For top/bottom: x-value controls horizontal (0=left, 0.5=center, 1=right)
 #     - For inside: which corner of legend aligns with position.inside coords
+#   - png.compression: "fast", "default", "best"
 
 set -e
 
@@ -38,10 +41,12 @@ BACKEND="${1:-cpu}"
 LEGEND_POSITION="right"
 LEGEND_POSITION_INSIDE="${3:-}"
 LEGEND_JUSTIFICATION="0.1,0.1"
+PNG_COMPRESSION="fast"
 
 # Valid values for properties (from operator.json)
 VALID_BACKENDS=("cpu" "gpu")
 VALID_LEGEND_POSITIONS=("left" "right" "top" "bottom" "inside" "none")
+VALID_PNG_COMPRESSION=("fast" "default" "best")
 
 # Validate backend
 if [[ ! " ${VALID_BACKENDS[@]} " =~ " ${BACKEND} " ]]; then
@@ -77,6 +82,13 @@ if [[ -n "$LEGEND_JUSTIFICATION" ]]; then
     fi
 fi
 
+# Validate PNG compression
+if [[ ! " ${VALID_PNG_COMPRESSION[@]} " =~ " ${PNG_COMPRESSION} " ]]; then
+    echo "ERROR: Invalid png.compression '$PNG_COMPRESSION'"
+    echo "Valid values: ${VALID_PNG_COMPRESSION[*]}"
+    exit 1
+fi
+
 # Fixed chunk size (not configurable from command line anymore)
 CHUNK_SIZE=15000
 
@@ -84,6 +96,7 @@ CHUNK_SIZE=15000
 echo "Creating operator_config.json..."
 echo "  Backend: $BACKEND"
 echo "  Legend position: $LEGEND_POSITION"
+echo "  PNG compression: $PNG_COMPRESSION"
 [[ -n "$LEGEND_POSITION_INSIDE" ]] && echo "  Legend position inside: $LEGEND_POSITION_INSIDE"
 [[ -n "$LEGEND_JUSTIFICATION" ]] && echo "  Legend justification: $LEGEND_JUSTIFICATION"
 
@@ -102,7 +115,8 @@ cat > operator_config.json <<EOF
   )$(
     [[ -n "$LEGEND_JUSTIFICATION" ]] && echo ",
   \"legend.justification\": \"$LEGEND_JUSTIFICATION\""
-  )
+  ),
+  "png.compression": "$PNG_COMPRESSION"
 }
 EOF
 

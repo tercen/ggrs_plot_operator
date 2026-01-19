@@ -134,6 +134,13 @@
       "name": "legend.justification",
       "defaultValue": "",
       "description": "Legend anchor point. Format: 'x,y' where x,y ∈ [0,1]. Controls which corner of the legend aligns with the position. (0,0)=bottom-left, (1,1)=top-right, (0.5,0.5)=center. For left/right: y controls vertical alignment. For top/bottom: x controls horizontal alignment."
+    },
+    {
+      "kind": "EnumerationProperty",
+      "name": "png.compression",
+      "defaultValue": "fast",
+      "description": "PNG compression level: 'fast' (~30% speedup, +15% file size), 'default' (balanced), or 'best' (~40% slower, -10% file size).",
+      "values": ["fast", "default", "best"]
     }
   ]
 }

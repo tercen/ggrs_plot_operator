@@ -340,7 +340,7 @@ async fn process_task(
         let plot_gen = PlotGenerator::new(Box::new(page_stream_gen), plot_spec)?;
 
         // Create PlotRenderer with cache (if enabled)
-        let renderer = if let Some(ref cache_ref) = cache {
+        let mut renderer = if let Some(ref cache_ref) = cache {
             PlotRenderer::new_with_cache(
                 &plot_gen,
                 plot_width as u32,
@@ -351,7 +351,15 @@ async fn process_task(
             PlotRenderer::new(&plot_gen, plot_width as u32, plot_height as u32)
         };
 
-        println!("  Rendering plot (backend: {})...", config.backend);
+        // Set PNG compression level
+        let png_compression = match config.png_compression.to_lowercase().as_str() {
+            "fast" => ggrs_core::PngCompression::Fast,
+            "best" => ggrs_core::PngCompression::Best,
+            _ => ggrs_core::PngCompression::Default,
+        };
+        renderer.set_png_compression(png_compression);
+
+        println!("  Rendering plot (backend: {}, PNG compression: {})...", config.backend, config.png_compression);
         let backend = match config.backend.as_str() {
             "gpu" => BackendChoice::WebGPU,
             _ => BackendChoice::Cairo,

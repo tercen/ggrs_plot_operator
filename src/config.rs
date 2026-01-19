@@ -9,7 +9,7 @@ use crate::tercen::properties::{PlotDimension, PropertyReader};
 
 #[derive(Debug, Clone)]
 pub struct OperatorConfig {
-    /// Number of rows per chunk (internal constant, not configurable)
+    /// Number of rows per chunk (configurable via chunk_size property, default: 10000)
     pub chunk_size: usize,
 
     /// Plot width (pixels or Auto)
@@ -55,6 +55,12 @@ pub struct OperatorConfig {
     ///   - legend.position="inside", legend.position.inside="0.95,0.05",
     ///     legend.justification="1,0" → bottom-right corner of legend at (0.95,0.05)
     pub legend_justification: Option<(f64, f64)>,
+
+    /// PNG compression level: "fast", "default", "best"
+    /// - "fast": Fastest encoding (~30% speedup), larger files (+15%)
+    /// - "default": Balanced (current behavior)
+    /// - "best": Slowest encoding (~40% slower), smallest files (-10%)
+    pub png_compression: String,
 }
 
 impl OperatorConfig {
@@ -112,8 +118,21 @@ impl OperatorConfig {
         let legend_justification =
             Self::parse_coords(&props.get_string("legend.justification", ""));
 
+        // Parse chunk_size from properties (default: 10000)
+        let chunk_size = props.get_i32("chunk_size", 10_000) as usize;
+
+        // Parse PNG compression level (default: "default")
+        let png_compression = props.get_string("png.compression", "default");
+        let png_compression = match png_compression.to_lowercase().as_str() {
+            "fast" | "best" | "default" => png_compression,
+            other => {
+                eprintln!("⚠ Invalid png.compression '{}', using 'default'", other);
+                "default".to_string()
+            }
+        };
+
         Self {
-            chunk_size: 10_000, // Internal constant
+            chunk_size,
             plot_width,
             plot_height,
             backend,
@@ -121,6 +140,7 @@ impl OperatorConfig {
             legend_position,
             legend_position_inside,
             legend_justification,
+            png_compression,
         }
     }
 

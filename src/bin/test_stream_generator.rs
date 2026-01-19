@@ -631,7 +631,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Creating plot renderer...");
 
         // Create PlotRenderer with cache (if enabled)
-        let renderer = if let Some(ref cache_ref) = cache {
+        let mut renderer = if let Some(ref cache_ref) = cache {
             PlotRenderer::new_with_cache(
                 &plot_gen,
                 plot_width as u32,
@@ -642,8 +642,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             PlotRenderer::new(&plot_gen, plot_width as u32, plot_height as u32)
         };
 
+        // Set PNG compression level
+        let png_compression = match config.png_compression.to_lowercase().as_str() {
+            "fast" => ggrs_core::PngCompression::Fast,
+            "best" => ggrs_core::PngCompression::Best,
+            _ => ggrs_core::PngCompression::Default,
+        };
+        renderer.set_png_compression(png_compression);
+
         log_phase(start, "PHASE 5.3: Rendering plot (optimized streaming)");
-        println!("Rendering plot with optimized streaming...");
+        println!("Rendering plot with optimized streaming (PNG compression: {})...", config.png_compression);
 
         // Use page-specific filename if we have multiple pages
         let plot_filename = if page_values.len() > 1 {
