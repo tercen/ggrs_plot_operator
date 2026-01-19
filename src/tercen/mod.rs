@@ -33,6 +33,9 @@ pub mod properties;
 // Color handling (Version 0.0.3)
 pub mod colors;
 
+// Page handling (Version 0.0.4)
+pub mod pages;
+
 // Re-exports for convenience
 pub use client::TercenClient;
 pub use colors::{
@@ -44,6 +47,7 @@ pub use error::{Result, TercenError};
 #[allow(unused_imports)]
 pub use facets::{FacetGroup, FacetInfo, FacetMetadata};
 pub use logger::TercenLogger;
+pub use pages::{extract_page_factors, extract_page_values, PageValue};
 pub use properties::{PlotDimension, PropertyReader};
 #[allow(unused_imports)]
 pub use table::TableStreamer;

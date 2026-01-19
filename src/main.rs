@@ -150,6 +150,10 @@ async fn process_task(
 
     println!("✓ Task retrieved");
 
+    // Get workflow_id and step_id from environment for cache directory naming
+    let workflow_id = std::env::var("WORKFLOW_ID").unwrap_or_else(|_| "unknown".to_string());
+    let step_id = std::env::var("STEP_ID").unwrap_or_else(|_| task_id.to_string());
+
     // Step 2: Extract cube query, project_id, namespace, and operator settings from task
     println!("\n[2/5] Extracting cube query and properties...");
     let (cube_query, project_id, namespace, operator_settings) = extract_cube_query(&task)?;
@@ -218,85 +222,216 @@ async fn process_task(
         }
     }
 
-    // Step 3: Create stream generator
-    println!("\n[3/5] Creating stream generator...");
-    use ggrs_core::stream::StreamGenerator;
+    // Step 2.6: Extract page factors and values
+    println!("\n[2.6/5] Extracting page information...");
+    let page_factors = tercen::extract_page_factors(operator_settings.as_ref());
+    if page_factors.is_empty() {
+        println!("  No page factors defined - will generate single plot");
+    } else {
+        println!("  Page factors: {:?}", page_factors);
+    }
 
-    let stream_gen = ggrs_integration::TercenStreamGenerator::new(
-        client_arc.clone(),
-        cube_query.qt_hash.clone(),
-        cube_query.column_hash.clone(),
-        cube_query.row_hash.clone(),
-        y_axis_table_id,
-        config.chunk_size,
-        color_infos,
-    )
-    .await?;
+    // Extract unique page values from row facet table
+    let page_values =
+        tercen::extract_page_values(&client_arc, &cube_query.row_hash, &page_factors).await?;
 
-    println!("✓ Stream generator created");
+    println!("  Pages to generate: {}", page_values.len());
+    for (i, page_value) in page_values.iter().enumerate() {
+        println!("    Page {}: {}", i + 1, page_value.label);
+    }
+
+    // Store all generated plot buffers for upload at the end
+    let mut plot_buffers: Vec<(String, Vec<u8>, i32, i32)> = Vec::new();
+
+    // Step 3 & 4: Loop through pages and generate plots
+    // Each page gets its own StreamGenerator + PlotGenerator with page_filter
+    // GGRS disk cache ensures data is fetched only ONCE (shared across pages)
     println!(
-        "  Facets: {} columns × {} rows = {} cells",
-        stream_gen.n_col_facets(),
-        stream_gen.n_row_facets(),
-        stream_gen.n_col_facets() * stream_gen.n_row_facets()
+        "\n[3/5] Generating plots for {} page(s)...",
+        page_values.len()
     );
 
-    // Resolve "auto" plot dimensions now that we know facet counts
-    let (plot_width, plot_height) =
-        config.resolve_dimensions(stream_gen.n_col_facets(), stream_gen.n_row_facets());
-    println!(
-        "  Resolved plot size: {}×{} pixels",
-        plot_width, plot_height
-    );
-
-    // Step 4: Generate plot
-    println!("\n[4/5] Generating plot...");
-    use ggrs_core::renderer::{BackendChoice, OutputFormat};
-    use ggrs_core::{EnginePlotSpec, Geom, PlotGenerator, PlotRenderer, Theme};
-    use std::fs;
-
-    // Create theme with configured legend position and justification
-    let theme = Theme {
-        legend_position: config.to_legend_position(),
-        legend_justification: config.legend_justification,
-        ..Default::default()
+    // Create shared disk cache for all pages (only if multiple pages)
+    use ggrs_core::stream::DataCache;
+    let cache = if page_values.len() > 1 {
+        let cache = DataCache::new(&workflow_id, &step_id)?;
+        println!(
+            "  Created disk cache at /tmp/ggrs_cache_{}_{}/",
+            workflow_id, step_id
+        );
+        Some(cache)
+    } else {
+        println!("  Single page - cache disabled");
+        None
     };
 
-    let plot_spec = EnginePlotSpec::new()
-        .add_layer(Geom::point_sized(config.point_size as f64))
-        .theme(theme);
-    let plot_gen = PlotGenerator::new(Box::new(stream_gen), plot_spec)?;
-    let renderer = PlotRenderer::new(&plot_gen, plot_width as u32, plot_height as u32);
+    for (page_idx, page_value) in page_values.iter().enumerate() {
+        if page_values.len() > 1 {
+            println!(
+                "\n=== Page {}/{}: {} ===",
+                page_idx + 1,
+                page_values.len(),
+                page_value.label
+            );
+        }
 
-    println!("  Rendering plot (backend: {})...", config.backend);
-    let backend = match config.backend.as_str() {
-        "gpu" => BackendChoice::WebGPU,
-        _ => BackendChoice::Cairo,
-    };
+        use ggrs_core::stream::StreamGenerator;
 
-    // Render to temporary file
-    let temp_path = "temp_plot.png";
-    renderer.render_to_file(temp_path, backend, OutputFormat::Png)?;
+        // Create StreamGenerator for this page with facet filtering
+        // Note: Global DATA_CACHE ensures chunks are only fetched once
+        println!("  Creating StreamGenerator for page {}...", page_idx + 1);
 
-    // Read PNG into memory
-    let png_buffer = fs::read(temp_path)?;
-    fs::remove_file(temp_path)?;
+        let page_filter = if page_values.len() > 1 {
+            Some(&page_value.values)
+        } else {
+            None
+        };
 
-    println!("✓ Plot generated ({} bytes)", png_buffer.len());
+        let page_stream_gen = ggrs_integration::TercenStreamGenerator::new(
+            client_arc.clone(),
+            cube_query.qt_hash.clone(),
+            cube_query.column_hash.clone(),
+            cube_query.row_hash.clone(),
+            y_axis_table_id.clone(),
+            config.chunk_size,
+            color_infos.clone(),
+            page_factors.clone(),
+            page_filter,
+        )
+        .await?;
 
-    // Step 5: Upload result and update task
-    println!("\n[5/5] Uploading result to Tercen...");
-    tercen::result::save_result(
-        client_arc.clone(),
-        &project_id,
-        &namespace,
-        png_buffer,
-        plot_width,
-        plot_height,
-        &mut task,
-    )
-    .await?;
-    println!("✓ Result uploaded and linked successfully");
+        println!(
+            "  Facets: {} columns × {} rows = {} cells",
+            page_stream_gen.n_col_facets(),
+            page_stream_gen.n_row_facets(),
+            page_stream_gen.n_col_facets() * page_stream_gen.n_row_facets()
+        );
+
+        // Resolve "auto" plot dimensions now that we know facet counts
+        let (plot_width, plot_height) = config.resolve_dimensions(
+            page_stream_gen.n_col_facets(),
+            page_stream_gen.n_row_facets(),
+        );
+        println!(
+            "  Resolved plot size: {}×{} pixels",
+            plot_width, plot_height
+        );
+
+        // Step 4: Generate plot
+        println!("\n[4/5] Generating plot...");
+        use ggrs_core::renderer::{BackendChoice, OutputFormat};
+        use ggrs_core::{EnginePlotSpec, Geom, PlotGenerator, PlotRenderer, Theme};
+        use std::fs;
+
+        // Create theme with configured legend position and justification
+        let theme = Theme {
+            legend_position: config.to_legend_position(),
+            legend_justification: config.legend_justification,
+            ..Default::default()
+        };
+
+        // Create PlotSpec
+        // Note: Page filtering happens at facet loading, not GGRS level
+        let plot_spec = EnginePlotSpec::new()
+            .add_layer(Geom::point_sized(config.point_size as f64))
+            .theme(theme);
+
+        // Create PlotGenerator with the StreamGenerator and page-filtered PlotSpec
+        let plot_gen = PlotGenerator::new(Box::new(page_stream_gen), plot_spec)?;
+
+        // Create PlotRenderer with cache (if enabled)
+        let renderer = if let Some(ref cache_ref) = cache {
+            PlotRenderer::new_with_cache(
+                &plot_gen,
+                plot_width as u32,
+                plot_height as u32,
+                cache_ref.clone(),
+            )
+        } else {
+            PlotRenderer::new(&plot_gen, plot_width as u32, plot_height as u32)
+        };
+
+        println!("  Rendering plot (backend: {})...", config.backend);
+        let backend = match config.backend.as_str() {
+            "gpu" => BackendChoice::WebGPU,
+            _ => BackendChoice::Cairo,
+        };
+
+        // Render to temporary file with page-specific name
+        let temp_path = if page_values.len() > 1 {
+            format!("temp_plot_page_{}.png", page_idx)
+        } else {
+            "temp_plot.png".to_string()
+        };
+        renderer.render_to_file(&temp_path, backend, OutputFormat::Png)?;
+
+        // Read PNG into memory
+        let png_buffer = fs::read(&temp_path)?;
+        fs::remove_file(&temp_path)?;
+
+        println!("✓ Plot generated ({} bytes)", png_buffer.len());
+
+        // Store for later upload
+        plot_buffers.push((
+            page_value.label.clone(),
+            png_buffer,
+            plot_width,
+            plot_height,
+        ));
+    }
+
+    // Clean up cache directory after all pages are rendered
+    if let Some(ref cache_ref) = cache {
+        println!("  Cleaning up disk cache...");
+        cache_ref.clear()?;
+    }
+
+    // Step 5: Upload results and update task
+    println!("\n[5/5] Uploading result(s) to Tercen...");
+
+    if plot_buffers.len() == 1 {
+        // Single plot - use existing save_result
+        let (_, png_buffer, plot_width, plot_height) = plot_buffers.into_iter().next().unwrap();
+        tercen::result::save_result(
+            client_arc.clone(),
+            &project_id,
+            &namespace,
+            png_buffer,
+            plot_width,
+            plot_height,
+            &mut task,
+        )
+        .await?;
+        println!("✓ Result uploaded and linked successfully");
+    } else {
+        // Multiple plots - TODO: need to handle multiple file uploads
+        println!("  Multiple plots generated:");
+        for (label, png_buffer, width, height) in &plot_buffers {
+            println!(
+                "    - {}: {} bytes ({}×{})",
+                label,
+                png_buffer.len(),
+                width,
+                height
+            );
+        }
+        println!("  WARNING: Multiple plot upload not yet implemented!");
+        println!("  Using first plot for now...");
+
+        // For now, just upload the first plot
+        let (_, png_buffer, plot_width, plot_height) = plot_buffers.into_iter().next().unwrap();
+        tercen::result::save_result(
+            client_arc.clone(),
+            &project_id,
+            &namespace,
+            png_buffer,
+            plot_width,
+            plot_height,
+            &mut task,
+        )
+        .await?;
+        println!("✓ First plot uploaded (multi-plot support coming soon)");
+    }
 
     println!("\n=== Task Processing Complete ===");
     Ok(())

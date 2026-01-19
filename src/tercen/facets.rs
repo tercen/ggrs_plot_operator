@@ -13,8 +13,10 @@ use std::collections::HashMap;
 /// Represents a single facet group
 #[derive(Debug, Clone)]
 pub struct FacetGroup {
-    /// Index of this facet group (0-based)
+    /// Index of this facet group (0-based, for GGRS)
     pub index: usize,
+    /// Original index from the table (before filtering/remapping)
+    pub original_index: usize,
     /// Label for display (combination of all column values)
     pub label: String,
     /// Raw column values for this facet
@@ -96,6 +98,7 @@ impl FacetMetadata {
             let groups: Vec<FacetGroup> = (0..n_rows)
                 .map(|index| FacetGroup {
                     index,
+                    original_index: index,
                     label: format!("{}", index),
                     values: Default::default(),
                 })
@@ -142,6 +145,7 @@ impl FacetMetadata {
 
             groups.push(FacetGroup {
                 index,
+                original_index: index,
                 label,
                 values,
             });
@@ -156,6 +160,60 @@ impl FacetMetadata {
             groups,
             column_names,
         })
+    }
+
+    /// Load facet metadata with filtering by page values
+    ///
+    /// # Arguments
+    /// * `filter` - Map of column names to values (e.g., {"Gender": "male"})
+    ///
+    /// Only facet groups matching ALL filter criteria will be loaded.
+    /// Note: Indices are NOT remapped - they keep their original values from the table.
+    pub async fn load_with_filter(
+        client: &TercenClient,
+        table_id: &str,
+        filter: &HashMap<String, String>,
+    ) -> Result<Self> {
+        // Load all facets first
+        let mut metadata = Self::load(client, table_id).await?;
+
+        let original_count = metadata.groups.len();
+
+        // Filter groups to only those matching all criteria
+        metadata.groups.retain(|group| {
+            filter.iter().all(|(col_name, expected_value)| {
+                group
+                    .values
+                    .get(col_name)
+                    .map(|actual_value| actual_value == expected_value)
+                    .unwrap_or(false)
+            })
+        });
+
+        eprintln!(
+            "DEBUG: Filtered facets from {} to {} groups",
+            original_count,
+            metadata.groups.len()
+        );
+
+        // CRITICAL: Remap facet indices to 0-based for GGRS grid positioning
+        // GGRS expects facet groups with indices 0..N for rendering grid
+        // The original indices are preserved in group.original_index for data matching
+        //
+        // Data flow:
+        // 1. Operator loads only male facets (original_index=12-23, index=0-11)
+        // 2. Operator streams raw data with .ri=12-23 (no filtering/remapping)
+        // 3. GGRS uses original_index to route data[.ri=12] → panel[index=0]
+        for (new_idx, group) in metadata.groups.iter_mut().enumerate() {
+            eprintln!(
+                "  Remapping facet {} from original_index {} to index {}",
+                group.label, group.original_index, new_idx
+            );
+            group.index = new_idx;
+            // original_index is NOT changed - it keeps the value from the full table
+        }
+
+        Ok(metadata)
     }
 
     /// Get number of facet groups
@@ -194,6 +252,30 @@ impl FacetInfo {
         let (col_result, row_result) = tokio::join!(
             FacetMetadata::load(client, col_table_id),
             FacetMetadata::load(client, row_table_id)
+        );
+
+        Ok(FacetInfo {
+            col_facets: col_result?,
+            row_facets: row_result?,
+        })
+    }
+
+    /// Load facet metadata with filtering on row facets
+    ///
+    /// # Arguments
+    /// * `row_filter` - Filter to apply to row facets (e.g., {"Gender": "male"})
+    ///
+    /// Column facets are loaded normally, row facets are filtered.
+    pub async fn load_with_filter(
+        client: &TercenClient,
+        col_table_id: &str,
+        row_table_id: &str,
+        row_filter: &HashMap<String, String>,
+    ) -> Result<Self> {
+        // Load column facets normally, row facets with filter
+        let (col_result, row_result) = tokio::join!(
+            FacetMetadata::load(client, col_table_id),
+            FacetMetadata::load_with_filter(client, row_table_id, row_filter)
         );
 
         Ok(FacetInfo {

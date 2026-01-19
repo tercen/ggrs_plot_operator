@@ -26,7 +26,7 @@ set -e
 
 # Configuration
 export TERCEN_URI="http://127.0.0.1:50051"
-export TERCEN_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjU0MDAiLCJleHAiOjE3NzExNTYwMjksImRhdGEiOnsiZCI6IiIsInUiOiJ0ZXN0IiwiZSI6MTc3MTE1NjAyOTEzMH19.MKGl8pfmw8bkqiJ4_msNpGBpabIHtVfZ2-4tYNEc93c"
+export TERCEN_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjU0MDAiLCJleHAiOjE3NzE0MzQzMTYsImRhdGEiOnsiZCI6IiIsInUiOiJ0ZXN0IiwiZSI6MTc3MTQzNDMxNjk2MH19.IsYnlDE8fBGlzfD776GKjFxcF35ws48MABWGctYiwFs"
 export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
 export STEP_ID="b9659735-27db-4480-b398-4e391431480f"
 
@@ -112,13 +112,13 @@ echo "Running test with backend=$BACKEND"
 echo "============================================"
 echo ""
 
-# Clean old binaries and plot to ensure fresh build
-echo "Cleaning old binaries and plot..."
-rm -f target/debug/test_stream_generator plot.png
+# Clean old binaries and plots to ensure fresh build
+echo "Cleaning old binaries and plots..."
+rm -f target/debug/test_stream_generator plot.png plot_*.png
 echo ""
 
 # Build first to avoid compilation time in measurements
-echo "Building test binary..."
+echo "Building test binary (with pagination support)..."
 cargo build --bin test_stream_generator 2>&1 | tail -10
 BUILD_EXIT=$?
 if [ $BUILD_EXIT -ne 0 ]; then
@@ -135,7 +135,7 @@ MEMORY_OUTPUT="memory_usage_backend_${BACKEND}.png"
 CSV_OUTPUT="memory_usage_backend_${BACKEND}.csv"
 
 # Start the test process and immediately get its PID
-echo "Starting test process and memory tracker..."
+echo "Starting test process (with pagination) and memory tracker..."
 ./target/debug/test_stream_generator 2>&1 &
 TEST_PID=$!
 
