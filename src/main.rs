@@ -359,7 +359,10 @@ async fn process_task(
         };
         renderer.set_png_compression(png_compression);
 
-        println!("  Rendering plot (backend: {}, PNG compression: {})...", config.backend, config.png_compression);
+        println!(
+            "  Rendering plot (backend: {}, PNG compression: {})...",
+            config.backend, config.png_compression
+        );
         let backend = match config.backend.as_str() {
             "gpu" => BackendChoice::WebGPU,
             _ => BackendChoice::Cairo,

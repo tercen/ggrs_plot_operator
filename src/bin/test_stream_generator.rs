@@ -651,7 +651,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         renderer.set_png_compression(png_compression);
 
         log_phase(start, "PHASE 5.3: Rendering plot (optimized streaming)");
-        println!("Rendering plot with optimized streaming (PNG compression: {})...", config.png_compression);
+        println!(
+            "Rendering plot with optimized streaming (PNG compression: {})...",
+            config.png_compression
+        );
 
         // Use page-specific filename if we have multiple pages
         let plot_filename = if page_values.len() > 1 {
