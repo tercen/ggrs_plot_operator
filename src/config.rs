@@ -61,6 +61,21 @@ pub struct OperatorConfig {
     /// - "default": Balanced (current behavior)
     /// - "best": Slowest encoding (~40% slower), smallest files (-10%)
     pub png_compression: String,
+
+    /// Plot title (optional)
+    pub plot_title: Option<String>,
+
+    /// Plot title position: "top", "bottom", "left", "right"
+    pub plot_title_position: String,
+
+    /// Plot title justification (anchor point): (x, y) where x,y ∈ [0,1]
+    pub plot_title_justification: Option<(f64, f64)>,
+
+    /// X-axis label (optional)
+    pub x_axis_label: Option<String>,
+
+    /// Y-axis label (optional)
+    pub y_axis_label: Option<String>,
 }
 
 impl OperatorConfig {
@@ -131,6 +146,50 @@ impl OperatorConfig {
             }
         };
 
+        // Parse text labels (all optional)
+        let plot_title = {
+            let title = props.get_string("plot.title", "");
+            if title.is_empty() {
+                None
+            } else {
+                Some(title)
+            }
+        };
+
+        // Parse plot title position (matches ggplot2 theme(plot.title.position = ...))
+        // Valid values: "top" (default), "bottom", "left", "right"
+        let plot_title_position = props.get_string("plot.title.position", "top");
+        let plot_title_position = match plot_title_position.to_lowercase().as_str() {
+            "top" | "bottom" | "left" | "right" => plot_title_position,
+            other => {
+                eprintln!("⚠ Invalid plot.title.position '{}', using 'top'", other);
+                "top".to_string()
+            }
+        };
+
+        // Parse plot.title.justification
+        // Format: "x,y" where x,y ∈ [0,1]
+        let plot_title_justification =
+            Self::parse_coords(&props.get_string("plot.title.justification", "0.5,0.5"));
+
+        let x_axis_label = {
+            let label = props.get_string("axis.x.label", "");
+            if label.is_empty() {
+                None
+            } else {
+                Some(label)
+            }
+        };
+
+        let y_axis_label = {
+            let label = props.get_string("axis.y.label", "");
+            if label.is_empty() {
+                None
+            } else {
+                Some(label)
+            }
+        };
+
         Self {
             chunk_size,
             plot_width,
@@ -141,6 +200,11 @@ impl OperatorConfig {
             legend_position_inside,
             legend_justification,
             png_compression,
+            plot_title,
+            plot_title_position,
+            plot_title_justification,
+            x_axis_label,
+            y_axis_label,
         }
     }
 

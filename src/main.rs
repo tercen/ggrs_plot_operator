@@ -323,18 +323,40 @@ async fn process_task(
         use ggrs_core::{EnginePlotSpec, Geom, PlotGenerator, PlotRenderer, Theme};
         use std::fs;
 
-        // Create theme with configured legend position and justification
-        let theme = Theme {
+        // Create theme with configured legend and title settings
+        use ggrs_core::theme::elements::Element;
+
+        let mut theme = Theme {
             legend_position: config.to_legend_position(),
             legend_justification: config.legend_justification,
+            plot_title_position: config.plot_title_position.clone(),
             ..Default::default()
         };
 
+        // Apply plot title justification if configured
+        if let Some((just_x, just_y)) = config.plot_title_justification {
+            if let Element::Text(ref mut text_elem) = theme.plot_title {
+                text_elem.hjust = just_x;
+                text_elem.vjust = just_y;
+            }
+        }
+
         // Create PlotSpec
         // Note: Page filtering happens at facet loading, not GGRS level
-        let plot_spec = EnginePlotSpec::new()
+        let mut plot_spec = EnginePlotSpec::new()
             .add_layer(Geom::point_sized(config.point_size as f64))
             .theme(theme);
+
+        // Add text labels from configuration
+        if let Some(ref title) = config.plot_title {
+            plot_spec = plot_spec.title(title.clone());
+        }
+        if let Some(ref x_label) = config.x_axis_label {
+            plot_spec = plot_spec.x_label(x_label.clone());
+        }
+        if let Some(ref y_label) = config.y_axis_label {
+            plot_spec = plot_spec.y_label(y_label.clone());
+        }
 
         // Create PlotGenerator with the StreamGenerator and page-filtered PlotSpec
         let plot_gen = PlotGenerator::new(Box::new(page_stream_gen), plot_spec)?;

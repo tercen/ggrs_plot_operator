@@ -141,6 +141,37 @@
       "defaultValue": "fast",
       "description": "PNG compression level: 'fast' (~30% speedup, +15% file size), 'default' (balanced), or 'best' (~40% slower, -10% file size).",
       "values": ["fast", "default", "best"]
+    },
+    {
+      "kind": "StringProperty",
+      "name": "plot.title",
+      "defaultValue": "",
+      "description": "Plot title text. Leave empty for no title."
+    },
+    {
+      "kind": "EnumeratedProperty",
+      "name": "plot.title.position",
+      "defaultValue": "top",
+      "description": "Plot title position: where the title appears relative to the plot.",
+      "values": ["top", "bottom", "left", "right"]
+    },
+    {
+      "kind": "StringProperty",
+      "name": "plot.title.justification",
+      "defaultValue": "0.5,0.5",
+      "description": "Plot title justification (anchor point). Format: 'x,y' where x,y ∈ [0,1]. Controls which point of the title aligns with the position. (0,0)=bottom-left, (1,1)=top-right, (0.5,0.5)=center."
+    },
+    {
+      "kind": "StringProperty",
+      "name": "axis.x.label",
+      "defaultValue": "",
+      "description": "X-axis label displayed at the bottom center of the plot. Leave empty for no label."
+    },
+    {
+      "kind": "StringProperty",
+      "name": "axis.y.label",
+      "defaultValue": "",
+      "description": "Y-axis label displayed on the left side of the plot. Leave empty for no label. Note: Y-axis labels are not rotated in the current version."
     }
   ]
 }

@@ -38,7 +38,7 @@ MEMORY_TRACKER="/home/thiago/workspaces/tercen/main/memory_tracker/target/releas
 
 # Parse arguments
 BACKEND="${1:-cpu}"
-LEGEND_POSITION="right"
+LEGEND_POSITION="right" # position test # position test # position test # position test
 LEGEND_POSITION_INSIDE="${3:-}"
 LEGEND_JUSTIFICATION="0.1,0.1"
 PNG_COMPRESSION="fast"
@@ -116,7 +116,12 @@ cat > operator_config.json <<EOF
     [[ -n "$LEGEND_JUSTIFICATION" ]] && echo ",
   \"legend.justification\": \"$LEGEND_JUSTIFICATION\""
   ),
-  "png.compression": "$PNG_COMPRESSION"
+  "png.compression": "$PNG_COMPRESSION",
+  "plot.title": "Test Plot via Local Script",
+  "plot.title.position": "top",
+  "plot.title.justification": "0,1",
+  "axis.x.label": "X Axis Label",
+  "axis.y.label": "Y Axis Label"
 }
 EOF
 

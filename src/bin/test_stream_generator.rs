@@ -596,19 +596,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Creating plot specification...");
         println!("  Point size: {}", config.point_size);
         println!("  Legend position: {:?}", config.to_legend_position());
+        println!("  Legend justification: {:?}", config.legend_justification);
+        println!("  Plot title position: {}", config.plot_title_position);
+        println!("  Plot title justification: {:?}", config.plot_title_justification);
 
-        // Create theme with configured legend position and justification
-        let theme = Theme {
+        // Create theme with configured legend and title settings
+        use ggrs_core::theme::elements::Element;
+
+        let mut theme = Theme {
             legend_position: config.to_legend_position(),
             legend_justification: config.legend_justification,
+            plot_title_position: config.plot_title_position.clone(),
             ..Default::default()
         };
 
+        // Apply plot title justification if configured
+        if let Some((just_x, just_y)) = config.plot_title_justification {
+            if let Element::Text(ref mut text_elem) = theme.plot_title {
+                text_elem.hjust = just_x;
+                text_elem.vjust = just_y;
+            }
+        }
+
         // Create plot spec
         // Note: Page filtering happens at facet loading, not GGRS level
-        let plot_spec = EnginePlotSpec::new()
+        let mut plot_spec = EnginePlotSpec::new()
             .add_layer(Geom::point_sized(config.point_size as f64))
             .theme(theme);
+
+        // Add text labels from configuration (if present)
+        if let Some(ref title) = config.plot_title {
+            plot_spec = plot_spec.title(title.clone());
+        }
+        if let Some(ref x_label) = config.x_axis_label {
+            plot_spec = plot_spec.x_label(x_label.clone());
+        }
+        if let Some(ref y_label) = config.y_axis_label {
+            plot_spec = plot_spec.y_label(y_label.clone());
+        }
 
         log_phase(start, "PHASE 5.1: Creating PlotGenerator");
         println!("Creating plot generator...");

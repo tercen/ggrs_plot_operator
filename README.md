@@ -28,18 +28,20 @@ Note: Point size is hardcoded (4) - should come from crosstab model aesthetics.
 - [x] Use operator input specs to get projection information
 - [ ] Dynamic point size
 - [x] Specify gRPC as communication protocol
-- [ ] Add pages
-- [ ] Add x axis support
+- [x] Add pages
+- [x] Add x axis support
 - [x] Add support for continuous color scale 
 - [x] Add support for categorical colors (ColorLevels column)
 - [x] Add color scale legend
+- [ ] Configurable textual elements in plot (axis labels, legend, title)
 
 Note: Legend positioning still requires fine-tuning
 
 ### 0.0.4
 
+- [ ] Add heatmap
 - [ ] Support for minimal and white themes
-- [ ] Further optimize bulk streaming for multi-facet
+
 
 ### 0.0.5
 
@@ -47,10 +49,8 @@ Note: Legend positioning still requires fine-tuning
 - [ ] Add line plot
 - [ ] Add support for manual axis ranges
 
-### 0.0.6
 
-- [ ] Add heatmap
-- [ ] Configurable textual elements in plot (axis labels, legend, title)
 
 ### Unspecified Version
 - [ ] Switching between GPU / CPU
+- [ ] Further optimize bulk streaming for multi-facet

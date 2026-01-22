@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the GGRS plotting library with Tercen's gRPC API. It receives tabular data from Tercen, generates high-performance plots with faceting and colors, and returns PNG images for visualization.
 
-**Current Version**: 0.0.3-dev
+**Current Version**: 0.0.3
 **Status**: Production-ready (EventService logging disabled due to infrastructure limitation)
 
 ---
@@ -219,10 +219,21 @@ data.column(".ys")  // User said .ys exists
 - EventService logging disabled (returns UnimplementedError in production)
 - Point size hardcoded to 4 (should come from crosstab aesthetics)
 - Category names missing for `.colorLevels` in legends
+- ⚠️ Pagination requires GGRS coordination for original_index mapping (see CONTINUE.md)
 
 ### Roadmap
 
-**0.0.4**: Themes (minimal, white), bulk streaming optimization
+**0.0.3**: ✅ COMPLETE
+- Pagination support with global caching
+- Categorical colors (ColorLevels)
+- Legend positioning and justification
+- PNG compression options
+
+**0.0.4**:
+- Themes (minimal, white)
+- Further optimize bulk streaming for multi-facet
+- Dynamic point size from crosstab aesthetics
+
 **0.0.5**: Bar/line plots, manual axis ranges
 **0.0.6**: Heatmaps, configurable text elements (axis labels, legend, title)
 
@@ -247,6 +258,16 @@ cargo test
 ```
 
 **NEVER consider code complete until all checks pass.** CI will fail otherwise.
+
+### Ongoing Work
+
+**Check CONTINUE.md** before starting work on pagination or recent features. This file documents:
+- Current known issues
+- Work in progress
+- Implementation decisions
+- Questions that need answering
+
+CONTINUE.md is the "context handoff" file between sessions - always read it first!
 
 ### Testing Workflow
 
@@ -296,6 +317,7 @@ Properties defined in `operator.json`, read via `PropertyReader`:
 | `legend.position` | Enum | `"right"` | Legend position: right, left, top, bottom, inside, none |
 | `legend.position.inside` | String | `""` | Coordinates for inside position: "x,y" where x,y ∈ [0,1] |
 | `legend.justification` | String | `""` | Legend anchor point: "x,y" where x,y ∈ [0,1] |
+| `png.compression` | Enum | `"fast"` | PNG compression level: "fast" (~30% speedup, +15% file size), "default" (balanced), or "best" (~40% slower, -10% file size) |
 
 **Auto Dimensions**: `800px + (n_facets - 1) × 400px`, capped at 4000px
 
@@ -356,6 +378,7 @@ base64 = "0.22"             # PNG encoding
 - **DEPLOYMENT_DEBUG.md** - Known issues and debugging
 
 ### Session Documentation
+- `SESSION_2025-01-19_PAGINATION_FIX.md` - Pagination offset fix and getCubeQuery logic
 - `SESSION_2025-01-18_PAGINATION_OPTIMIZATION.md` - Global cache implementation
 - `SESSION_2025-01-16_PAGES_DEBUG.md` - Pagination debugging notes
 - Check for other `SESSION_*.md` files for recent development context
