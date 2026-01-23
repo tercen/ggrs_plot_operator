@@ -33,13 +33,14 @@ Note: Point size is hardcoded (4) - should come from crosstab model aesthetics.
 - [x] Add support for continuous color scale 
 - [x] Add support for categorical colors (ColorLevels column)
 - [x] Add color scale legend
-- [ ] Configurable textual elements in plot (axis labels, legend, title)
+- [x] Configurable textual elements in plot (axis labels, legend, title)
 
 Note: Legend positioning still requires fine-tuning
 
 ### 0.0.4
 
 - [ ] Add heatmap
+- [ ] Add Test context structure
 - [ ] Support for minimal and white themes
 
 

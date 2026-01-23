@@ -598,7 +598,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  Legend position: {:?}", config.to_legend_position());
         println!("  Legend justification: {:?}", config.legend_justification);
         println!("  Plot title position: {}", config.plot_title_position);
-        println!("  Plot title justification: {:?}", config.plot_title_justification);
+        println!(
+            "  Plot title justification: {:?}",
+            config.plot_title_justification
+        );
 
         // Create theme with configured legend and title settings
         use ggrs_core::theme::elements::Element;
