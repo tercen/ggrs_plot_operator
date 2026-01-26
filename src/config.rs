@@ -21,8 +21,8 @@ pub struct OperatorConfig {
     /// Render backend: "cpu" or "gpu"
     pub backend: String,
 
-    /// Point size (hardcoded, TODO: get from crosstab aesthetics)
-    pub point_size: i32,
+    /// Point size in pixels (derived from UI scale 1-10)
+    pub point_size: f64,
 
     /// Legend position: "left", "right", "top", "bottom", "inside", "none"
     /// Matches ggplot2's legend.position theme setting
@@ -85,10 +85,17 @@ impl OperatorConfig {
     /// - plot_width: "auto" (derive from column facet count)
     /// - plot_height: "auto" (derive from row facet count)
     /// - backend: "cpu"
+    /// - point_size: 4 (UI scale, will be converted to render size)
     ///
     /// Properties come from operator.json definitions and are set via Tercen UI.
-    /// Note: point_size is hardcoded (4) - should come from crosstab aesthetics in future.
-    pub fn from_properties(operator_settings: Option<&OperatorSettings>) -> Self {
+    ///
+    /// # Arguments
+    /// * `operator_settings` - Operator settings from Tercen
+    /// * `ui_point_size` - Point size from crosstab model (UI scale 1-10), None = use default (4)
+    pub fn from_properties(
+        operator_settings: Option<&OperatorSettings>,
+        ui_point_size: Option<i32>,
+    ) -> Self {
         let props = PropertyReader::from_operator_settings(operator_settings);
 
         // Parse plot dimensions with "auto" support
@@ -190,12 +197,19 @@ impl OperatorConfig {
             }
         };
 
+        // Convert UI point size (1-10) to render size
+        // UI scale: 1 = minimal (1px), 10 = 2.5x default (10px)
+        // Default UI value is 4, which maps to 4px
+        // Formula: render_size = ui_value (direct 1:1 mapping)
+        let ui_size = ui_point_size.unwrap_or(4).clamp(1, 10);
+        let point_size = ui_size as f64;
+
         Self {
             chunk_size,
             plot_width,
             plot_height,
             backend,
-            point_size: 4, // Hardcoded for now, TODO: get from crosstab aesthetics
+            point_size,
             legend_position,
             legend_position_inside,
             legend_justification,

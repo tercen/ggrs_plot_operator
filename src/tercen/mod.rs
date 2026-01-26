@@ -42,8 +42,9 @@ pub mod context;
 // Re-exports for convenience
 pub use client::TercenClient;
 pub use colors::{
-    categorical_color_from_level, extract_color_info_from_step, interpolate_color, parse_palette,
-    CategoryColorMap, ColorInfo, ColorMapping, ColorPalette, ColorStop,
+    categorical_color_from_level, extract_color_info_from_step, extract_point_size_from_step,
+    interpolate_color, parse_palette, CategoryColorMap, ColorInfo, ColorMapping, ColorPalette,
+    ColorStop,
 };
 pub use context::{DevContext, ProductionContext, TercenContext};
 #[allow(unused_imports)]

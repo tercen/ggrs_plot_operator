@@ -428,6 +428,71 @@ pub fn interpolate_color(value: f64, palette: &ColorPalette) -> [u8; 3] {
     ]
 }
 
+/// Extract point size from workflow step
+///
+/// Returns the pointSize from the chart configuration (1-10 scale from UI).
+/// Returns None if not found, in which case the caller should use a default.
+pub fn extract_point_size_from_step(
+    workflow: &proto::Workflow,
+    step_id: &str,
+) -> Result<Option<i32>> {
+    // Find the step
+    let step = workflow
+        .steps
+        .iter()
+        .find(|s| {
+            if let Some(proto::e_step::Object::Datastep(ds)) = &s.object {
+                ds.id == step_id
+            } else {
+                false
+            }
+        })
+        .ok_or_else(|| TercenError::Data(format!("Step '{}' not found in workflow", step_id)))?;
+
+    // Extract DataStep
+    let data_step = match &step.object {
+        Some(proto::e_step::Object::Datastep(ds)) => ds,
+        _ => return Err(TercenError::Data("Step is not a DataStep".to_string())),
+    };
+
+    // Navigate to model.axis.xyAxis
+    let model = match data_step.model.as_ref() {
+        Some(m) => m,
+        None => return Ok(None), // No model, use default
+    };
+
+    let axis = match model.axis.as_ref() {
+        Some(a) => a,
+        None => return Ok(None), // No axis, use default
+    };
+
+    // Get first xyAxis
+    let xy_axis = match axis.xy_axis.first() {
+        Some(xy) => xy,
+        None => return Ok(None), // No xyAxis, use default
+    };
+
+    // Extract pointSize from chart
+    let chart = match xy_axis.chart.as_ref() {
+        Some(c) => c,
+        None => return Ok(None), // No chart, use default
+    };
+
+    // Check the chart type and extract pointSize
+    let point_size = match &chart.object {
+        Some(proto::e_chart::Object::Chartpoint(cp)) => Some(cp.point_size),
+        Some(proto::e_chart::Object::Chartline(cl)) => Some(cl.point_size),
+        _ => None, // Other chart types don't have pointSize
+    };
+
+    eprintln!(
+        "DEBUG extract_point_size: Found pointSize = {:?}",
+        point_size
+    );
+
+    Ok(point_size)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

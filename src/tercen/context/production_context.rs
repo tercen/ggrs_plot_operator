@@ -23,6 +23,7 @@ pub struct ProductionContext {
     color_infos: Vec<ColorInfo>,
     page_factors: Vec<String>,
     y_axis_table_id: Option<String>,
+    point_size: Option<i32>,
 }
 
 impl ProductionContext {
@@ -121,6 +122,9 @@ impl ProductionContext {
         // Extract page factors from operator settings
         let page_factors = crate::tercen::extract_page_factors(operator_settings.as_ref());
 
+        // Extract point size from workflow step
+        let point_size = Self::extract_point_size(&client, &workflow_id, &step_id).await?;
+
         Ok(Self {
             client,
             cube_query,
@@ -133,6 +137,7 @@ impl ProductionContext {
             color_infos,
             page_factors,
             y_axis_table_id,
+            point_size,
         })
     }
 
@@ -237,6 +242,46 @@ impl ProductionContext {
 
         Ok(color_infos)
     }
+
+    /// Extract point size from workflow step
+    async fn extract_point_size(
+        client: &TercenClient,
+        workflow_id: &str,
+        step_id: &str,
+    ) -> Result<Option<i32>, Box<dyn std::error::Error>> {
+        if workflow_id.is_empty() || step_id.is_empty() {
+            println!(
+                "[ProductionContext] Workflow/Step IDs not available - skipping point_size extraction"
+            );
+            return Ok(None);
+        }
+
+        // Fetch workflow
+        let mut workflow_service = client.workflow_service()?;
+        let request = tonic::Request::new(crate::tercen::client::proto::GetRequest {
+            id: workflow_id.to_string(),
+            ..Default::default()
+        });
+        let response = workflow_service.get(request).await?;
+        let e_workflow = response.into_inner();
+
+        let workflow = e_workflow
+            .object
+            .as_ref()
+            .map(|obj| match obj {
+                crate::tercen::client::proto::e_workflow::Object::Workflow(wf) => wf,
+            })
+            .ok_or("EWorkflow has no workflow object")?;
+
+        // Extract point size from step
+        match crate::tercen::extract_point_size_from_step(workflow, step_id) {
+            Ok(ps) => Ok(ps),
+            Err(e) => {
+                eprintln!("[ProductionContext] Failed to extract point_size: {}", e);
+                Ok(None) // Use default on error
+            }
+        }
+    }
 }
 
 impl TercenContext for ProductionContext {
@@ -278,6 +323,10 @@ impl TercenContext for ProductionContext {
 
     fn y_axis_table_id(&self) -> Option<&str> {
         self.y_axis_table_id.as_deref()
+    }
+
+    fn point_size(&self) -> Option<i32> {
+        self.point_size
     }
 
     fn client(&self) -> &Arc<TercenClient> {

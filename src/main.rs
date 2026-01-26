@@ -148,8 +148,8 @@ async fn process_task(
     println!("  Project ID: {}", ctx.project_id());
     println!("  Namespace: {}", ctx.namespace());
 
-    // Load operator configuration from properties
-    let config = config::OperatorConfig::from_properties(ctx.operator_settings());
+    // Load operator configuration from properties and context
+    let config = config::OperatorConfig::from_properties(ctx.operator_settings(), ctx.point_size());
 
     println!("\n✓ Configuration loaded");
     println!("  Backend: {}", config.backend);
@@ -305,7 +305,7 @@ async fn process_task(
 
         // Create PlotSpec
         let mut plot_spec = EnginePlotSpec::new()
-            .add_layer(Geom::point_sized(config.point_size as f64))
+            .add_layer(Geom::point_sized(config.point_size))
             .theme(theme);
 
         // Add text labels from configuration

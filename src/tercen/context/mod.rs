@@ -53,6 +53,9 @@ pub trait TercenContext: Send + Sync {
     /// Get the Y-axis table ID (if available)
     fn y_axis_table_id(&self) -> Option<&str>;
 
+    /// Get the point size from crosstab model (UI scale 1-10, None = use default)
+    fn point_size(&self) -> Option<i32>;
+
     /// Get the Tercen client
     fn client(&self) -> &Arc<TercenClient>;
 

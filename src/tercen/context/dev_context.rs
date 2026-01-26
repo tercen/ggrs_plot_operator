@@ -24,6 +24,7 @@ pub struct DevContext {
     color_infos: Vec<ColorInfo>,
     page_factors: Vec<String>,
     y_axis_table_id: Option<String>,
+    point_size: Option<i32>,
 }
 
 impl DevContext {
@@ -162,6 +163,15 @@ impl DevContext {
         // Extract page factors
         let page_factors = crate::tercen::extract_page_factors(operator_settings.as_ref());
 
+        // Extract point size from workflow step
+        let point_size = match crate::tercen::extract_point_size_from_step(&workflow, step_id) {
+            Ok(ps) => ps,
+            Err(e) => {
+                eprintln!("[DevContext] Failed to extract point_size: {}", e);
+                None
+            }
+        };
+
         Ok(Self {
             client,
             cube_query,
@@ -174,6 +184,7 @@ impl DevContext {
             color_infos,
             page_factors,
             y_axis_table_id,
+            point_size,
         })
     }
 
@@ -301,6 +312,10 @@ impl TercenContext for DevContext {
 
     fn y_axis_table_id(&self) -> Option<&str> {
         self.y_axis_table_id.as_deref()
+    }
+
+    fn point_size(&self) -> Option<i32> {
+        self.point_size
     }
 
     fn client(&self) -> &Arc<TercenClient> {

@@ -38,15 +38,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::env::var("WORKFLOW_ID").expect("WORKFLOW_ID environment variable is required");
     let step_id = std::env::var("STEP_ID").expect("STEP_ID environment variable is required");
 
-    // Load operator configuration from operator_config.json if it exists
-    let config = load_test_config();
-
     println!("Configuration:");
     println!("  URI: {}", uri);
     println!("  Token: {}...", &token[..10.min(token.len())]);
     println!("  Workflow ID: {}", workflow_id);
     println!("  Step ID: {}", step_id);
-    println!("  Chunk size: {}", config.chunk_size);
     println!();
 
     // Connect to Tercen
@@ -65,6 +61,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = DevContext::from_workflow_step(client_arc.clone(), &workflow_id, &step_id).await?;
 
     println!("✓ Context created");
+
+    // Load operator configuration (after context to get point_size)
+    let config = load_test_config(ctx.point_size());
+    println!("  Chunk size: {}", config.chunk_size);
+    println!(
+        "  Point size: {} (from crosstab: {:?})",
+        config.point_size,
+        ctx.point_size()
+    );
     println!("  Main table (qt_hash): {}", ctx.qt_hash());
     println!("  Column table (column_hash): {}", ctx.column_hash());
     println!("  Row table (row_hash): {}", ctx.row_hash());
@@ -283,7 +288,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Create plot spec
         let mut plot_spec = EnginePlotSpec::new()
-            .add_layer(Geom::point_sized(config.point_size as f64))
+            .add_layer(Geom::point_sized(config.point_size))
             .theme(theme);
 
         // Add text labels from configuration
@@ -375,7 +380,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Load test configuration from operator_config.json if it exists
-fn load_test_config() -> OperatorConfig {
+fn load_test_config(ui_point_size: Option<i32>) -> OperatorConfig {
     use ggrs_plot_operator::tercen::client::proto::{OperatorRef, OperatorSettings, PropertyValue};
     use std::fs;
 
@@ -384,7 +389,7 @@ fn load_test_config() -> OperatorConfig {
         Ok(json) => json,
         Err(_) => {
             println!("  No operator_config.json found, using defaults");
-            return OperatorConfig::from_properties(None);
+            return OperatorConfig::from_properties(None, ui_point_size);
         }
     };
 
@@ -394,7 +399,7 @@ fn load_test_config() -> OperatorConfig {
             Err(e) => {
                 eprintln!("  Failed to parse operator_config.json: {}", e);
                 eprintln!("  Using defaults");
-                return OperatorConfig::from_properties(None);
+                return OperatorConfig::from_properties(None, ui_point_size);
             }
         };
 
@@ -430,5 +435,5 @@ fn load_test_config() -> OperatorConfig {
     };
 
     println!("  Loaded configuration from operator_config.json");
-    OperatorConfig::from_properties(Some(&operator_settings))
+    OperatorConfig::from_properties(Some(&operator_settings), ui_point_size)
 }
