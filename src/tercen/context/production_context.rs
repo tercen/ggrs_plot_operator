@@ -90,16 +90,17 @@ impl ProductionContext {
             .unwrap_or_default();
 
         // Get workflow_id and step_id from task environment
+        // Tercen uses "workflow.id" and "step.id" keys (with dots, not underscores)
         let workflow_id = task_environment
             .iter()
-            .find(|p| p.key == "WORKFLOW_ID")
+            .find(|p| p.key == "workflow.id")
             .map(|p| p.value.clone())
             .or_else(|| std::env::var("WORKFLOW_ID").ok())
             .unwrap_or_default();
 
         let step_id = task_environment
             .iter()
-            .find(|p| p.key == "STEP_ID")
+            .find(|p| p.key == "step.id")
             .map(|p| p.value.clone())
             .or_else(|| std::env::var("STEP_ID").ok())
             .unwrap_or_else(|| task_id.to_string());

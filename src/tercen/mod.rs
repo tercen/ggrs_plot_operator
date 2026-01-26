@@ -53,6 +53,7 @@ pub use facets::{FacetGroup, FacetInfo, FacetMetadata};
 pub use logger::TercenLogger;
 pub use pages::{extract_page_factors, extract_page_values, PageValue};
 pub use properties::{PlotDimension, PropertyReader};
+pub use result::PlotResult;
 #[allow(unused_imports)]
 pub use table::TableStreamer;
 pub use tson_convert::tson_to_dataframe;

@@ -21,6 +21,149 @@ use super::table_convert;
 use polars::prelude::*;
 use std::sync::Arc;
 
+/// Struct representing a single plot result for multi-page uploads
+pub struct PlotResult {
+    /// Page label (e.g., "female", "male")
+    pub label: String,
+    /// PNG bytes
+    pub png_buffer: Vec<u8>,
+    /// Plot width in pixels
+    pub width: i32,
+    /// Plot height in pixels
+    pub height: i32,
+    /// Page factor values as key-value pairs (e.g., [("Gender", "female")])
+    pub page_factors: Vec<(String, String)>,
+}
+
+/// Save multiple PNG plot results back to Tercen
+///
+/// Each plot gets its own row in the result table, with page factor columns
+/// to identify which page it belongs to.
+///
+/// # Arguments
+/// * `client` - Tercen client for gRPC calls
+/// * `project_id` - Project ID to upload the result to
+/// * `namespace` - Operator namespace for prefixing column names
+/// * `plots` - Vector of PlotResult structs
+/// * `task` - Mutable reference to the task
+pub async fn save_results(
+    client: Arc<TercenClient>,
+    project_id: &str,
+    namespace: &str,
+    plots: Vec<PlotResult>,
+    task: &mut proto::ETask,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use base64::Engine;
+
+    println!("Encoding {} plots to base64...", plots.len());
+
+    // Build vectors for each column
+    let mut ci_vec: Vec<i32> = Vec::new();
+    let mut ri_vec: Vec<i32> = Vec::new();
+    let mut content_vec: Vec<String> = Vec::new();
+    let mut filename_vec: Vec<String> = Vec::new();
+    let mut mimetype_vec: Vec<String> = Vec::new();
+    let mut width_vec: Vec<f64> = Vec::new();
+    let mut height_vec: Vec<f64> = Vec::new();
+
+    // Collect all unique page factor names
+    let mut page_factor_names: Vec<String> = Vec::new();
+    if let Some(first_plot) = plots.first() {
+        for (name, _) in &first_plot.page_factors {
+            page_factor_names.push(name.clone());
+        }
+    }
+
+    // Page factor value columns (one vec per factor)
+    let mut page_factor_values: Vec<Vec<String>> = vec![Vec::new(); page_factor_names.len()];
+
+    for (idx, plot) in plots.iter().enumerate() {
+        let base64_png = base64::engine::general_purpose::STANDARD.encode(&plot.png_buffer);
+        println!(
+            "  Plot {}: {} -> {} bytes (base64: {})",
+            idx + 1,
+            plot.label,
+            plot.png_buffer.len(),
+            base64_png.len()
+        );
+
+        // Add row data
+        ci_vec.push(0);
+        ri_vec.push(idx as i32);
+        content_vec.push(base64_png);
+        filename_vec.push(format!("plot_{}.png", plot.label));
+        mimetype_vec.push("image/png".to_string());
+        width_vec.push(plot.width as f64);
+        height_vec.push(plot.height as f64);
+
+        // Add page factor values
+        for (i, (_, value)) in plot.page_factors.iter().enumerate() {
+            if i < page_factor_values.len() {
+                page_factor_values[i].push(value.clone());
+            }
+        }
+    }
+
+    // Create DataFrame
+    println!("Creating result DataFrame with {} rows...", plots.len());
+    let mut df = df! {
+        ".ci" => ci_vec,
+        ".ri" => ri_vec,
+        ".content" => content_vec,
+        &format!("{}.filename", namespace) => filename_vec,
+        &format!("{}.mimetype", namespace) => mimetype_vec,
+        &format!("{}.plot_width", namespace) => width_vec,
+        &format!("{}.plot_height", namespace) => height_vec
+    }?;
+
+    // Add page factor columns
+    for (i, name) in page_factor_names.iter().enumerate() {
+        let col_name = format!("{}.{}", namespace, name);
+        let values = &page_factor_values[i];
+        let series = Series::new(col_name.into(), values);
+        df.with_column(series)?;
+    }
+
+    println!("  DataFrame: {} rows, {} columns", df.height(), df.width());
+
+    // Convert to Table and upload (same as single result)
+    let table = dataframe_to_table(&df)?;
+    let operator_result = create_operator_result(table)?;
+    let result_bytes = serialize_operator_result(&operator_result)?;
+    let file_doc = create_file_document(project_id, result_bytes.len() as i32);
+
+    let existing_file_result_id = get_task_file_result_id(task)?;
+
+    if existing_file_result_id.is_empty() {
+        println!("Uploading result file (webapp scenario)...");
+        let file_doc_id = upload_result_file(&client, file_doc, result_bytes).await?;
+        println!("  Uploaded file with ID: {}", file_doc_id);
+
+        update_task_file_result_id(task, &file_doc_id)?;
+        let mut task_service = client.task_service()?;
+        task_service.update(task.clone()).await?;
+        println!("Result uploaded - exiting for server to process");
+    } else {
+        println!(
+            "Uploading to existing result file: {}",
+            existing_file_result_id
+        );
+        let mut file_service = client.file_service()?;
+        let get_req = proto::GetRequest {
+            id: existing_file_result_id.clone(),
+            ..Default::default()
+        };
+        let e_file_doc = file_service.get(get_req).await?.into_inner();
+        use proto::e_file_document;
+        let file_doc_obj = e_file_doc.object.ok_or("EFileDocument has no object")?;
+        let e_file_document::Object::Filedocument(file_doc) = file_doc_obj;
+        upload_result_file(&client, file_doc, result_bytes).await?;
+        println!("Result uploaded - exiting normally");
+    }
+
+    Ok(())
+}
+
 /// Save a PNG plot result back to Tercen
 ///
 /// Takes the generated PNG buffer, converts it to Tercen's result format,

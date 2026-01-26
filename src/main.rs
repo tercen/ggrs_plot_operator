@@ -204,8 +204,8 @@ async fn process_task(
         println!("    Page {}: {}", i + 1, page_value.label);
     }
 
-    // Store all generated plot buffers for upload at the end
-    let mut plot_buffers: Vec<(String, Vec<u8>, i32, i32)> = Vec::new();
+    // Store all generated plot results for upload at the end
+    let mut plot_results: Vec<tercen::PlotResult> = Vec::new();
 
     // Step 3 & 4: Loop through pages and generate plots
     println!(
@@ -366,12 +366,25 @@ async fn process_task(
         println!("✓ Plot generated ({} bytes)", png_buffer.len());
 
         // Store for later upload
-        plot_buffers.push((
-            page_value.label.clone(),
+        // Convert page values to (factor_name, value) pairs by looking up each factor in the HashMap
+        let page_factors: Vec<(String, String)> = ctx
+            .page_factors()
+            .iter()
+            .filter_map(|name| {
+                page_value
+                    .values
+                    .get(name)
+                    .map(|value| (name.clone(), value.clone()))
+            })
+            .collect();
+
+        plot_results.push(tercen::PlotResult {
+            label: page_value.label.clone(),
             png_buffer,
-            plot_width,
-            plot_height,
-        ));
+            width: plot_width,
+            height: plot_height,
+            page_factors,
+        });
     }
 
     // Clean up cache directory after all pages are rendered
@@ -392,48 +405,42 @@ async fn process_task(
     let response = task_service.get(request).await?;
     let mut task = response.into_inner();
 
-    if plot_buffers.len() == 1 {
+    if plot_results.len() == 1 {
         // Single plot - use existing save_result
-        let (_, png_buffer, plot_width, plot_height) = plot_buffers.into_iter().next().unwrap();
+        let plot = plot_results.into_iter().next().unwrap();
         tercen::result::save_result(
             client_arc.clone(),
             ctx.project_id(),
             ctx.namespace(),
-            png_buffer,
-            plot_width,
-            plot_height,
+            plot.png_buffer,
+            plot.width,
+            plot.height,
             &mut task,
         )
         .await?;
         println!("✓ Result uploaded and linked successfully");
     } else {
-        // Multiple plots - TODO: need to handle multiple file uploads
-        println!("  Multiple plots generated:");
-        for (label, png_buffer, width, height) in &plot_buffers {
+        // Multiple plots - use save_results
+        println!("  Uploading {} plots...", plot_results.len());
+        for plot in &plot_results {
             println!(
                 "    - {}: {} bytes ({}×{})",
-                label,
-                png_buffer.len(),
-                width,
-                height
+                plot.label,
+                plot.png_buffer.len(),
+                plot.width,
+                plot.height
             );
         }
-        println!("  WARNING: Multiple plot upload not yet implemented!");
-        println!("  Using first plot for now...");
 
-        // For now, just upload the first plot
-        let (_, png_buffer, plot_width, plot_height) = plot_buffers.into_iter().next().unwrap();
-        tercen::result::save_result(
+        tercen::result::save_results(
             client_arc.clone(),
             ctx.project_id(),
             ctx.namespace(),
-            png_buffer,
-            plot_width,
-            plot_height,
+            plot_results,
             &mut task,
         )
         .await?;
-        println!("✓ First plot uploaded (multi-plot support coming soon)");
+        println!("✓ All {} plots uploaded successfully", page_values.len());
     }
 
     println!("\n=== Task Processing Complete ===");
