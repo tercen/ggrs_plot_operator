@@ -197,12 +197,31 @@ impl OperatorConfig {
             }
         };
 
-        // Convert UI point size (1-10) to render size
+        // Parse point size multiplier (default: 1.0, must be > 0)
+        let point_size_multiplier = {
+            let mult_str = props.get_string("point.size.multiplier", "1");
+            match mult_str.parse::<f64>() {
+                Ok(m) if m > 0.0 => m,
+                Ok(m) => {
+                    eprintln!(
+                        "⚠ Invalid point.size.multiplier '{}' (must be > 0), using 1.0",
+                        m
+                    );
+                    1.0
+                }
+                Err(_) => {
+                    eprintln!("⚠ Invalid point.size.multiplier '{}', using 1.0", mult_str);
+                    1.0
+                }
+            }
+        };
+
+        // Convert UI point size (1-10) to render size with multiplier
         // UI scale: 1 = minimal (1px), 10 = 2.5x default (10px)
         // Default UI value is 4, which maps to 4px
-        // Formula: render_size = ui_value (direct 1:1 mapping)
+        // Formula: render_size = ui_value * multiplier
         let ui_size = ui_point_size.unwrap_or(4).clamp(1, 10);
-        let point_size = ui_size as f64;
+        let point_size = (ui_size as f64) * point_size_multiplier;
 
         Self {
             chunk_size,

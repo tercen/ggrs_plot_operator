@@ -171,7 +171,13 @@
       "kind": "StringProperty",
       "name": "axis.y.label",
       "defaultValue": "",
-      "description": "Y-axis label displayed on the left side of the plot. Leave empty for no label. Note: Y-axis labels are not rotated in the current version."
+      "description": "Y-axis label displayed on the left side of the plot (rotated 270°, reads bottom-to-top). Leave empty for no label."
+    },
+    {
+      "kind": "StringProperty",
+      "name": "point.size.multiplier",
+      "defaultValue": "1",
+      "description": "Multiplier for point/dot size. The crosstab point size (1-10) is multiplied by this value. Use values > 1 for larger dots on big plots, < 1 for smaller dots. Default: 1."
     }
   ]
 }
