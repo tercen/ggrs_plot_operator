@@ -1,0 +1,309 @@
+//! DevContext - TercenContext implementation for development/testing mode
+//!
+//! Initialized from workflow_id + step_id, fetches data from workflow structure.
+//! This mirrors Python's OperatorContextDev.
+
+use super::TercenContext;
+use crate::tercen::client::proto::{CubeQuery, OperatorSettings};
+use crate::tercen::colors::ColorInfo;
+use crate::tercen::TercenClient;
+use std::sync::Arc;
+
+/// Development context initialized from workflow_id + step_id
+///
+/// This is used for local testing when we don't have a task_id.
+pub struct DevContext {
+    client: Arc<TercenClient>,
+    cube_query: CubeQuery,
+    schema_ids: Vec<String>,
+    workflow_id: String,
+    step_id: String,
+    project_id: String,
+    namespace: String,
+    operator_settings: Option<OperatorSettings>,
+    color_infos: Vec<ColorInfo>,
+    page_factors: Vec<String>,
+    y_axis_table_id: Option<String>,
+}
+
+impl DevContext {
+    /// Create a new DevContext from workflow_id and step_id
+    ///
+    /// This fetches the workflow, finds the step, and extracts the CubeQuery
+    /// either from the step's model.task_id or by calling getCubeQuery.
+    pub async fn from_workflow_step(
+        client: Arc<TercenClient>,
+        workflow_id: &str,
+        step_id: &str,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        use crate::tercen::client::proto::{e_step, e_task, e_workflow, GetRequest};
+
+        println!("[DevContext] Fetching workflow {}...", workflow_id);
+
+        // Fetch workflow
+        let mut workflow_service = client.workflow_service()?;
+        let request = tonic::Request::new(GetRequest {
+            id: workflow_id.to_string(),
+            ..Default::default()
+        });
+        let response = workflow_service.get(request).await?;
+        let e_workflow = response.into_inner();
+
+        let workflow = match e_workflow.object {
+            Some(e_workflow::Object::Workflow(wf)) => wf,
+            _ => return Err("No workflow object".into()),
+        };
+
+        println!("[DevContext] Workflow name: {}", workflow.name);
+
+        // Find the DataStep
+        let data_step = workflow
+            .steps
+            .iter()
+            .find_map(|e_step| {
+                if let Some(e_step::Object::Datastep(ds)) = &e_step.object {
+                    if ds.id == step_id {
+                        return Some(ds.clone());
+                    }
+                }
+                None
+            })
+            .ok_or_else(|| format!("DataStep {} not found in workflow", step_id))?;
+
+        println!("[DevContext] Step name: {}", data_step.name);
+
+        // Get task_id from model (if exists)
+        let task_id = data_step
+            .model
+            .as_ref()
+            .map(|m| m.task_id.clone())
+            .unwrap_or_default();
+
+        println!("[DevContext] Model task_id: '{}'", task_id);
+
+        // Get CubeQuery and schema_ids
+        let (cube_query, schema_ids, project_id) = if task_id.is_empty() {
+            // No task_id - call getCubeQuery
+            println!("[DevContext] Calling getCubeQuery...");
+            let mut workflow_service = client.workflow_service()?;
+            let request = tonic::Request::new(crate::tercen::client::proto::ReqGetCubeQuery {
+                workflow_id: workflow_id.to_string(),
+                step_id: step_id.to_string(),
+            });
+            let response = workflow_service.get_cube_query(request).await?;
+            let resp = response.into_inner();
+            let query = resp.result.ok_or("getCubeQuery returned no result")?;
+
+            // getCubeQuery doesn't return schema_ids, so we can't get Y-axis/color tables this way
+            // We'll have to leave schema_ids empty
+            (query, Vec::new(), String::new())
+        } else {
+            // Retrieve task to get CubeQuery and schema_ids
+            println!("[DevContext] Retrieving task {}...", task_id);
+            let mut task_service = client.task_service()?;
+            let request = tonic::Request::new(GetRequest {
+                id: task_id.clone(),
+                ..Default::default()
+            });
+            let response = task_service.get(request).await?;
+            let task = response.into_inner();
+
+            match task.object.as_ref() {
+                Some(e_task::Object::Cubequerytask(cqt)) => {
+                    let query = cqt.query.as_ref().ok_or("CubeQueryTask has no query")?;
+                    (
+                        query.clone(),
+                        cqt.schema_ids.clone(),
+                        cqt.project_id.clone(),
+                    )
+                }
+                Some(e_task::Object::Computationtask(ct)) => {
+                    let query = ct.query.as_ref().ok_or("ComputationTask has no query")?;
+                    (query.clone(), ct.schema_ids.clone(), ct.project_id.clone())
+                }
+                Some(e_task::Object::Runcomputationtask(rct)) => {
+                    let query = rct
+                        .query
+                        .as_ref()
+                        .ok_or("RunComputationTask has no query")?;
+                    (
+                        query.clone(),
+                        rct.schema_ids.clone(),
+                        rct.project_id.clone(),
+                    )
+                }
+                _ => return Err("Task is not a query task".into()),
+            }
+        };
+
+        println!("[DevContext] CubeQuery retrieved");
+        println!("[DevContext]   qt_hash: {}", cube_query.qt_hash);
+        println!("[DevContext]   column_hash: {}", cube_query.column_hash);
+        println!("[DevContext]   row_hash: {}", cube_query.row_hash);
+
+        // Extract operator settings and namespace from cube_query
+        let operator_settings = cube_query.operator_settings.clone();
+        let namespace = operator_settings
+            .as_ref()
+            .map(|os| os.namespace.clone())
+            .unwrap_or_default();
+
+        // Find Y-axis table
+        let y_axis_table_id = if !schema_ids.is_empty() {
+            Self::find_y_axis_table(&client, &schema_ids, &cube_query).await?
+        } else {
+            None
+        };
+
+        // Extract color information
+        let color_infos =
+            Self::extract_color_info(&client, &schema_ids, &cube_query, &workflow, step_id).await?;
+
+        // Extract page factors
+        let page_factors = crate::tercen::extract_page_factors(operator_settings.as_ref());
+
+        Ok(Self {
+            client,
+            cube_query,
+            schema_ids,
+            workflow_id: workflow_id.to_string(),
+            step_id: step_id.to_string(),
+            project_id,
+            namespace,
+            operator_settings,
+            color_infos,
+            page_factors,
+            y_axis_table_id,
+        })
+    }
+
+    /// Find Y-axis table from schema_ids
+    async fn find_y_axis_table(
+        client: &TercenClient,
+        schema_ids: &[String],
+        cube_query: &CubeQuery,
+    ) -> Result<Option<String>, Box<dyn std::error::Error>> {
+        use crate::tercen::client::proto::e_schema;
+        use crate::tercen::TableStreamer;
+
+        let streamer = TableStreamer::new(client);
+
+        let known_tables = [
+            cube_query.qt_hash.as_str(),
+            cube_query.column_hash.as_str(),
+            cube_query.row_hash.as_str(),
+        ];
+
+        for schema_id in schema_ids {
+            if !known_tables.contains(&schema_id.as_str()) {
+                let schema = streamer.get_schema(schema_id).await?;
+                if let Some(e_schema::Object::Cubequerytableschema(cqts)) = schema.object {
+                    if cqts.query_table_type == "y" {
+                        println!("[DevContext] Found Y-axis table: {}", schema_id);
+                        return Ok(Some(schema_id.clone()));
+                    }
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Extract color information from workflow
+    async fn extract_color_info(
+        client: &TercenClient,
+        schema_ids: &[String],
+        cube_query: &CubeQuery,
+        workflow: &crate::tercen::client::proto::Workflow,
+        step_id: &str,
+    ) -> Result<Vec<ColorInfo>, Box<dyn std::error::Error>> {
+        use crate::tercen::client::proto::e_schema;
+        use crate::tercen::TableStreamer;
+
+        if schema_ids.is_empty() {
+            println!("[DevContext] No schema_ids available - skipping color extraction");
+            return Ok(Vec::new());
+        }
+
+        // Find color tables
+        let streamer = TableStreamer::new(client);
+        let known_tables = [
+            cube_query.qt_hash.as_str(),
+            cube_query.column_hash.as_str(),
+            cube_query.row_hash.as_str(),
+        ];
+
+        let mut color_table_ids: Vec<Option<String>> = Vec::new();
+
+        for schema_id in schema_ids {
+            if !known_tables.contains(&schema_id.as_str()) {
+                let schema = streamer.get_schema(schema_id).await?;
+                if let Some(e_schema::Object::Cubequerytableschema(cqts)) = schema.object {
+                    if cqts.query_table_type.starts_with("color_") {
+                        if let Some(idx_str) = cqts.query_table_type.strip_prefix("color_") {
+                            if let Ok(idx) = idx_str.parse::<usize>() {
+                                while color_table_ids.len() <= idx {
+                                    color_table_ids.push(None);
+                                }
+                                color_table_ids[idx] = Some(schema_id.clone());
+                                println!("[DevContext] Found color table {}: {}", idx, schema_id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Extract color info from step
+        let color_infos =
+            crate::tercen::extract_color_info_from_step(workflow, step_id, &color_table_ids)?;
+
+        Ok(color_infos)
+    }
+}
+
+impl TercenContext for DevContext {
+    fn cube_query(&self) -> &CubeQuery {
+        &self.cube_query
+    }
+
+    fn schema_ids(&self) -> &[String] {
+        &self.schema_ids
+    }
+
+    fn workflow_id(&self) -> &str {
+        &self.workflow_id
+    }
+
+    fn step_id(&self) -> &str {
+        &self.step_id
+    }
+
+    fn project_id(&self) -> &str {
+        &self.project_id
+    }
+
+    fn namespace(&self) -> &str {
+        &self.namespace
+    }
+
+    fn operator_settings(&self) -> Option<&OperatorSettings> {
+        self.operator_settings.as_ref()
+    }
+
+    fn color_infos(&self) -> &[ColorInfo] {
+        &self.color_infos
+    }
+
+    fn page_factors(&self) -> &[String] {
+        &self.page_factors
+    }
+
+    fn y_axis_table_id(&self) -> Option<&str> {
+        self.y_axis_table_id.as_deref()
+    }
+
+    fn client(&self) -> &Arc<TercenClient> {
+        &self.client
+    }
+}

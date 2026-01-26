@@ -36,12 +36,16 @@ pub mod colors;
 // Page handling (Version 0.0.4)
 pub mod pages;
 
+// Context abstraction (Version 0.0.4)
+pub mod context;
+
 // Re-exports for convenience
 pub use client::TercenClient;
 pub use colors::{
     categorical_color_from_level, extract_color_info_from_step, interpolate_color, parse_palette,
     CategoryColorMap, ColorInfo, ColorMapping, ColorPalette, ColorStop,
 };
+pub use context::{DevContext, ProductionContext, TercenContext};
 #[allow(unused_imports)]
 pub use error::{Result, TercenError};
 #[allow(unused_imports)]
