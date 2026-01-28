@@ -298,13 +298,14 @@ fn render_page<C: TercenContext>(
         _ => BackendChoice::Cairo,
     };
 
-    // Render to temporary file
+    // Render to temporary file (must use temp dir in production containers)
+    let temp_dir = std::env::temp_dir();
     let temp_path = if total_pages > 1 {
-        format!("temp_plot_page_{}.png", page_idx)
+        temp_dir.join(format!("temp_plot_page_{}.png", page_idx))
     } else {
-        "temp_plot.png".to_string()
+        temp_dir.join("temp_plot.png")
     };
-    renderer.render_to_file(&temp_path, backend, OutputFormat::Png)?;
+    renderer.render_to_file(&temp_path.to_string_lossy(), backend, OutputFormat::Png)?;
 
     // Read PNG into memory
     let png_buffer = std::fs::read(&temp_path)?;

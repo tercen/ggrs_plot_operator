@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the GGRS plotting library with Tercen's gRPC API. It receives tabular data from Tercen, generates high-performance plots with faceting and colors, and returns PNG images.
 
-**Current Version**: 0.0.4 (heatmap implementation in progress)
+**Current Version**: 0.0.4 (themes in progress)
 
 ## Essential Commands
 
@@ -21,10 +21,10 @@ cargo fmt && cargo clippy -- -D warnings && cargo test
 # Run specific test
 cargo test test_name
 
-# Run test binary for StreamGenerator
-cargo run --bin test_stream_generator --profile dev-release
+# Local development with Tercen (requires env vars, see src/bin/dev.rs)
+cargo run --bin dev --profile dev-release
 
-# Local testing with Tercen
+# Local testing script
 ./test_local.sh
 
 # Proto submodule setup (required for gRPC definitions)
@@ -81,56 +81,36 @@ PNG Output
 
 The `ggrs-core` library at `../ggrs/crates/ggrs-core` is the plotting engine. Changes often span both repositories. Use local path for dev, switch to git dependency for CI.
 
-### Layout Architecture (Chart-Type Driven)
+### Chart-Type Driven Layout
 
-**Entry Point**: Chart type (from Tercen UI) determines all layout behavior.
+Chart type (from Tercen UI) determines layout behavior via `ChartKind` enum:
 
-```
-PlotOperator ──(ChartKind)──→ GGRS
-                               │
-                               └─→ LayoutStrategy (trait)
-                                     ├─→ required_columns()
-                                     ├─→ grid_dimensions()
-                                     ├─→ axis_type()
-                                     ├─→ position_point()
-                                     └─→ render()
-```
-
-**LayoutStrategy trait** (`ggrs-core/src/layout/`):
-- `DefaultLayout` - Scatter, Line, Bar (faceted, continuous axes)
-- `HeatmapLayout` - Tiles (single panel, discrete axes)
-
-| Aspect | DefaultLayout | HeatmapLayout |
-|--------|---------------|---------------|
-| Position columns | `.xs`, `.ys` (quantized) | `.ci`, `.ri` (direct) |
-| Axis type | Continuous | Discrete/Factor |
-| Grid dimensions | From axis ranges | cschema × rschema |
+| Aspect | Scatter/Line/Bar | Heatmap |
+|--------|------------------|---------|
+| Position columns | `.xs`, `.ys` (quantized u16) | `.ci`, `.ri` (grid indices) |
+| Axis type | Continuous | Discrete (categorical labels) |
 | Faceting | Yes (`.ci`/`.ri` → panels) | No (grid IS the plot) |
 | Coordinate transform | Dequantize u16 → f64 | None (integers) |
+| Scale expansion | 5% padding | 0.5 units (centers labels in tiles) |
 
-**Reference**: R plot_operator (`main/plot_operator/utils.R`):
-- Heatmap uses `.ci` → `x_label` (factor), `.ri` → `y_label` (factor)
-- Scatter uses `.x`, `.y` with facet_grid(`.ri` ~ `.ci`)
-- `.xLevels`/`.nXLevels` are for X-axis tick rendering, NOT heatmap positioning
+**Reference**: R plot_operator (`main/plot_operator/utils.R`) for expected behavior.
 
 ### Component Responsibilities
 
-**StreamGenerator** (`TercenStreamGenerator`)
+**TercenStreamGenerator** (`src/ggrs_integration/stream_generator.rs`)
 - Streams raw data from Tercen tables
 - Provides facet metadata (cschema, rschema dimensions)
 - Returns data with original columns
 - **Does NOT know about chart types or layout**
 
-**LayoutStrategy** (`ggrs-core/src/layout/`)
-- Knows which columns to use for positioning
-- Computes grid/panel structure
-- Handles coordinate transformation (or lack thereof)
-- Delegates actual drawing to renderer primitives
+**Pipeline** (`src/pipeline.rs`)
+- Orchestrates plot generation across all pages
+- Selects geom (tile vs point) based on ChartKind
+- Configures theme, scales, and layout strategy
 
-**Renderer** (`render.rs`)
-- Low-level drawing primitives (rectangles, circles, lines)
-- Panel management and clipping
-- No chart-type-specific logic
+**TercenContext** (`src/tercen/context/`)
+- Trait abstracting production vs development environments
+- Extracts color info, page factors, chart kind from Tercen workflow
 
 ## Core Technical Decisions
 
@@ -189,6 +169,6 @@ DevContext::new(client, workflow_id, step_id)      // Local development
 4. `cargo test`
 
 ### Session Context
-- `CONTINUE.md` - Current ongoing work status
+- `CONTINUE.md` - Current ongoing work status (read this first for context)
 - `SESSION_*.md` - Recent session notes
-- `docs/HEATMAP_IMPLEMENTATION_PLAN.md` - Major feature implementation plan
+- `docs/` - Architecture and implementation docs (numbered in reading order)

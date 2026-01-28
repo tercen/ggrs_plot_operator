@@ -995,8 +995,7 @@ impl TercenStreamGenerator {
                 })?;
 
                 // Debug: Print first few color factor values to verify we're getting expected data
-                let sample_values: Vec<f64> =
-                    color_values.iter().take(5).flatten().collect();
+                let sample_values: Vec<f64> = color_values.iter().take(5).flatten().collect();
                 if !sample_values.is_empty() {
                     let min_val = color_values.min().unwrap_or(0.0);
                     let max_val = color_values.max().unwrap_or(0.0);
