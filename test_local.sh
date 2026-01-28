@@ -1,5 +1,6 @@
 #!/bin/bash
-# Test script for TercenStreamGenerator with memory tracking and legend positioning
+# Test script for local development with memory tracking and legend positioning
+# Uses the 'dev' binary which shares the same pipeline as production
 #
 # Usage:
 #   ./test_local.sh [backend] [legend_position] [legend_position_inside] [legend_justification] [png_compression]
@@ -30,6 +31,8 @@ set -e
 # Configuration
 export TERCEN_URI="http://127.0.0.1:50051"
 export TERCEN_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjU0MDAiLCJleHAiOjE3NzE0MzQzMTYsImRhdGEiOnsiZCI6IiIsInUiOiJ0ZXN0IiwiZSI6MTc3MTQzNDMxNjk2MH19.IsYnlDE8fBGlzfD776GKjFxcF35ws48MABWGctYiwFs"
+#http://127.0.0.1:5400/test/w/28e3c9888e9935f667aed6f07c007c7c/ds/b9659735-27db-4480-b398-4e391431480f  --> heatmap Data Step
+#http://127.0.0.1:5400/test/w/28e3c9888e9935f667aed6f07c007c7c/ds/7a8eb4a9-d7bf-4fb9-8385-6f902fb73693  --> Scatter Data Step
 export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
 export STEP_ID="b9659735-27db-4480-b398-4e391431480f"
 
@@ -133,18 +136,18 @@ echo ""
 
 # Clean old binaries and plots to ensure fresh build
 echo "Cleaning old binaries and plots..."
-rm -f target/debug/test_stream_generator plot.png plot_*.png
+rm -f target/debug/dev plot.png plot_*.png
 echo ""
 
 # Build first to avoid compilation time in measurements
-echo "Building test binary (with pagination support)..."
-cargo build --bin test_stream_generator 2>&1 | tail -10
+echo "Building dev binary..."
+cargo build --bin dev 2>&1 | tail -10
 BUILD_EXIT=$?
 if [ $BUILD_EXIT -ne 0 ]; then
     echo ""
     echo "ERROR: Build failed with exit code $BUILD_EXIT"
     echo "Showing full build output:"
-    cargo build --bin test_stream_generator 2>&1
+    cargo build --bin dev 2>&1
     exit $BUILD_EXIT
 fi
 echo ""
@@ -153,9 +156,9 @@ echo ""
 MEMORY_OUTPUT="memory_usage_backend_${BACKEND}.png"
 CSV_OUTPUT="memory_usage_backend_${BACKEND}.csv"
 
-# Start the test process and immediately get its PID
-echo "Starting test process (with pagination) and memory tracker..."
-./target/debug/test_stream_generator 2>&1 &
+# Start the dev process and immediately get its PID
+echo "Starting dev process and memory tracker..."
+./target/debug/dev 2>&1 &
 TEST_PID=$!
 
 # Start memory tracker immediately

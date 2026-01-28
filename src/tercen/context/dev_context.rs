@@ -5,7 +5,7 @@
 
 use super::TercenContext;
 use crate::tercen::client::proto::{CubeQuery, OperatorSettings};
-use crate::tercen::colors::ColorInfo;
+use crate::tercen::colors::{ChartKind, ColorInfo};
 use crate::tercen::TercenClient;
 use std::sync::Arc;
 
@@ -25,6 +25,7 @@ pub struct DevContext {
     page_factors: Vec<String>,
     y_axis_table_id: Option<String>,
     point_size: Option<i32>,
+    chart_kind: ChartKind,
 }
 
 impl DevContext {
@@ -172,6 +173,18 @@ impl DevContext {
             }
         };
 
+        // Extract chart kind from workflow step
+        let chart_kind = match crate::tercen::extract_chart_kind_from_step(&workflow, step_id) {
+            Ok(ck) => {
+                println!("[DevContext] Chart kind: {:?}", ck);
+                ck
+            }
+            Err(e) => {
+                eprintln!("[DevContext] Failed to extract chart_kind: {}", e);
+                ChartKind::Point
+            }
+        };
+
         Ok(Self {
             client,
             cube_query,
@@ -185,6 +198,7 @@ impl DevContext {
             page_factors,
             y_axis_table_id,
             point_size,
+            chart_kind,
         })
     }
 
@@ -316,6 +330,10 @@ impl TercenContext for DevContext {
 
     fn point_size(&self) -> Option<i32> {
         self.point_size
+    }
+
+    fn chart_kind(&self) -> ChartKind {
+        self.chart_kind
     }
 
     fn client(&self) -> &Arc<TercenClient> {

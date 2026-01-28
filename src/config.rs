@@ -76,6 +76,12 @@ pub struct OperatorConfig {
 
     /// Y-axis label (optional)
     pub y_axis_label: Option<String>,
+
+    /// X-axis tick label rotation in degrees (0 = horizontal, 90 = vertical)
+    pub x_tick_rotation: f64,
+
+    /// Y-axis tick label rotation in degrees (0 = horizontal, 90 = vertical)
+    pub y_tick_rotation: f64,
 }
 
 impl OperatorConfig {
@@ -197,6 +203,10 @@ impl OperatorConfig {
             }
         };
 
+        // Parse tick label rotation (in degrees)
+        let x_tick_rotation = Self::parse_rotation(&props.get_string("axis.x.tick.rotation", "0"));
+        let y_tick_rotation = Self::parse_rotation(&props.get_string("axis.y.tick.rotation", "0"));
+
         // Parse point size multiplier (default: 1.0, must be > 0)
         let point_size_multiplier = {
             let mult_str = props.get_string("point.size.multiplier", "1");
@@ -238,6 +248,26 @@ impl OperatorConfig {
             plot_title_justification,
             x_axis_label,
             y_axis_label,
+            x_tick_rotation,
+            y_tick_rotation,
+        }
+    }
+
+    /// Parse rotation angle string into degrees (f64)
+    ///
+    /// Accepts any numeric value, returns 0.0 for invalid input
+    /// Common values: 0 (horizontal), 45 (diagonal), 90 (vertical)
+    fn parse_rotation(s: &str) -> f64 {
+        if s.is_empty() {
+            return 0.0;
+        }
+
+        match s.trim().parse::<f64>() {
+            Ok(deg) => deg,
+            Err(_) => {
+                eprintln!("⚠ Invalid rotation '{}', using 0", s);
+                0.0
+            }
         }
     }
 

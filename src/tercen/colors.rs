@@ -493,6 +493,97 @@ pub fn extract_point_size_from_step(
     Ok(point_size)
 }
 
+/// Chart type variants supported by Tercen
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ChartKind {
+    /// Scatter plot (default)
+    #[default]
+    Point,
+    /// Heatmap (tile-based visualization)
+    Heatmap,
+    /// Line plot
+    Line,
+    /// Bar chart
+    Bar,
+}
+
+/// Extract chart type from workflow step
+///
+/// Navigates: workflow.steps[step_id].model.axis.xyAxis[0].chart.object
+/// Returns ChartKind based on the EChart variant.
+pub fn extract_chart_kind_from_step(
+    workflow: &proto::Workflow,
+    step_id: &str,
+) -> Result<ChartKind> {
+    // Find the step - check both DataStep and CrossTabStep
+    let step = workflow
+        .steps
+        .iter()
+        .find(|s| match &s.object {
+            Some(proto::e_step::Object::Datastep(ds)) => ds.id == step_id,
+            Some(proto::e_step::Object::Crosstabstep(cs)) => cs.id == step_id,
+            _ => false,
+        })
+        .ok_or_else(|| TercenError::Data(format!("Step '{}' not found in workflow", step_id)))?;
+
+    // Extract the Crosstab model (both DataStep and CrossTabStep have it)
+    let model = match &step.object {
+        Some(proto::e_step::Object::Datastep(ds)) => ds.model.as_ref(),
+        Some(proto::e_step::Object::Crosstabstep(cs)) => cs.model.as_ref(),
+        _ => {
+            return Err(TercenError::Data(
+                "Step type does not have a model".to_string(),
+            ))
+        }
+    }
+    .ok_or_else(|| TercenError::Data("Step has no model".to_string()))?;
+
+    // Navigate to model.axis.xyAxis
+    let axis = match model.axis.as_ref() {
+        Some(a) => a,
+        None => {
+            eprintln!("DEBUG extract_chart_kind: No axis in model, defaulting to Point");
+            return Ok(ChartKind::Point);
+        }
+    };
+
+    // Get first xyAxis
+    let xy_axis = match axis.xy_axis.first() {
+        Some(xy) => xy,
+        None => {
+            eprintln!("DEBUG extract_chart_kind: No xyAxis, defaulting to Point");
+            return Ok(ChartKind::Point);
+        }
+    };
+
+    // Extract chart type from EChart
+    let chart = match xy_axis.chart.as_ref() {
+        Some(c) => c,
+        None => {
+            eprintln!("DEBUG extract_chart_kind: No chart in xyAxis, defaulting to Point");
+            return Ok(ChartKind::Point);
+        }
+    };
+
+    // Map EChart variant to ChartKind
+    let chart_kind = match &chart.object {
+        Some(proto::e_chart::Object::Chartpoint(_)) => ChartKind::Point,
+        Some(proto::e_chart::Object::Chartheatmap(_)) => ChartKind::Heatmap,
+        Some(proto::e_chart::Object::Chartline(_)) => ChartKind::Line,
+        Some(proto::e_chart::Object::Chartbar(_)) => ChartKind::Bar,
+        Some(proto::e_chart::Object::Chart(_)) => ChartKind::Point, // Generic chart defaults to point
+        Some(proto::e_chart::Object::Chartsize(_)) => ChartKind::Point, // Size chart treated as point
+        None => ChartKind::Point,
+    };
+
+    eprintln!(
+        "DEBUG extract_chart_kind: Found chart type = {:?}",
+        chart_kind
+    );
+
+    Ok(chart_kind)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

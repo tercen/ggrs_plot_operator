@@ -5,4 +5,5 @@
 
 pub mod config;
 pub mod ggrs_integration;
+pub mod pipeline;
 pub mod tercen;

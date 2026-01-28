@@ -178,6 +178,18 @@
       "name": "point.size.multiplier",
       "defaultValue": "1",
       "description": "Multiplier for point/dot size. The crosstab point size (1-10) is multiplied by this value. Use values > 1 for larger dots on big plots, < 1 for smaller dots. Default: 1."
+    },
+    {
+      "kind": "StringProperty",
+      "name": "axis.x.tick.rotation",
+      "defaultValue": "0",
+      "description": "X-axis tick label rotation in degrees. Common values: 0 (horizontal), 45 (diagonal), 90 (vertical). Default: 0."
+    },
+    {
+      "kind": "StringProperty",
+      "name": "axis.y.tick.rotation",
+      "defaultValue": "0",
+      "description": "Y-axis tick label rotation in degrees. Common values: 0 (horizontal), 90 (vertical). Default: 0."
     }
   ]
 }

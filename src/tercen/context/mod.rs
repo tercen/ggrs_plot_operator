@@ -7,7 +7,7 @@
 //! This mirrors Python's OperatorContext / OperatorContextDev pattern.
 
 use crate::tercen::client::proto::{CubeQuery, OperatorSettings};
-use crate::tercen::colors::ColorInfo;
+use crate::tercen::colors::{ChartKind, ColorInfo};
 use crate::tercen::TercenClient;
 use std::sync::Arc;
 
@@ -55,6 +55,9 @@ pub trait TercenContext: Send + Sync {
 
     /// Get the point size from crosstab model (UI scale 1-10, None = use default)
     fn point_size(&self) -> Option<i32>;
+
+    /// Get the chart kind (Point, Heatmap, Line, Bar)
+    fn chart_kind(&self) -> ChartKind;
 
     /// Get the Tercen client
     fn client(&self) -> &Arc<TercenClient>;

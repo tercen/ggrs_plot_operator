@@ -7,8 +7,8 @@ use crate::tercen::{tson_to_dataframe, FacetInfo, TableStreamer, TercenClient};
 use ggrs_core::{
     aes::Aes,
     data::DataFrame,
-    legend::LegendScale,
-    stream::{AxisData, FacetSpec, NumericAxisData, Range, StreamGenerator},
+    legend::{ColorStop as LegendColorStop, LegendScale},
+    stream::{AxisData, CategoricalAxisData, FacetSpec, NumericAxisData, Range, StreamGenerator},
 };
 use polars::prelude::IntoColumn;
 use std::collections::HashMap;
@@ -53,8 +53,14 @@ pub fn extract_column_names_from_schema(
 
 /// Tercen implementation of GGRS StreamGenerator
 ///
-/// Streams quantized coordinates (.xs, .ys) from Tercen.
+/// Streams raw data from Tercen tables. Does NOT transform coordinates.
 /// GGRS handles dequantization using axis ranges.
+///
+/// Columns streamed:
+/// - `.ci`, `.ri` - facet indices for panel routing
+/// - `.xs`, `.ys` - quantized coordinates for positioning
+/// - `.xLevels`, `.nXLevels` - heatmap grid indices (used by tile renderer)
+/// - `.color` - pre-computed color hex strings
 pub struct TercenStreamGenerator {
     /// Tercen client for gRPC communication
     client: Arc<TercenClient>,
@@ -90,6 +96,10 @@ pub struct TercenStreamGenerator {
     /// Not used for filtering - GGRS handles everything via original_index
     #[allow(dead_code)]
     page_factors: Vec<String>,
+
+    /// Heatmap mode: when set, overrides facet counts to 1x1 and uses grid dimensions for axes
+    /// Tuple is (n_columns, n_rows) representing the heatmap grid dimensions
+    heatmap_mode: Option<(usize, usize)>,
 }
 
 impl TercenStreamGenerator {
@@ -260,6 +270,7 @@ impl TercenStreamGenerator {
             color_infos,
             cached_legend_scale,
             page_factors,
+            heatmap_mode: None,
         })
     }
 
@@ -332,6 +343,75 @@ impl TercenStreamGenerator {
             color_infos,
             cached_legend_scale: LegendScale::None, // TODO: Load async if needed
             page_factors,
+            heatmap_mode: None,
+        }
+    }
+
+    /// Enable heatmap mode with the given grid dimensions
+    ///
+    /// In heatmap mode:
+    /// - Facet counts are overridden to 1x1 (single panel)
+    /// - Axis ranges use grid dimensions: X = (-0.5, n_cols-0.5), Y = (-0.5, n_rows-0.5)
+    /// - Data coordinates use .ci for X and .ri for Y (no quantization)
+    ///
+    /// # Arguments
+    /// * `n_cols` - Number of columns in the heatmap grid (max .ci + 1)
+    /// * `n_rows` - Number of rows in the heatmap grid (max .ri + 1)
+    pub fn set_heatmap_mode(&mut self, n_cols: usize, n_rows: usize) {
+        eprintln!(
+            "DEBUG: Enabling heatmap mode with grid {}×{}",
+            n_cols, n_rows
+        );
+        self.heatmap_mode = Some((n_cols, n_rows));
+    }
+
+    /// Get the heatmap grid dimensions if in heatmap mode
+    pub fn heatmap_dims(&self) -> Option<(usize, usize)> {
+        self.heatmap_mode
+    }
+
+    /// Get the original facet grid dimensions (before heatmap mode override)
+    /// Returns (n_col_facets, n_row_facets) from the underlying facet_info
+    pub fn original_grid_dims(&self) -> (usize, usize) {
+        (
+            self.facet_info.n_col_facets(),
+            self.facet_info.n_row_facets(),
+        )
+    }
+
+    /// Get X-axis labels for heatmaps (from column facet schema)
+    /// Returns None if not in heatmap mode or no labels available
+    pub fn heatmap_x_labels(&self) -> Option<Vec<String>> {
+        self.heatmap_mode?;
+        let labels: Vec<String> = self
+            .facet_info
+            .col_facets
+            .groups
+            .iter()
+            .map(|g| g.label.clone())
+            .collect();
+        if labels.is_empty() {
+            None
+        } else {
+            Some(labels)
+        }
+    }
+
+    /// Get Y-axis labels for heatmaps (from row facet schema)
+    /// Returns None if not in heatmap mode or no labels available
+    pub fn heatmap_y_labels(&self) -> Option<Vec<String>> {
+        self.heatmap_mode?;
+        let labels: Vec<String> = self
+            .facet_info
+            .row_facets
+            .groups
+            .iter()
+            .map(|g| g.label.clone())
+            .collect();
+        if labels.is_empty() {
+            None
+        } else {
+            Some(labels)
         }
     }
 
@@ -469,7 +549,6 @@ impl TercenStreamGenerator {
         println!("  Loaded {} axis ranges", axis_ranges.len());
         Ok((axis_ranges, total_rows))
     }
-
     /// Compute axis ranges by scanning the main data table
     ///
     /// This is the fallback when no pre-computed Y-axis table is available.
@@ -629,12 +708,27 @@ impl TercenStreamGenerator {
 
         match &color_info.mapping {
             crate::tercen::ColorMapping::Continuous(palette) => {
-                // For continuous colors, get the min/max from the palette
+                // For continuous colors, get the min/max and color stops from the palette
                 if let Some((min_val, max_val)) = palette.range() {
+                    // Convert Tercen ColorStops to GGRS LegendColorStops
+                    let color_stops: Vec<LegendColorStop> = palette
+                        .stops
+                        .iter()
+                        .map(|stop| LegendColorStop::new(stop.value, stop.color))
+                        .collect();
+
+                    eprintln!(
+                        "DEBUG: Legend scale using {} color stops from palette (range: {} to {})",
+                        color_stops.len(),
+                        min_val,
+                        max_val
+                    );
+
                     Ok(LegendScale::Continuous {
                         min: min_val,
                         max: max_val,
                         aesthetic_name: color_info.factor_name.clone(),
+                        color_stops,
                     })
                 } else {
                     // Empty palette - no legend
@@ -750,6 +844,12 @@ impl TercenStreamGenerator {
             ".ys".to_string(),
         ];
 
+        // For heatmaps, include level columns for proper grid positioning
+        // .xLevels = column index in heatmap grid
+        // .nXLevels = total number of columns
+        columns.push(".xLevels".to_string());
+        columns.push(".nXLevels".to_string());
+
         // NOTE: Don't add page_factors to columns!
         // Page factors exist in facet tables, not the main data table.
         // We've already filtered facets by page, so data filtering is via .ri matching.
@@ -798,6 +898,39 @@ impl TercenStreamGenerator {
         let mut df = tson_to_dataframe(&tson_data)?;
         eprintln!("DEBUG: Parsed DataFrame with {} rows", df.nrow());
         eprintln!("DEBUG: Returned columns: {:?}", df.columns());
+
+        // DEBUG: Print heatmap column info (first chunk only)
+        if data_range.start == 0 {
+            let polars_df = df.inner();
+            if let Ok(n_x_levels) = polars_df.column(".nXLevels") {
+                if let Ok(n_x_i64) = n_x_levels.i64() {
+                    let n_levels = n_x_i64.get(0).unwrap_or(0);
+                    eprintln!("DEBUG HEATMAP: Total X levels (columns) = {}", n_levels);
+                }
+            }
+            // Compare .xs, .ys, .xLevels
+            if let (Ok(xs_col), Ok(ys_col), Ok(xl_col)) = (
+                polars_df.column(".xs"),
+                polars_df.column(".ys"),
+                polars_df.column(".xLevels"),
+            ) {
+                if let (Ok(xs_i64), Ok(ys_i64), Ok(xl_i64)) =
+                    (xs_col.i64(), ys_col.i64(), xl_col.i64())
+                {
+                    let tuples: Vec<(i64, i64, i64)> = xs_i64
+                        .iter()
+                        .zip(ys_i64.iter())
+                        .zip(xl_i64.iter())
+                        .take(10)
+                        .filter_map(|((x, y), l)| match (x, y, l) {
+                            (Some(x), Some(y), Some(l)) => Some((x, y, l)),
+                            _ => None,
+                        })
+                        .collect();
+                    eprintln!("DEBUG HEATMAP: First 10 (xs, ys, xLevels): {:?}", tuples);
+                }
+            }
+        }
 
         // NO FILTERING! Operator is dumb - just streams raw data.
         // GGRS handles all filtering using original_index mapping.
@@ -860,6 +993,18 @@ impl TercenStreamGenerator {
                         color_col_name, e
                     )
                 })?;
+
+                // Debug: Print first few color factor values to verify we're getting expected data
+                let sample_values: Vec<f64> =
+                    color_values.iter().take(5).flatten().collect();
+                if !sample_values.is_empty() {
+                    let min_val = color_values.min().unwrap_or(0.0);
+                    let max_val = color_values.max().unwrap_or(0.0);
+                    eprintln!(
+                        "DEBUG add_color_columns: {} values range [{:.2}, {:.2}], first 5: {:?}",
+                        color_col_name, min_val, max_val, sample_values
+                    );
+                }
 
                 // Map each value to RGB using palette interpolation
                 for opt_value in color_values.iter() {
@@ -993,12 +1138,22 @@ impl TercenStreamGenerator {
 
 impl StreamGenerator for TercenStreamGenerator {
     fn n_col_facets(&self) -> usize {
+        // In heatmap mode, we have a single panel (1x1 facets)
+        if self.heatmap_mode.is_some() {
+            eprintln!("DEBUG PHASE 2: n_col_facets() returning 1 (heatmap mode)");
+            return 1;
+        }
         let count = self.facet_info.n_col_facets();
         eprintln!("DEBUG PHASE 2: n_col_facets() returning {}", count);
         count
     }
 
     fn n_row_facets(&self) -> usize {
+        // In heatmap mode, we have a single panel (1x1 facets)
+        if self.heatmap_mode.is_some() {
+            eprintln!("DEBUG PHASE 2: n_row_facets() returning 1 (heatmap mode)");
+            return 1;
+        }
         let count = self.facet_info.n_row_facets();
         eprintln!("DEBUG PHASE 2: n_row_facets() returning {}", count);
         count
@@ -1107,6 +1262,44 @@ impl StreamGenerator for TercenStreamGenerator {
     }
 
     fn query_x_axis(&self, col_idx: usize, row_idx: usize) -> AxisData {
+        // In heatmap mode, return categorical axis with facet labels
+        if let Some((n_cols, _)) = self.heatmap_mode {
+            // Get labels from column facet schema
+            let categories: Vec<String> = self
+                .facet_info
+                .col_facets
+                .groups
+                .iter()
+                .map(|g| g.label.clone())
+                .collect();
+
+            // If we have labels, return categorical; otherwise fall back to numeric
+            if !categories.is_empty() && categories.len() == n_cols {
+                eprintln!(
+                    "DEBUG PHASE 2: query_x_axis({}, {}) returning categorical with {} labels",
+                    col_idx,
+                    row_idx,
+                    categories.len()
+                );
+                return AxisData::Categorical(CategoricalAxisData { categories });
+            }
+
+            // Fallback: return numeric if labels don't match grid size
+            eprintln!(
+                "DEBUG PHASE 2: query_x_axis({}, {}) returning heatmap range [-0.5, {}]",
+                col_idx,
+                row_idx,
+                n_cols as f64 - 0.5
+            );
+            return AxisData::Numeric(NumericAxisData {
+                min_value: -0.5,
+                max_value: n_cols as f64 - 0.5,
+                min_axis: -0.5,
+                max_axis: n_cols as f64 - 0.5,
+                transform: None,
+            });
+        }
+
         self.axis_ranges
             .get(&(col_idx, row_idx))
             .map(|(x_axis, _)| x_axis.clone())
@@ -1122,6 +1315,44 @@ impl StreamGenerator for TercenStreamGenerator {
     }
 
     fn query_y_axis(&self, col_idx: usize, row_idx: usize) -> AxisData {
+        // In heatmap mode, return categorical axis with facet labels
+        if let Some((_, n_rows)) = self.heatmap_mode {
+            // Get labels from row facet schema
+            let categories: Vec<String> = self
+                .facet_info
+                .row_facets
+                .groups
+                .iter()
+                .map(|g| g.label.clone())
+                .collect();
+
+            // If we have labels, return categorical; otherwise fall back to numeric
+            if !categories.is_empty() && categories.len() == n_rows {
+                eprintln!(
+                    "DEBUG PHASE 2: query_y_axis({}, {}) returning categorical with {} labels",
+                    col_idx,
+                    row_idx,
+                    categories.len()
+                );
+                return AxisData::Categorical(CategoricalAxisData { categories });
+            }
+
+            // Fallback: return numeric if labels don't match grid size
+            eprintln!(
+                "DEBUG PHASE 2: query_y_axis({}, {}) returning heatmap range [-0.5, {}]",
+                col_idx,
+                row_idx,
+                n_rows as f64 - 0.5
+            );
+            return AxisData::Numeric(NumericAxisData {
+                min_value: -0.5,
+                max_value: n_rows as f64 - 0.5,
+                min_axis: -0.5,
+                max_axis: n_rows as f64 - 0.5,
+                transform: None,
+            });
+        }
+
         let axis = self
             .axis_ranges
             .get(&(col_idx, row_idx))

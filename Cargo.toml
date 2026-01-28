@@ -15,8 +15,8 @@ name = "ggrs_plot_operator"
 path = "src/main.rs"
 
 [[bin]]
-name = "test_stream_generator"
-path = "src/bin/test_stream_generator.rs"
+name = "dev"
+path = "src/bin/dev.rs"
 
 [dependencies]
 # Async runtime
@@ -47,9 +47,10 @@ base64 = "0.22"
 uuid = { version = "1.0", features = ["v4"] }
 
 # GGRS plotting library with WebGPU backend
-# Use local path for development: path = "../ggrs/crates/ggrs-core"
+# Use local path for development:
+ggrs-core = { path = "../ggrs/crates/ggrs-core", features = ["webgpu-backend", "cairo-backend"] }
 # Use git dependency for CI/production:
-ggrs-core = { git = "https://github.com/tercen/ggrs", branch = "main", features = ["webgpu-backend", "cairo-backend"] }
+# ggrs-core = { git = "https://github.com/tercen/ggrs", branch = "main", features = ["webgpu-backend", "cairo-backend"] }
 
 [features]
 jemalloc = ["tikv-jemallocator"]

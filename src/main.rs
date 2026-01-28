@@ -1,15 +1,16 @@
-//! GGRS Plot Operator - Main entry point
+//! GGRS Plot Operator - Production entry point
 //!
 //! This operator receives tabular data from Tercen via gRPC, generates plots using GGRS,
 //! and returns PNG images back to Tercen for visualization.
 //!
-//! Module organization:
-//! - `tercen`: Tercen gRPC client library (future tercen-rust crate)
-//! - `ggrs_integration`: GGRS-specific integration code
-//! - `config`: Operator configuration
+//! For local development/testing, use the `dev` binary instead:
+//! ```bash
+//! cargo run --bin dev
+//! ```
 
 pub mod config;
 pub mod ggrs_integration;
+pub mod pipeline;
 pub mod tercen;
 
 #[cfg(feature = "jemalloc")]
@@ -23,11 +24,8 @@ static GLOBAL: Jemalloc = Jemalloc;
 async fn main() {
     println!("GGRS Plot Operator v{}", env!("CARGO_PKG_VERSION"));
     println!("Ready to generate high-performance plots!\n");
-    println!("Build timestamp: 2026-01-26 10:00:00"); // Force cache bust
 
-    // Parse command-line arguments
-    // Production: Tercen passes --taskId, --serviceUri, --token
-    // Dev: Can pass --workflowId, --stepId (like Python OperatorContextDev)
+    // Parse command-line arguments (Tercen passes --taskId, --serviceUri, --token)
     let args: Vec<String> = std::env::args().collect();
     parse_args(&args);
 
@@ -40,7 +38,6 @@ async fn main() {
         Ok(client) => {
             println!("✓ Successfully connected to Tercen!\n");
 
-            // Create Arc for sharing client across async operations
             let client_arc = std::sync::Arc::new(client);
 
             // Process task if TERCEN_TASK_ID is set
@@ -78,14 +75,6 @@ fn parse_args(args: &[String]) {
         match args[i].as_str() {
             "--taskId" if i + 1 < args.len() => {
                 std::env::set_var("TERCEN_TASK_ID", &args[i + 1]);
-                i += 2;
-            }
-            "--workflowId" if i + 1 < args.len() => {
-                std::env::set_var("WORKFLOW_ID", &args[i + 1]);
-                i += 2;
-            }
-            "--stepId" if i + 1 < args.len() => {
-                std::env::set_var("STEP_ID", &args[i + 1]);
                 i += 2;
             }
             "--serviceUri" if i + 1 < args.len() => {
@@ -137,264 +126,16 @@ async fn process_task(
     println!("=== Task Processing Started ===");
     println!("Task ID: {}\n", task_id);
 
-    // Step 1: Create ProductionContext (fetches task, extracts all data)
-    println!("[1/5] Creating context and extracting data...");
+    // Create ProductionContext
     let ctx = tercen::ProductionContext::from_task_id(client_arc.clone(), task_id).await?;
 
-    println!("✓ Context created");
-    println!("  Main table: {}", ctx.qt_hash());
-    println!("  Column facets: {}", ctx.column_hash());
-    println!("  Row facets: {}", ctx.row_hash());
-    println!("  Project ID: {}", ctx.project_id());
-    println!("  Namespace: {}", ctx.namespace());
-
-    // Load operator configuration from properties and context
+    // Load configuration
     let config = config::OperatorConfig::from_properties(ctx.operator_settings(), ctx.point_size());
 
-    println!("\n✓ Configuration loaded");
-    println!("  Backend: {}", config.backend);
-    println!("  Point size: {}", config.point_size);
-    println!(
-        "  Plot dimensions: {:?} × {:?}",
-        config.plot_width, config.plot_height
-    );
+    // Generate plots using shared pipeline
+    let plot_results = pipeline::generate_plots(&ctx, &config).await?;
 
-    if let Some(y_table) = ctx.y_axis_table_id() {
-        println!("  Y-axis table: {}", y_table);
-    } else {
-        println!("  Y-axis table: None (will compute from data)");
-    }
-
-    // Step 2: Display color information
-    println!("\n[2/5] Color information...");
-    if ctx.color_infos().is_empty() {
-        println!("  No color factors defined");
-    } else {
-        for (i, info) in ctx.color_infos().iter().enumerate() {
-            println!("  Color {} : '{}'", i + 1, info.factor_name);
-            println!("    Type: {}", info.factor_type);
-            match &info.mapping {
-                tercen::ColorMapping::Continuous(palette) => {
-                    if let Some((min, max)) = palette.range() {
-                        println!("    Range: {} to {}", min, max);
-                        println!("    Stops: {}", palette.stops.len());
-                    }
-                }
-                tercen::ColorMapping::Categorical(color_map) => {
-                    println!("    Categories: {}", color_map.mappings.len());
-                }
-            }
-        }
-    }
-
-    // Step 2.5: Page information
-    println!("\n[2.5/5] Page information...");
-    if ctx.page_factors().is_empty() {
-        println!("  No page factors defined - will generate single plot");
-    } else {
-        println!("  Page factors: {:?}", ctx.page_factors());
-    }
-
-    // Extract unique page values from row facet table
-    let page_values =
-        tercen::extract_page_values(ctx.client(), ctx.row_hash(), ctx.page_factors()).await?;
-
-    println!("  Pages to generate: {}", page_values.len());
-    for (i, page_value) in page_values.iter().enumerate() {
-        println!("    Page {}: {}", i + 1, page_value.label);
-    }
-
-    // Store all generated plot results for upload at the end
-    let mut plot_results: Vec<tercen::PlotResult> = Vec::new();
-
-    // Step 3 & 4: Loop through pages and generate plots
-    println!(
-        "\n[3/5] Generating plots for {} page(s)...",
-        page_values.len()
-    );
-
-    // Create shared disk cache for all pages (only if multiple pages)
-    use ggrs_core::stream::DataCache;
-    let cache = if page_values.len() > 1 {
-        let cache = DataCache::new(ctx.workflow_id(), ctx.step_id())?;
-        println!(
-            "  Created disk cache at /tmp/ggrs_cache_{}_{}/",
-            ctx.workflow_id(),
-            ctx.step_id()
-        );
-        Some(cache)
-    } else {
-        println!("  Single page - cache disabled");
-        None
-    };
-
-    for (page_idx, page_value) in page_values.iter().enumerate() {
-        if page_values.len() > 1 {
-            println!(
-                "\n=== Page {}/{}: {} ===",
-                page_idx + 1,
-                page_values.len(),
-                page_value.label
-            );
-        }
-
-        use ggrs_core::stream::StreamGenerator;
-
-        // Create StreamGenerator for this page with facet filtering
-        println!("  Creating StreamGenerator for page {}...", page_idx + 1);
-
-        let page_filter = if page_values.len() > 1 {
-            Some(&page_value.values)
-        } else {
-            None
-        };
-
-        let page_stream_gen = ggrs_integration::TercenStreamGenerator::new(
-            client_arc.clone(),
-            ctx.qt_hash().to_string(),
-            ctx.column_hash().to_string(),
-            ctx.row_hash().to_string(),
-            ctx.y_axis_table_id().map(|s| s.to_string()),
-            config.chunk_size,
-            ctx.color_infos().to_vec(),
-            ctx.page_factors().to_vec(),
-            page_filter,
-        )
-        .await?;
-
-        println!(
-            "  Facets: {} columns × {} rows = {} cells",
-            page_stream_gen.n_col_facets(),
-            page_stream_gen.n_row_facets(),
-            page_stream_gen.n_col_facets() * page_stream_gen.n_row_facets()
-        );
-
-        // Resolve "auto" plot dimensions now that we know facet counts
-        let (plot_width, plot_height) = config.resolve_dimensions(
-            page_stream_gen.n_col_facets(),
-            page_stream_gen.n_row_facets(),
-        );
-        println!(
-            "  Resolved plot size: {}×{} pixels",
-            plot_width, plot_height
-        );
-
-        // Step 4: Generate plot
-        println!("\n[4/5] Generating plot...");
-        use ggrs_core::renderer::{BackendChoice, OutputFormat};
-        use ggrs_core::{EnginePlotSpec, Geom, PlotGenerator, PlotRenderer, Theme};
-        use std::fs;
-
-        // Create theme with configured legend and title settings
-        use ggrs_core::theme::elements::Element;
-
-        let mut theme = Theme {
-            legend_position: config.to_legend_position(),
-            legend_justification: config.legend_justification,
-            plot_title_position: config.plot_title_position.clone(),
-            ..Default::default()
-        };
-
-        // Apply plot title justification if configured
-        if let Some((just_x, just_y)) = config.plot_title_justification {
-            if let Element::Text(ref mut text_elem) = theme.plot_title {
-                text_elem.hjust = just_x;
-                text_elem.vjust = just_y;
-            }
-        }
-
-        // Create PlotSpec
-        let mut plot_spec = EnginePlotSpec::new()
-            .add_layer(Geom::point_sized(config.point_size))
-            .theme(theme);
-
-        // Add text labels from configuration
-        if let Some(ref title) = config.plot_title {
-            plot_spec = plot_spec.title(title.clone());
-        }
-        if let Some(ref x_label) = config.x_axis_label {
-            plot_spec = plot_spec.x_label(x_label.clone());
-        }
-        if let Some(ref y_label) = config.y_axis_label {
-            plot_spec = plot_spec.y_label(y_label.clone());
-        }
-
-        // Create PlotGenerator with the StreamGenerator
-        let plot_gen = PlotGenerator::new(Box::new(page_stream_gen), plot_spec)?;
-
-        // Create PlotRenderer with cache (if enabled)
-        let mut renderer = if let Some(ref cache_ref) = cache {
-            PlotRenderer::new_with_cache(
-                &plot_gen,
-                plot_width as u32,
-                plot_height as u32,
-                cache_ref.clone(),
-            )
-        } else {
-            PlotRenderer::new(&plot_gen, plot_width as u32, plot_height as u32)
-        };
-
-        // Set PNG compression level
-        let png_compression = match config.png_compression.to_lowercase().as_str() {
-            "fast" => ggrs_core::PngCompression::Fast,
-            "best" => ggrs_core::PngCompression::Best,
-            _ => ggrs_core::PngCompression::Default,
-        };
-        renderer.set_png_compression(png_compression);
-
-        println!(
-            "  Rendering plot (backend: {}, PNG compression: {})...",
-            config.backend, config.png_compression
-        );
-        let backend = match config.backend.as_str() {
-            "gpu" => BackendChoice::WebGPU,
-            _ => BackendChoice::Cairo,
-        };
-
-        // Render to temporary file with page-specific name
-        let temp_path = if page_values.len() > 1 {
-            format!("temp_plot_page_{}.png", page_idx)
-        } else {
-            "temp_plot.png".to_string()
-        };
-        renderer.render_to_file(&temp_path, backend, OutputFormat::Png)?;
-
-        // Read PNG into memory
-        let png_buffer = fs::read(&temp_path)?;
-        fs::remove_file(&temp_path)?;
-
-        println!("✓ Plot generated ({} bytes)", png_buffer.len());
-
-        // Store for later upload
-        // Convert page values to (factor_name, value) pairs by looking up each factor in the HashMap
-        let page_factors: Vec<(String, String)> = ctx
-            .page_factors()
-            .iter()
-            .filter_map(|name| {
-                page_value
-                    .values
-                    .get(name)
-                    .map(|value| (name.clone(), value.clone()))
-            })
-            .collect();
-
-        plot_results.push(tercen::PlotResult {
-            label: page_value.label.clone(),
-            png_buffer,
-            width: plot_width,
-            height: plot_height,
-            page_factors,
-        });
-    }
-
-    // Clean up cache directory after all pages are rendered
-    if let Some(ref cache_ref) = cache {
-        println!("  Cleaning up disk cache...");
-        cache_ref.clear()?;
-    }
-
-    // Step 5: Upload results and update task
-    // We need to fetch the task again for mutable access
+    // Upload results to Tercen
     println!("\n[5/5] Uploading result(s) to Tercen...");
 
     let mut task_service = client_arc.task_service()?;
@@ -406,7 +147,6 @@ async fn process_task(
     let mut task = response.into_inner();
 
     if plot_results.len() == 1 {
-        // Single plot - use existing save_result
         let plot = plot_results.into_iter().next().unwrap();
         tercen::result::save_result(
             client_arc.clone(),
@@ -420,7 +160,6 @@ async fn process_task(
         .await?;
         println!("✓ Result uploaded and linked successfully");
     } else {
-        // Multiple plots - use save_results
         println!("  Uploading {} plots...", plot_results.len());
         for plot in &plot_results {
             println!(
@@ -440,7 +179,7 @@ async fn process_task(
             &mut task,
         )
         .await?;
-        println!("✓ All {} plots uploaded successfully", page_values.len());
+        println!("✓ All plots uploaded successfully");
     }
 
     println!("\n=== Task Processing Complete ===");

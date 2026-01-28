@@ -4,7 +4,7 @@
 
 use super::TercenContext;
 use crate::tercen::client::proto::{CubeQuery, OperatorSettings};
-use crate::tercen::colors::ColorInfo;
+use crate::tercen::colors::{ChartKind, ColorInfo};
 use crate::tercen::TercenClient;
 use std::sync::Arc;
 
@@ -24,6 +24,7 @@ pub struct ProductionContext {
     page_factors: Vec<String>,
     y_axis_table_id: Option<String>,
     point_size: Option<i32>,
+    chart_kind: ChartKind,
 }
 
 impl ProductionContext {
@@ -125,6 +126,9 @@ impl ProductionContext {
         // Extract point size from workflow step
         let point_size = Self::extract_point_size(&client, &workflow_id, &step_id).await?;
 
+        // Extract chart kind from workflow step
+        let chart_kind = Self::extract_chart_kind(&client, &workflow_id, &step_id).await?;
+
         Ok(Self {
             client,
             cube_query,
@@ -138,6 +142,7 @@ impl ProductionContext {
             page_factors,
             y_axis_table_id,
             point_size,
+            chart_kind,
         })
     }
 
@@ -282,6 +287,49 @@ impl ProductionContext {
             }
         }
     }
+
+    /// Extract chart kind from workflow step
+    async fn extract_chart_kind(
+        client: &TercenClient,
+        workflow_id: &str,
+        step_id: &str,
+    ) -> Result<ChartKind, Box<dyn std::error::Error>> {
+        if workflow_id.is_empty() || step_id.is_empty() {
+            println!(
+                "[ProductionContext] Workflow/Step IDs not available - defaulting to Point chart"
+            );
+            return Ok(ChartKind::Point);
+        }
+
+        // Fetch workflow
+        let mut workflow_service = client.workflow_service()?;
+        let request = tonic::Request::new(crate::tercen::client::proto::GetRequest {
+            id: workflow_id.to_string(),
+            ..Default::default()
+        });
+        let response = workflow_service.get(request).await?;
+        let e_workflow = response.into_inner();
+
+        let workflow = e_workflow
+            .object
+            .as_ref()
+            .map(|obj| match obj {
+                crate::tercen::client::proto::e_workflow::Object::Workflow(wf) => wf,
+            })
+            .ok_or("EWorkflow has no workflow object")?;
+
+        // Extract chart kind from step
+        match crate::tercen::extract_chart_kind_from_step(workflow, step_id) {
+            Ok(ck) => {
+                println!("[ProductionContext] Chart kind: {:?}", ck);
+                Ok(ck)
+            }
+            Err(e) => {
+                eprintln!("[ProductionContext] Failed to extract chart_kind: {}", e);
+                Ok(ChartKind::Point) // Default to point on error
+            }
+        }
+    }
 }
 
 impl TercenContext for ProductionContext {
@@ -327,6 +375,10 @@ impl TercenContext for ProductionContext {
 
     fn point_size(&self) -> Option<i32> {
         self.point_size
+    }
+
+    fn chart_kind(&self) -> ChartKind {
+        self.chart_kind
     }
 
     fn client(&self) -> &Arc<TercenClient> {
