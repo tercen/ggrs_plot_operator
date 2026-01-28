@@ -238,7 +238,7 @@ impl DevContext {
     async fn extract_color_info(
         client: &TercenClient,
         schema_ids: &[String],
-        cube_query: &CubeQuery,
+        _cube_query: &CubeQuery,
         workflow: &crate::tercen::client::proto::Workflow,
         step_id: &str,
     ) -> Result<Vec<ColorInfo>, Box<dyn std::error::Error>> {
@@ -251,28 +251,22 @@ impl DevContext {
         }
 
         // Find color tables
+        // Note: A color factor may be the same as a facet factor (column/row),
+        // so we check ALL schema_ids, not just "unknown" ones.
         let streamer = TableStreamer::new(client);
-        let known_tables = [
-            cube_query.qt_hash.as_str(),
-            cube_query.column_hash.as_str(),
-            cube_query.row_hash.as_str(),
-        ];
-
         let mut color_table_ids: Vec<Option<String>> = Vec::new();
 
         for schema_id in schema_ids {
-            if !known_tables.contains(&schema_id.as_str()) {
-                let schema = streamer.get_schema(schema_id).await?;
-                if let Some(e_schema::Object::Cubequerytableschema(cqts)) = schema.object {
-                    if cqts.query_table_type.starts_with("color_") {
-                        if let Some(idx_str) = cqts.query_table_type.strip_prefix("color_") {
-                            if let Ok(idx) = idx_str.parse::<usize>() {
-                                while color_table_ids.len() <= idx {
-                                    color_table_ids.push(None);
-                                }
-                                color_table_ids[idx] = Some(schema_id.clone());
-                                println!("[DevContext] Found color table {}: {}", idx, schema_id);
+            let schema = streamer.get_schema(schema_id).await?;
+            if let Some(e_schema::Object::Cubequerytableschema(cqts)) = schema.object {
+                if cqts.query_table_type.starts_with("color_") {
+                    if let Some(idx_str) = cqts.query_table_type.strip_prefix("color_") {
+                        if let Ok(idx) = idx_str.parse::<usize>() {
+                            while color_table_ids.len() <= idx {
+                                color_table_ids.push(None);
                             }
+                            color_table_ids[idx] = Some(schema_id.clone());
+                            println!("[DevContext] Found color table {}: {}", idx, schema_id);
                         }
                     }
                 }

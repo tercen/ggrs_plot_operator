@@ -439,13 +439,37 @@ impl TercenStreamGenerator {
         let column_names = extract_column_names_from_schema(&schema)?;
         println!("  Y-axis table columns: {:?}", column_names);
 
-        // Build column list: always need .ri, .minY, .maxY
-        // Optionally include .ci if it exists (for column facets)
-        let mut columns_to_fetch =
-            vec![".ri".to_string(), ".minY".to_string(), ".maxY".to_string()];
+        // Build column list: always need .minY, .maxY
+        // Optionally include .ri (for per-row ranges) and .ci (for per-cell ranges)
+        // Optionally include .minX, .maxX if they exist (for X-axis range)
+        let mut columns_to_fetch = vec![".minY".to_string(), ".maxY".to_string()];
+
+        let has_ri = column_names.contains(&".ri".to_string());
+        if has_ri {
+            columns_to_fetch.push(".ri".to_string());
+        }
         let has_ci = column_names.contains(&".ci".to_string());
         if has_ci {
             columns_to_fetch.push(".ci".to_string());
+        }
+        let has_min_x = column_names.contains(&".minX".to_string());
+        let has_max_x = column_names.contains(&".maxX".to_string());
+        if has_min_x {
+            columns_to_fetch.push(".minX".to_string());
+        }
+        if has_max_x {
+            columns_to_fetch.push(".maxX".to_string());
+        }
+
+        // Log what kind of range we're dealing with
+        if !has_ri && !has_ci {
+            println!("  Global axis range (single row, applies to all facets)");
+        } else if !has_ri {
+            println!("  Per-column axis range (no .ri, applies to all rows)");
+        } else if !has_ci {
+            println!("  Per-row axis range (no .ci, applies to all columns)");
+        } else {
+            println!("  Per-cell axis range (both .ri and .ci)");
         }
 
         // Fetch all rows from Y-axis table
@@ -477,31 +501,38 @@ impl TercenStreamGenerator {
 
         let mut axis_ranges = HashMap::new();
         let has_ci = df.columns().contains(&".ci".to_string());
+        let has_ri = df.columns().contains(&".ri".to_string());
+        let has_x_range = df.columns().contains(&".minX".to_string())
+            && df.columns().contains(&".maxX".to_string());
 
         // Process each row in Y-axis table
         for i in 0..df.nrow() {
             let col_idx = if has_ci {
                 match df.get_value(i, ".ci")? {
                     ggrs_core::data::Value::Int(v) => v as usize,
-                    _ => 0,
+                    _ => return Err(format!("Invalid .ci at row {}", i).into()),
                 }
             } else {
-                0
+                0 // Will replicate to all columns below
             };
 
-            let row_idx_from_table = match df.get_value(i, ".ri")? {
-                ggrs_core::data::Value::Int(v) => v as usize,
-                _ => return Err(format!("Invalid .ri at row {}", i).into()),
-            };
+            let row_idx = if has_ri {
+                let row_idx_from_table = match df.get_value(i, ".ri")? {
+                    ggrs_core::data::Value::Int(v) => v as usize,
+                    _ => return Err(format!("Invalid .ri at row {}", i).into()),
+                };
 
-            // Map table's .ri (filtered index 0-11) to original index (12-23 for page 2)
-            // This is necessary because the Y-axis table from Tercen is pre-filtered by page
-            let row_idx = facet_info
-                .row_facets
-                .groups
-                .get(row_idx_from_table)
-                .map(|g| g.original_index)
-                .unwrap_or(row_idx_from_table);
+                // Map table's .ri (filtered index 0-11) to original index (12-23 for page 2)
+                // This is necessary because the Y-axis table from Tercen is pre-filtered by page
+                facet_info
+                    .row_facets
+                    .groups
+                    .get(row_idx_from_table)
+                    .map(|g| g.original_index)
+                    .unwrap_or(row_idx_from_table)
+            } else {
+                0 // Will replicate to all rows below
+            };
 
             let min_y = match df.get_value(i, ".minY")? {
                 ggrs_core::data::Value::Float(v) => v,
@@ -513,17 +544,33 @@ impl TercenStreamGenerator {
                 _ => return Err(format!("Invalid .maxY at row {}", i).into()),
             };
 
+            // X-axis: require actual range from Y-axis table
+            let (min_x, max_x) = if has_x_range {
+                let min_x = match df.get_value(i, ".minX")? {
+                    ggrs_core::data::Value::Float(v) => v,
+                    _ => return Err(format!("Invalid .minX at row {}", i).into()),
+                };
+                let max_x = match df.get_value(i, ".maxX")? {
+                    ggrs_core::data::Value::Float(v) => v,
+                    _ => return Err(format!("Invalid .maxX at row {}", i).into()),
+                };
+                (min_x, max_x)
+            } else {
+                return Err(
+                    "Y-axis table missing .minX/.maxX columns. X-axis range is required.".into(),
+                );
+            };
+
             println!(
-                "  Facet (table .ri={}) -> original_index={}: Y [{}, {}]",
-                row_idx_from_table, row_idx, min_y, max_y
+                "  Range row {}: ci={}, ri={}, X [{}, {}], Y [{}, {}]",
+                i, col_idx, row_idx, min_x, max_x, min_y, max_y
             );
 
-            // X-axis is quantized coordinate space (0-65535)
             let x_axis = AxisData::Numeric(NumericAxisData {
-                min_value: 0.0,
-                max_value: 65535.0,
-                min_axis: 0.0,
-                max_axis: 65535.0,
+                min_value: min_x,
+                max_value: max_x,
+                min_axis: min_x,
+                max_axis: max_x,
                 transform: None,
             });
 
@@ -535,13 +582,31 @@ impl TercenStreamGenerator {
                 transform: None,
             });
 
-            // If there's no .ci column, the Y range applies to all columns in this row
-            if has_ci {
-                axis_ranges.insert((col_idx, row_idx), (x_axis.clone(), y_axis.clone()));
-            } else {
-                // Replicate the same Y range for all column facets
-                for col in 0..facet_info.n_col_facets() {
-                    axis_ranges.insert((col, row_idx), (x_axis.clone(), y_axis.clone()));
+            // Replicate range based on which index columns are present
+            match (has_ci, has_ri) {
+                (true, true) => {
+                    // Per-cell range
+                    axis_ranges.insert((col_idx, row_idx), (x_axis.clone(), y_axis.clone()));
+                }
+                (false, true) => {
+                    // Per-row range: replicate to all columns
+                    for col in 0..facet_info.n_col_facets() {
+                        axis_ranges.insert((col, row_idx), (x_axis.clone(), y_axis.clone()));
+                    }
+                }
+                (true, false) => {
+                    // Per-column range: replicate to all rows
+                    for row in 0..facet_info.n_row_facets() {
+                        axis_ranges.insert((col_idx, row), (x_axis.clone(), y_axis.clone()));
+                    }
+                }
+                (false, false) => {
+                    // Global range: replicate to all cells
+                    for col in 0..facet_info.n_col_facets() {
+                        for row in 0..facet_info.n_row_facets() {
+                            axis_ranges.insert((col, row), (x_axis.clone(), y_axis.clone()));
+                        }
+                    }
                 }
             }
         }
@@ -587,7 +652,12 @@ impl TercenStreamGenerator {
             }
         }
 
-        let columns = Some(vec![".ci".to_string(), ".ri".to_string(), ".y".to_string()]);
+        let columns = Some(vec![
+            ".ci".to_string(),
+            ".ri".to_string(),
+            ".x".to_string(),
+            ".y".to_string(),
+        ]);
 
         // Stream through data
         loop {
@@ -622,6 +692,12 @@ impl TercenStreamGenerator {
                     .and_then(|v| v.as_i64())
                     .unwrap_or(0) as usize;
 
+                let x = df
+                    .get_value(i, ".x")
+                    .ok()
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+
                 let y = df
                     .get_value(i, ".y")
                     .ok()
@@ -635,6 +711,10 @@ impl TercenStreamGenerator {
                     f64::NEG_INFINITY,
                 ));
 
+                // Update X min/max (stats.0 and stats.1)
+                stats.0 = stats.0.min(x);
+                stats.1 = stats.1.max(x);
+                // Update Y min/max (stats.2 and stats.3)
                 stats.2 = stats.2.min(y);
                 stats.3 = stats.3.max(y);
             }
@@ -652,12 +732,28 @@ impl TercenStreamGenerator {
 
         // Convert to axis ranges
         let mut axis_ranges = HashMap::new();
-        for ((col_idx, row_idx), (_min_x, _max_x, min_y, max_y)) in cell_stats {
+        for ((col_idx, row_idx), (min_x, max_x, min_y, max_y)) in cell_stats {
+            // Require valid axis ranges - no fallbacks
+            if !min_x.is_finite() || !max_x.is_finite() {
+                return Err(format!(
+                    "No valid X data found for facet ({}, {}). Cannot compute axis range.",
+                    col_idx, row_idx
+                )
+                .into());
+            }
+            if !min_y.is_finite() || !max_y.is_finite() {
+                return Err(format!(
+                    "No valid Y data found for facet ({}, {}). Cannot compute axis range.",
+                    col_idx, row_idx
+                )
+                .into());
+            }
+
             let x_axis = AxisData::Numeric(NumericAxisData {
-                min_value: 0.0,
-                max_value: 65535.0,
-                min_axis: 0.0,
-                max_axis: 65535.0,
+                min_value: min_x,
+                max_value: max_x,
+                min_axis: min_x,
+                max_axis: max_x,
                 transform: None,
             });
 
