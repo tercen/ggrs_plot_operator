@@ -306,14 +306,45 @@ impl ProductionContext {
             cached_task_id
         );
 
-        // Fetch the cached task to get schema_ids
+        // Fetch the cached task to get schema_ids (with retry for transient failures)
         let mut task_service = client.task_service()?;
-        let request = tonic::Request::new(GetRequest {
-            id: cached_task_id.clone(),
-            ..Default::default()
-        });
-        let response = task_service.get(request).await?;
-        let task = response.into_inner();
+        let mut last_error = None;
+        let mut task = None;
+
+        for attempt in 1..=3 {
+            let request = tonic::Request::new(GetRequest {
+                id: cached_task_id.clone(),
+                ..Default::default()
+            });
+            match task_service.get(request).await {
+                Ok(response) => {
+                    task = Some(response.into_inner());
+                    break;
+                }
+                Err(e) => {
+                    eprintln!(
+                        "DEBUG: Attempt {} to fetch cached task failed: {}",
+                        attempt, e
+                    );
+                    last_error = Some(e);
+                    if attempt < 3 {
+                        tokio::time::sleep(std::time::Duration::from_millis(100 * attempt as u64))
+                            .await;
+                    }
+                }
+            }
+        }
+
+        let task = match task {
+            Some(t) => t,
+            None => {
+                return Err(format!(
+                    "Failed to fetch cached task after 3 attempts: {:?}",
+                    last_error
+                )
+                .into())
+            }
+        };
 
         let schema_ids = match task.object.as_ref() {
             Some(e_task::Object::Cubequerytask(cqt)) => cqt.schema_ids.clone(),
