@@ -113,6 +113,22 @@ impl ProductionContext {
             workflow_id, step_id
         );
 
+        // If schema_ids is empty, try to fetch from the workflow step's cached task
+        // Operator tasks don't include schema_ids, but the step's model.task_id points to a
+        // cached task that does have them
+        let schema_ids = if schema_ids.is_empty() && !workflow_id.is_empty() && !step_id.is_empty()
+        {
+            eprintln!("DEBUG: schema_ids empty, fetching from workflow step's cached task...");
+            Self::fetch_schema_ids_from_step(&client, &workflow_id, &step_id)
+                .await
+                .unwrap_or_else(|e| {
+                    eprintln!("DEBUG: Failed to fetch schema_ids from step: {}", e);
+                    Vec::new()
+                })
+        } else {
+            schema_ids
+        };
+
         // Find Y-axis table
         let y_axis_table_id = Self::find_y_axis_table(&client, &schema_ids, &cube_query).await?;
 
@@ -228,6 +244,89 @@ impl ProductionContext {
         }
 
         Ok(None)
+    }
+
+    /// Fetch schema_ids from the workflow step's cached task
+    ///
+    /// When an operator task is created, it doesn't include schema_ids.
+    /// However, the workflow step has a model.task_id pointing to a cached task
+    /// that does contain the schema_ids we need.
+    async fn fetch_schema_ids_from_step(
+        client: &TercenClient,
+        workflow_id: &str,
+        step_id: &str,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        use crate::tercen::client::proto::{e_step, e_task, GetRequest};
+
+        // Fetch workflow
+        let mut workflow_service = client.workflow_service()?;
+        let request = tonic::Request::new(GetRequest {
+            id: workflow_id.to_string(),
+            ..Default::default()
+        });
+        let response = workflow_service.get(request).await?;
+        let e_workflow = response.into_inner();
+
+        let workflow = e_workflow
+            .object
+            .as_ref()
+            .map(|obj| match obj {
+                crate::tercen::client::proto::e_workflow::Object::Workflow(wf) => wf,
+            })
+            .ok_or("EWorkflow has no workflow object")?;
+
+        // Find the DataStep
+        let data_step = workflow
+            .steps
+            .iter()
+            .find_map(|e_step| {
+                if let Some(e_step::Object::Datastep(ds)) = &e_step.object {
+                    if ds.id == step_id {
+                        return Some(ds.clone());
+                    }
+                }
+                None
+            })
+            .ok_or_else(|| format!("DataStep {} not found in workflow", step_id))?;
+
+        // Get task_id from model
+        let cached_task_id = data_step
+            .model
+            .as_ref()
+            .map(|m| m.task_id.clone())
+            .unwrap_or_default();
+
+        if cached_task_id.is_empty() {
+            eprintln!("DEBUG: Step has no cached task_id in model");
+            return Ok(Vec::new());
+        }
+
+        eprintln!(
+            "DEBUG: Found cached task_id {} in step model",
+            cached_task_id
+        );
+
+        // Fetch the cached task to get schema_ids
+        let mut task_service = client.task_service()?;
+        let request = tonic::Request::new(GetRequest {
+            id: cached_task_id.clone(),
+            ..Default::default()
+        });
+        let response = task_service.get(request).await?;
+        let task = response.into_inner();
+
+        let schema_ids = match task.object.as_ref() {
+            Some(e_task::Object::Cubequerytask(cqt)) => cqt.schema_ids.clone(),
+            Some(e_task::Object::Computationtask(ct)) => ct.schema_ids.clone(),
+            Some(e_task::Object::Runcomputationtask(rct)) => rct.schema_ids.clone(),
+            _ => Vec::new(),
+        };
+
+        eprintln!(
+            "DEBUG: Fetched {} schema_ids from cached task",
+            schema_ids.len()
+        );
+        Ok(schema_ids)
     }
 
     /// Extract color information from workflow
