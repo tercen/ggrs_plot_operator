@@ -10,8 +10,11 @@
 //! 4. Returns plot results for output handling
 
 use crate::config::OperatorConfig;
-use crate::ggrs_integration::TercenStreamGenerator;
-use crate::tercen::{extract_page_values, ChartKind, ColorMapping, PlotResult, TercenContext};
+use crate::ggrs_integration::{TercenStreamConfig, TercenStreamGenerator};
+use crate::memprof;
+use crate::tercen::{
+    extract_page_values, new_schema_cache, ChartKind, ColorMapping, PlotResult, TercenContext,
+};
 use ggrs_core::scale::ContinuousScale;
 use ggrs_core::stream::{DataCache, StreamGenerator};
 use ggrs_core::theme::elements::Element;
@@ -35,6 +38,9 @@ pub async fn generate_plots<C: TercenContext>(
     ctx: &C,
     config: &OperatorConfig,
 ) -> Result<Vec<PlotResult>, PipelineError> {
+    let m0 = memprof::checkpoint_return("generate_plots START");
+    let t0 = std::time::Instant::now();
+
     // Display context information
     print_context_info(ctx, config);
 
@@ -44,6 +50,8 @@ pub async fn generate_plots<C: TercenContext>(
     // Extract page information
     println!("\n[2/4] Extracting page information...");
     let page_values = extract_page_values(ctx.client(), ctx.row_hash(), ctx.page_factors()).await?;
+    let _m1 = memprof::delta("After extract_page_values", m0);
+    let _t1 = memprof::time_delta("After extract_page_values", t0, t0);
 
     if page_values.is_empty() {
         return Err("No pages to generate".into());
@@ -65,6 +73,15 @@ pub async fn generate_plots<C: TercenContext>(
         Some(cache)
     } else {
         println!("  Single page - cache disabled");
+        None
+    };
+
+    // Create shared schema cache for multi-page plots
+    // Schemas are reused across pages, reducing network requests
+    let schema_cache = if page_values.len() > 1 {
+        println!("  Created schema cache for multi-page plot");
+        Some(new_schema_cache())
+    } else {
         None
     };
 
@@ -94,18 +111,27 @@ pub async fn generate_plots<C: TercenContext>(
             None
         };
 
-        let mut stream_gen = TercenStreamGenerator::new(
-            client_arc.clone(),
+        let m2 = memprof::checkpoint_return("Before TercenStreamGenerator::new()");
+        let t2 = std::time::Instant::now();
+
+        // Build configuration struct for stream generator
+        let stream_config = TercenStreamConfig::new(
             ctx.qt_hash().to_string(),
             ctx.column_hash().to_string(),
             ctx.row_hash().to_string(),
-            ctx.y_axis_table_id().map(|s| s.to_string()),
             config.chunk_size,
-            ctx.color_infos().to_vec(),
-            ctx.page_factors().to_vec(),
-            page_filter,
         )
-        .await?;
+        .y_axis_table(ctx.y_axis_table_id().map(|s| s.to_string()))
+        .x_axis_table(ctx.x_axis_table_id().map(|s| s.to_string()))
+        .colors(ctx.color_infos().to_vec())
+        .page_factors(ctx.page_factors().to_vec())
+        .schema_cache(schema_cache.clone());
+
+        let mut stream_gen =
+            TercenStreamGenerator::new(client_arc.clone(), stream_config, page_filter).await?;
+
+        let _m3 = memprof::delta("After TercenStreamGenerator::new()", m2);
+        let _t3 = memprof::time_delta("After TercenStreamGenerator::new()", t0, t2);
 
         // For heatmaps: enable heatmap mode which sets 1x1 facets and grid-based axis ranges
         // The original facet dimensions become the heatmap grid dimensions
@@ -266,7 +292,11 @@ fn render_page<C: TercenContext>(
     }
 
     // Create PlotGenerator
+    let m4 = memprof::checkpoint_return("Before PlotGenerator::new()");
+    let t4 = std::time::Instant::now();
     let plot_gen = PlotGenerator::new(Box::new(stream_gen), plot_spec)?;
+    let m5 = memprof::delta("After PlotGenerator::new()", m4);
+    let t5 = memprof::time_delta("After PlotGenerator::new()", t4, t4);
 
     // Create PlotRenderer with cache (if enabled)
     let mut renderer = if let Some(cache_ref) = cache {
@@ -288,8 +318,12 @@ fn render_page<C: TercenContext>(
     };
     renderer.set_png_compression(png_compression);
 
+    // Enable lightweight rendering (direct Cairo drawing)
+    // This eliminates ~15-20MB memory overhead from ChartContext objects
+    renderer.set_lightweight_rendering(true);
+
     println!(
-        "  Rendering plot (backend: {}, PNG compression: {})...",
+        "  Rendering plot (backend: {}, PNG compression: {}, lightweight: true)...",
         config.backend, config.png_compression
     );
 
@@ -305,7 +339,11 @@ fn render_page<C: TercenContext>(
     } else {
         temp_dir.join("temp_plot.png")
     };
+
+    let _ = memprof::delta("Before render_to_file()", m5);
+    let t6 = std::time::Instant::now();
     renderer.render_to_file(&temp_path.to_string_lossy(), backend, OutputFormat::Png)?;
+    let _ = memprof::time_delta("After render_to_file()", t5, t6);
 
     // Read PNG into memory
     let png_buffer = std::fs::read(&temp_path)?;

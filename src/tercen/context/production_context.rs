@@ -23,6 +23,7 @@ pub struct ProductionContext {
     color_infos: Vec<ColorInfo>,
     page_factors: Vec<String>,
     y_axis_table_id: Option<String>,
+    x_axis_table_id: Option<String>,
     point_size: Option<i32>,
     chart_kind: ChartKind,
 }
@@ -115,6 +116,9 @@ impl ProductionContext {
         // Find Y-axis table
         let y_axis_table_id = Self::find_y_axis_table(&client, &schema_ids, &cube_query).await?;
 
+        // Find X-axis table
+        let x_axis_table_id = Self::find_x_axis_table(&client, &schema_ids, &cube_query).await?;
+
         // Extract color information
         let color_infos =
             Self::extract_color_info(&client, &schema_ids, &cube_query, &workflow_id, &step_id)
@@ -141,6 +145,7 @@ impl ProductionContext {
             color_infos,
             page_factors,
             y_axis_table_id,
+            x_axis_table_id,
             point_size,
             chart_kind,
         })
@@ -169,6 +174,38 @@ impl ProductionContext {
                 if let Some(e_schema::Object::Cubequerytableschema(cqts)) = schema.object {
                     if cqts.query_table_type == "y" {
                         println!("[ProductionContext] Found Y-axis table: {}", schema_id);
+                        return Ok(Some(schema_id.clone()));
+                    }
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Find X-axis table from schema_ids
+    async fn find_x_axis_table(
+        client: &TercenClient,
+        schema_ids: &[String],
+        cube_query: &CubeQuery,
+    ) -> Result<Option<String>, Box<dyn std::error::Error>> {
+        use crate::tercen::client::proto::e_schema;
+        use crate::tercen::TableStreamer;
+
+        let streamer = TableStreamer::new(client);
+
+        let known_tables = [
+            cube_query.qt_hash.as_str(),
+            cube_query.column_hash.as_str(),
+            cube_query.row_hash.as_str(),
+        ];
+
+        for schema_id in schema_ids {
+            if !known_tables.contains(&schema_id.as_str()) {
+                let schema = streamer.get_schema(schema_id).await?;
+                if let Some(e_schema::Object::Cubequerytableschema(cqts)) = schema.object {
+                    if cqts.query_table_type == "x" {
+                        println!("[ProductionContext] Found X-axis table: {}", schema_id);
                         return Ok(Some(schema_id.clone()));
                     }
                 }
@@ -365,6 +402,10 @@ impl TercenContext for ProductionContext {
 
     fn y_axis_table_id(&self) -> Option<&str> {
         self.y_axis_table_id.as_deref()
+    }
+
+    fn x_axis_table_id(&self) -> Option<&str> {
+        self.x_axis_table_id.as_deref()
     }
 
     fn point_size(&self) -> Option<i32> {

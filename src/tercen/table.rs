@@ -2,31 +2,63 @@
 use super::client::proto::ReqStreamTable;
 use super::client::TercenClient;
 use super::error::{Result, TercenError};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use tokio_stream::StreamExt;
+
+/// Schema cache type alias for reuse across pages
+/// Key: table_id, Value: cached schema
+pub type SchemaCache = Arc<Mutex<HashMap<String, super::client::proto::ESchema>>>;
+
+/// Create a new empty schema cache
+pub fn new_schema_cache() -> SchemaCache {
+    Arc::new(Mutex::new(HashMap::new()))
+}
 
 /// Tercen table data streamer
 pub struct TableStreamer<'a> {
     client: &'a TercenClient,
+    /// Optional schema cache (shared across multiple streamers)
+    schema_cache: Option<SchemaCache>,
 }
 
 impl<'a> TableStreamer<'a> {
-    /// Create a new table streamer
+    /// Create a new table streamer without caching
     pub fn new(client: &'a TercenClient) -> Self {
-        TableStreamer { client }
+        TableStreamer {
+            client,
+            schema_cache: None,
+        }
     }
 
-    /// Stream table data as TSON format
+    /// Create a new table streamer with schema caching
     ///
-    /// # Arguments
-    /// * `table_id` - The Tercen table ID to stream
-    /// * `columns` - Optional list of columns to fetch (None = all columns)
-    /// * `offset` - Starting row offset
-    /// * `limit` - Maximum number of rows to fetch
-    ///
-    /// # Returns
-    /// Vector of TSON binary data chunks as bytes
+    /// The cache is shared across multiple streamers, so schemas fetched
+    /// for one page are reused for subsequent pages.
+    pub fn with_cache(client: &'a TercenClient, cache: SchemaCache) -> Self {
+        TableStreamer {
+            client,
+            schema_cache: Some(cache),
+        }
+    }
+
     /// Get the schema for a table to retrieve metadata like row count
+    ///
+    /// If a schema cache was provided via `with_cache`, this will check
+    /// the cache first and only make a network request on cache miss.
+    /// Cached schemas are reused across pages in multi-page plots.
     pub async fn get_schema(&self, table_id: &str) -> Result<super::client::proto::ESchema> {
+        // Check cache first
+        if let Some(ref cache) = self.schema_cache {
+            let guard = cache.lock().unwrap();
+            if let Some(schema) = guard.get(table_id) {
+                eprintln!("DEBUG: Schema cache HIT for table {}", table_id);
+                return Ok(schema.clone());
+            }
+        }
+
+        eprintln!("DEBUG: Schema cache MISS for table {} - fetching", table_id);
+
         use super::client::proto::GetRequest;
 
         let mut table_service = self.client.table_service()?;
@@ -40,7 +72,15 @@ impl<'a> TableStreamer<'a> {
             .await
             .map_err(|e| TercenError::Grpc(Box::new(e)))?;
 
-        Ok(response.into_inner())
+        let schema = response.into_inner();
+
+        // Populate cache
+        if let Some(ref cache) = self.schema_cache {
+            let mut guard = cache.lock().unwrap();
+            guard.insert(table_id.to_string(), schema.clone());
+        }
+
+        Ok(schema)
     }
 
     pub async fn stream_tson(

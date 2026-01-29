@@ -10,6 +10,7 @@
 //! 3. We extract unique values from the page columns
 //! 4. Generate one plot per unique page value combination
 
+use crate::memprof;
 use crate::tercen::client::proto::{e_meta_factor, e_operator_input_spec, OperatorSettings};
 use crate::tercen::{tson_to_dataframe, TableStreamer, TercenClient};
 use std::collections::HashMap;
@@ -115,11 +116,14 @@ pub async fn extract_page_values(
         }]);
     }
 
+    let m0 = memprof::checkpoint_return("extract_page_values: START");
+
     // Stream row facet table
     let streamer = TableStreamer::new(client);
 
     // Get schema to know row count
     let schema = streamer.get_schema(row_table_id).await?;
+    let m1 = memprof::delta("extract_page_values: After get_schema", m0);
 
     use crate::tercen::client::proto::e_schema;
     let n_rows = match &schema.object {
@@ -135,49 +139,51 @@ pub async fn extract_page_values(
     let tson_data = streamer
         .stream_tson(row_table_id, Some(page_factors.to_vec()), 0, n_rows as i64)
         .await?;
+    let m2 = memprof::delta("extract_page_values: After stream_tson", m1);
+    eprintln!("DEBUG: TSON data size: {} bytes", tson_data.len());
 
     // Parse to DataFrame
     let df = tson_to_dataframe(&tson_data)?;
+    let m3 = memprof::delta("extract_page_values: After tson_to_dataframe", m2);
 
     println!("  Found {} total rows", df.nrow());
 
-    // Extract unique combinations using Polars directly
-    use polars::prelude::*;
-    let polars_df = df.inner(); // Get underlying Polars DataFrame
-    let unique_df = polars_df
-        .clone()
-        .lazy()
-        .select(
-            page_factors
-                .iter()
-                .map(|f| col(f.as_str()))
-                .collect::<Vec<_>>(),
-        )
-        .unique(None, UniqueKeepStrategy::First)
-        .collect()?;
+    // Extract unique combinations using simple HashSet (avoids Polars lazy init overhead)
+    // For small page tables (typically < 100 rows), this is much more efficient
+    use std::collections::HashSet;
 
-    println!("  Found {} unique page combinations", unique_df.height());
-
-    // Build PageValue objects
+    let polars_df = df.inner();
+    let mut seen: HashSet<Vec<String>> = HashSet::new();
     let mut page_values = Vec::new();
-    for row_idx in 0..unique_df.height() {
+
+    for row_idx in 0..polars_df.height() {
+        // Build key from all page factor values for this row
+        let mut key = Vec::with_capacity(page_factors.len());
         let mut values = HashMap::new();
         let mut label_parts = Vec::new();
 
         for factor_name in page_factors {
-            let value = unique_df
+            let value = polars_df
                 .column(factor_name)?
                 .get(row_idx)?
                 .to_string()
                 .trim_matches('"')
                 .to_string();
+            key.push(value.clone());
             values.insert(factor_name.clone(), value.clone());
             label_parts.push(value);
         }
 
-        let label = label_parts.join("_");
-        page_values.push(PageValue { values, label });
+        // Only add if we haven't seen this combination before
+        if seen.insert(key) {
+            let label = label_parts.join("_");
+            page_values.push(PageValue { values, label });
+        }
     }
+
+    let _ = memprof::delta("extract_page_values: After unique extraction", m3);
+
+    println!("  Found {} unique page combinations", page_values.len());
 
     Ok(page_values)
 }

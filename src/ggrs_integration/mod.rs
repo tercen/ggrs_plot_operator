@@ -14,4 +14,4 @@ pub mod stream_generator;
 
 // Re-exports
 pub use cached_stream_generator::FilteredStreamGenerator;
-pub use stream_generator::TercenStreamGenerator;
+pub use stream_generator::{TercenStreamConfig, TercenStreamGenerator};

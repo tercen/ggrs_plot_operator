@@ -6,8 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the GGRS plotting library with Tercen's gRPC API. It receives tabular data from Tercen, generates high-performance plots with faceting and colors, and returns PNG images.
 
-**Current Version**: 0.0.4 (themes in progress)
-
 ## Essential Commands
 
 ```bash
@@ -21,7 +19,11 @@ cargo fmt && cargo clippy -- -D warnings && cargo test
 # Run specific test
 cargo test test_name
 
-# Local development with Tercen (requires env vars, see src/bin/dev.rs)
+# Local development with Tercen
+export TERCEN_URI=http://127.0.0.1:50051
+export TERCEN_TOKEN=your_token
+export WORKFLOW_ID=your_workflow_id
+export STEP_ID=your_step_id
 cargo run --bin dev --profile dev-release
 
 # Local testing script
@@ -66,8 +68,9 @@ PNG Output
 - `context/` - `TercenContext` trait + `ProductionContext`/`DevContext` implementations
 - `table.rs` - TableStreamer for chunked data streaming
 - `tson_convert.rs` - TSON → Polars DataFrame conversion
-- `colors.rs` - Color palette extraction and interpolation
+- `colors.rs` - Color palette extraction, `ChartKind` enum, `ColorInfo`
 - `pages.rs` - Multi-page plot support
+- `facets.rs` - Facet metadata handling
 
 **GGRS Integration** (`src/ggrs_integration/`)
 - `stream_generator.rs` - `TercenStreamGenerator` implements GGRS `StreamGenerator` trait
@@ -75,7 +78,7 @@ PNG Output
 
 **Configuration**
 - `src/config.rs` - `OperatorConfig` from `operator.json` properties
-- `operator.json` - Operator property definitions (UI-configurable)
+- `operator.json` - Operator property definitions (plot.width, plot.height, backend, legend.position, axis labels, tick rotation, etc.)
 
 ### Related Repository
 
@@ -110,7 +113,8 @@ Chart type (from Tercen UI) determines layout behavior via `ChartKind` enum:
 
 **TercenContext** (`src/tercen/context/`)
 - Trait abstracting production vs development environments
-- Extracts color info, page factors, chart kind from Tercen workflow
+- Key methods: `cube_query()`, `color_infos()`, `page_factors()`, `chart_kind()`, `point_size()`
+- Extracts all workflow metadata needed for plot generation
 
 ## Core Technical Decisions
 
@@ -150,11 +154,23 @@ DevContext::new(client, workflow_id, step_id)      // Local development
 
 ## Key Dependencies
 
-- `ggrs-core` - Local path `../ggrs/crates/ggrs-core` (switch to git for CI)
+- `ggrs-core` - Local path `../ggrs/crates/ggrs-core` (switch to git for CI). Features: `webgpu-backend`, `cairo-backend`
 - `polars` - Columnar DataFrame (critical for performance)
-- `tonic`/`prost` - gRPC client
+- `tonic`/`prost` - gRPC client (v0.14)
 - `tokio` - Async runtime
 - `rustson` - Tercen TSON binary format parsing
+
+## Dev Config Override
+
+For local testing, create `operator_config.json` with properties to override defaults:
+
+```json
+{
+  "backend": "gpu",
+  "plot.width": "800",
+  "legend.position": "right"
+}
+```
 
 ## Notes for Claude Code
 

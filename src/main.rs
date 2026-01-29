@@ -10,6 +10,7 @@
 
 pub mod config;
 pub mod ggrs_integration;
+pub mod memprof;
 pub mod pipeline;
 pub mod tercen;
 

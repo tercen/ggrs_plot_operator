@@ -3,7 +3,7 @@
 //! This module implements the GGRS `StreamGenerator` trait for Tercen,
 //! enabling lazy loading of data directly from Tercen's gRPC API.
 
-use crate::tercen::{tson_to_dataframe, FacetInfo, TableStreamer, TercenClient};
+use crate::tercen::{tson_to_dataframe, FacetInfo, SchemaCache, TableStreamer, TercenClient};
 use ggrs_core::{
     aes::Aes,
     data::DataFrame,
@@ -13,6 +13,88 @@ use ggrs_core::{
 use polars::prelude::IntoColumn;
 use std::collections::HashMap;
 use std::sync::Arc;
+
+/// Default number of categorical color levels in Tercen's built-in palette.
+/// When no actual category names are available, generic labels "Level 0" through "Level 7" are used.
+const DEFAULT_PALETTE_LEVELS: usize = 8;
+
+/// Configuration for creating a TercenStreamGenerator
+///
+/// Groups all the parameters needed to initialize a stream generator,
+/// making the API cleaner and more maintainable.
+#[derive(Clone)]
+pub struct TercenStreamConfig {
+    /// Main data table ID (qt_hash)
+    pub main_table_id: String,
+    /// Column facet table ID (cschema)
+    pub col_facet_table_id: String,
+    /// Row facet table ID (rschema)
+    pub row_facet_table_id: String,
+    /// Optional Y-axis range table ID
+    pub y_axis_table_id: Option<String>,
+    /// Optional X-axis range table ID
+    pub x_axis_table_id: Option<String>,
+    /// Chunk size for streaming data
+    pub chunk_size: usize,
+    /// Color factor configurations
+    pub color_infos: Vec<crate::tercen::ColorInfo>,
+    /// Page factor names for pagination
+    pub page_factors: Vec<String>,
+    /// Optional schema cache for multi-page plots
+    pub schema_cache: Option<SchemaCache>,
+}
+
+impl TercenStreamConfig {
+    /// Create a new configuration with required fields
+    pub fn new(
+        main_table_id: String,
+        col_facet_table_id: String,
+        row_facet_table_id: String,
+        chunk_size: usize,
+    ) -> Self {
+        Self {
+            main_table_id,
+            col_facet_table_id,
+            row_facet_table_id,
+            y_axis_table_id: None,
+            x_axis_table_id: None,
+            chunk_size,
+            color_infos: Vec::new(),
+            page_factors: Vec::new(),
+            schema_cache: None,
+        }
+    }
+
+    /// Set Y-axis table ID
+    pub fn y_axis_table(mut self, table_id: Option<String>) -> Self {
+        self.y_axis_table_id = table_id;
+        self
+    }
+
+    /// Set X-axis table ID
+    pub fn x_axis_table(mut self, table_id: Option<String>) -> Self {
+        self.x_axis_table_id = table_id;
+        self
+    }
+
+    /// Set color information
+    pub fn colors(mut self, color_infos: Vec<crate::tercen::ColorInfo>) -> Self {
+        self.color_infos = color_infos;
+        self
+    }
+
+    /// Set page factors
+    pub fn page_factors(mut self, factors: Vec<String>) -> Self {
+        self.page_factors = factors;
+        self
+    }
+
+    /// Set schema cache
+    pub fn schema_cache(mut self, cache: Option<SchemaCache>) -> Self {
+        self.schema_cache = cache;
+        self
+    }
+}
 
 /// Extract row count from schema
 fn extract_row_count_from_schema(
@@ -100,27 +182,42 @@ pub struct TercenStreamGenerator {
     /// Heatmap mode: when set, overrides facet counts to 1x1 and uses grid dimensions for axes
     /// Tuple is (n_columns, n_rows) representing the heatmap grid dimensions
     heatmap_mode: Option<(usize, usize)>,
+
+    /// Optional schema cache for multi-page plots
+    /// When provided, schemas are cached and reused across pages
+    schema_cache: Option<SchemaCache>,
 }
 
 impl TercenStreamGenerator {
-    /// Create a new stream generator with explicit table IDs
+    /// Create a new stream generator with configuration struct
     ///
     /// This loads facet metadata and axis ranges from pre-computed tables.
     /// Note: page_filter is used to load only the facets for this page (e.g., female or male),
     /// but data is NOT filtered - GGRS handles data matching via original_index
+    ///
+    /// # Arguments
+    /// * `client` - Tercen gRPC client
+    /// * `config` - Configuration containing table IDs and options
+    /// * `page_filter` - Optional filter for pagination (e.g., {"sex": "female"})
     #[allow(dead_code)]
-    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         client: Arc<TercenClient>,
-        main_table_id: String,
-        col_facet_table_id: String,
-        row_facet_table_id: String,
-        y_axis_table_id: Option<String>,
-        chunk_size: usize,
-        color_infos: Vec<crate::tercen::ColorInfo>,
-        page_factors: Vec<String>,
+        config: TercenStreamConfig,
         page_filter: Option<&HashMap<String, String>>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        // Extract config fields for use throughout the function
+        let TercenStreamConfig {
+            main_table_id,
+            col_facet_table_id,
+            row_facet_table_id,
+            y_axis_table_id,
+            x_axis_table_id,
+            chunk_size,
+            color_infos,
+            page_factors,
+            schema_cache,
+        } = config;
+
         // Load facets with optional filtering for pagination
         // Each page should only show its own facet panels
         let facet_info = if let Some(filter) = page_filter {
@@ -143,20 +240,65 @@ impl TercenStreamGenerator {
         // We just keep the facet_info which has both index and original_index for each facet.
 
         // Load axis ranges from pre-computed Y-axis table (if available)
-        let (axis_ranges, total_rows) = if let Some(ref y_table_id) = y_axis_table_id {
+        let (mut axis_ranges, total_rows) = if let Some(ref y_table_id) = y_axis_table_id {
             println!("Loading axis ranges from Y-axis table: {}", y_table_id);
-            Self::load_axis_ranges_from_table(&client, y_table_id, &main_table_id, &facet_info)
-                .await?
+            Self::load_axis_ranges_from_table(
+                &client,
+                y_table_id,
+                &main_table_id,
+                &facet_info,
+                &schema_cache,
+            )
+            .await?
         } else {
-            println!("No Y-axis table provided, falling back to data scanning");
-            Self::compute_axis_ranges(&client, &main_table_id, &facet_info, chunk_size).await?
+            println!("No Y-axis table provided, computing from data");
+            Self::compute_axis_ranges(
+                &client,
+                &main_table_id,
+                &facet_info,
+                chunk_size,
+                &schema_cache,
+            )
+            .await?
         };
 
         eprintln!(
-            "DEBUG: axis_ranges has {} entries (before remapping), total_rows: {}",
+            "DEBUG: axis_ranges has {} entries (before X range computation), total_rows: {}",
             axis_ranges.len(),
             total_rows
         );
+
+        // Check if X ranges need to be loaded (Y-axis table may not have .minX/.maxX columns)
+        let needs_x_range = axis_ranges.values().any(|(x_axis, _)| {
+            if let AxisData::Numeric(ref num) = x_axis {
+                num.min_value.is_nan() || num.max_value.is_nan()
+            } else {
+                false
+            }
+        });
+
+        if needs_x_range {
+            // First, try to load X ranges from X-axis table (if available)
+            if let Some(ref x_table_id) = x_axis_table_id {
+                println!("Loading X-axis ranges from X-axis table: {}", x_table_id);
+                Self::load_x_ranges_from_table(
+                    &client,
+                    x_table_id,
+                    &facet_info,
+                    &mut axis_ranges,
+                    &schema_cache,
+                )
+                .await?;
+            } else {
+                // No X-axis table means X is sequential (1..n_rows)
+                // No need to scan data - just use the row count
+                println!(
+                    "No X-axis table - using sequential X range: 1 to {}",
+                    total_rows
+                );
+                Self::set_sequential_x_ranges(total_rows as f64, &mut axis_ranges);
+            }
+        }
 
         // NOTE: axis_ranges now keyed by original_index (not filtered index)
         // load_axis_ranges_from_table() already maps table's .ri (0-11) → original_index (12-23)
@@ -169,8 +311,16 @@ impl TercenStreamGenerator {
         );
 
         // Load legend scale data
+        // Pass facet table IDs for fallback when color table is empty but factor matches facet
         println!("Loading legend scale data...");
-        let cached_legend_scale = Self::load_legend_scale(&client, &color_infos).await?;
+        let cached_legend_scale = Self::load_legend_scale(
+            &client,
+            &color_infos,
+            &col_facet_table_id,
+            &row_facet_table_id,
+            &schema_cache,
+        )
+        .await?;
         eprintln!("DEBUG: Cached legend scale: {:?}", cached_legend_scale);
 
         // Create default aesthetics
@@ -271,21 +421,19 @@ impl TercenStreamGenerator {
             cached_legend_scale,
             page_factors,
             heatmap_mode: None,
+            schema_cache,
         })
     }
 
-    /// Create a new stream generator from workflow and step IDs
-    ///
-    /// This is the primary constructor used by the operator.
-    pub async fn from_workflow_step(
-        _client: Arc<TercenClient>,
-        _workflow_id: &str,
-        _step_id: &str,
-        _chunk_size: usize,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        // Implementation would go here - loading workflow/step data
-        // For now, placeholder error
-        Err("from_workflow_step not yet implemented".into())
+    /// Create a TableStreamer, using the schema cache if available
+    fn create_streamer<'a>(
+        client: &'a TercenClient,
+        cache: &Option<SchemaCache>,
+    ) -> TableStreamer<'a> {
+        match cache {
+            Some(c) => TableStreamer::with_cache(client, c.clone()),
+            None => TableStreamer::new(client),
+        }
     }
 
     /// Create a stream generator with pre-computed axis ranges
@@ -344,6 +492,7 @@ impl TercenStreamGenerator {
             cached_legend_scale: LegendScale::None, // TODO: Load async if needed
             page_factors,
             heatmap_mode: None,
+            schema_cache: None, // sync method - no caching
         }
     }
 
@@ -424,6 +573,7 @@ impl TercenStreamGenerator {
         y_axis_table_id: &str,
         main_table_id: &str,
         facet_info: &FacetInfo,
+        schema_cache: &Option<SchemaCache>,
     ) -> Result<
         (
             HashMap<(usize, usize), (AxisData, AxisData)>,
@@ -431,7 +581,7 @@ impl TercenStreamGenerator {
         ),
         Box<dyn std::error::Error>,
     > {
-        let streamer = TableStreamer::new(client);
+        let streamer = Self::create_streamer(client, schema_cache);
 
         // First, get the schema to see which columns exist
         println!("  Fetching Y-axis table schema...");
@@ -529,7 +679,14 @@ impl TercenStreamGenerator {
                     .groups
                     .get(row_idx_from_table)
                     .map(|g| g.original_index)
-                    .unwrap_or(row_idx_from_table)
+                    .ok_or_else(|| {
+                        format!(
+                            "Y-axis table row {} has .ri={} but FacetInfo only has {} row groups",
+                            i,
+                            row_idx_from_table,
+                            facet_info.row_facets.groups.len()
+                        )
+                    })?
             } else {
                 0 // Will replicate to all rows below
             };
@@ -544,7 +701,7 @@ impl TercenStreamGenerator {
                 _ => return Err(format!("Invalid .maxY at row {}", i).into()),
             };
 
-            // X-axis: require actual range from Y-axis table
+            // X-axis: use from Y-axis table if available, otherwise will compute from data later
             let (min_x, max_x) = if has_x_range {
                 let min_x = match df.get_value(i, ".minX")? {
                     ggrs_core::data::Value::Float(v) => v,
@@ -556,9 +713,9 @@ impl TercenStreamGenerator {
                 };
                 (min_x, max_x)
             } else {
-                return Err(
-                    "Y-axis table missing .minX/.maxX columns. X-axis range is required.".into(),
-                );
+                // X range not in Y-axis table - use placeholder, will compute from data
+                // This matches R plot_operator behavior which computes range from actual .x values
+                (f64::NAN, f64::NAN)
             };
 
             println!(
@@ -622,11 +779,12 @@ impl TercenStreamGenerator {
         table_id: &str,
         facet_info: &FacetInfo,
         chunk_size: usize,
+        schema_cache: &Option<SchemaCache>,
     ) -> Result<(HashMap<(usize, usize), (AxisData, AxisData)>, usize), Box<dyn std::error::Error>>
     {
         println!("Computing axis ranges...");
 
-        let streamer = TableStreamer::new(client);
+        let streamer = Self::create_streamer(client, schema_cache);
         let schema = streamer.get_schema(table_id).await?;
         let total_rows = extract_row_count_from_schema(&schema)?;
         println!("  Total rows: {}", total_rows);
@@ -772,14 +930,182 @@ impl TercenStreamGenerator {
         Ok((axis_ranges, total_rows as usize))
     }
 
+    /// Compute X-axis ranges by scanning the main data table
+    /// Set sequential X ranges when no X-axis table exists
+    ///
+    /// When there's no X-axis table, X values are sequential (1 to n_rows).
+    /// This is much simpler than scanning data - just use the row count.
+    fn set_sequential_x_ranges(
+        n_rows: f64,
+        axis_ranges: &mut HashMap<(usize, usize), (AxisData, AxisData)>,
+    ) {
+        // Sequential X range: 1 to n_rows (1-indexed)
+        let min_x = 1.0;
+        let max_x = n_rows;
+
+        // Update all facet cells with the same sequential range
+        for (x_axis, _y_axis) in axis_ranges.values_mut() {
+            *x_axis = AxisData::Numeric(NumericAxisData {
+                min_value: min_x,
+                max_value: max_x,
+                min_axis: min_x,
+                max_axis: max_x,
+                transform: None,
+            });
+        }
+    }
+
+    /// Load X-axis ranges from pre-computed X-axis table
+    ///
+    /// The X-axis table contains columns: .ci, .ticks, .minX, .maxX
+    /// There should be one row per column facet (indexed by .ci)
+    async fn load_x_ranges_from_table(
+        client: &TercenClient,
+        x_axis_table_id: &str,
+        facet_info: &FacetInfo,
+        axis_ranges: &mut HashMap<(usize, usize), (AxisData, AxisData)>,
+        schema_cache: &Option<SchemaCache>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let streamer = Self::create_streamer(client, schema_cache);
+
+        // Fetch the X-axis table schema
+        println!("  Fetching X-axis table schema...");
+        let schema = streamer.get_schema(x_axis_table_id).await?;
+        let column_names = extract_column_names_from_schema(&schema)?;
+        println!("  X-axis table columns: {:?}", column_names);
+
+        // Check for required columns
+        let has_ci = column_names.contains(&".ci".to_string());
+        let has_min_x = column_names.contains(&".minX".to_string());
+        let has_max_x = column_names.contains(&".maxX".to_string());
+
+        if !has_min_x || !has_max_x {
+            return Err("X-axis table missing .minX or .maxX columns".into());
+        }
+
+        // Build column list
+        let mut columns_to_fetch = vec![".minX".to_string(), ".maxX".to_string()];
+        if has_ci {
+            columns_to_fetch.push(".ci".to_string());
+        }
+
+        // Log the range type
+        if has_ci {
+            println!("  Per-column X-axis range (indexed by .ci)");
+        } else {
+            println!("  Global X-axis range (single row, applies to all columns)");
+        }
+
+        // Fetch all rows from X-axis table
+        let expected_rows = facet_info.n_col_facets();
+        println!(
+            "  Fetching X-axis ranges (expecting {} rows - one per col facet)...",
+            expected_rows
+        );
+        let data = streamer
+            .stream_tson(
+                x_axis_table_id,
+                Some(columns_to_fetch),
+                0,
+                expected_rows as i64,
+            )
+            .await?;
+
+        println!("  Parsing {} bytes...", data.len());
+        let df = tson_to_dataframe(&data)?;
+        println!("  Parsed {} rows", df.nrow());
+
+        let has_ci = df.columns().contains(&".ci".to_string());
+
+        // Process each row in X-axis table
+        for i in 0..df.nrow() {
+            let col_idx = if has_ci {
+                let col_idx_from_table = match df.get_value(i, ".ci")? {
+                    ggrs_core::data::Value::Int(v) => v as usize,
+                    _ => return Err(format!("Invalid .ci at row {}", i).into()),
+                };
+
+                // Map table's .ci (filtered index) to original index
+                facet_info
+                    .col_facets
+                    .groups
+                    .get(col_idx_from_table)
+                    .map(|g| g.original_index)
+                    .ok_or_else(|| {
+                        format!(
+                            "X-axis table row {} has .ci={} but FacetInfo only has {} col groups",
+                            i,
+                            col_idx_from_table,
+                            facet_info.col_facets.groups.len()
+                        )
+                    })?
+            } else {
+                0 // Will replicate to all columns below
+            };
+
+            let min_x = match df.get_value(i, ".minX")? {
+                ggrs_core::data::Value::Float(v) => v,
+                _ => return Err(format!("Invalid .minX at row {}", i).into()),
+            };
+
+            let max_x = match df.get_value(i, ".maxX")? {
+                ggrs_core::data::Value::Float(v) => v,
+                _ => return Err(format!("Invalid .maxX at row {}", i).into()),
+            };
+
+            println!(
+                "  X range row {}: ci={}, X [{}, {}]",
+                i, col_idx, min_x, max_x
+            );
+
+            // Update axis_ranges based on whether we have per-column or global range
+            if has_ci {
+                // Per-column range: update all rows for this column
+                for row_idx in 0..facet_info.n_row_facets() {
+                    let row_original_idx = facet_info
+                        .row_facets
+                        .groups
+                        .get(row_idx)
+                        .expect("row_idx within n_row_facets() bounds must be valid")
+                        .original_index;
+
+                    if let Some((x_axis, _)) = axis_ranges.get_mut(&(col_idx, row_original_idx)) {
+                        *x_axis = AxisData::Numeric(NumericAxisData {
+                            min_value: min_x,
+                            max_value: max_x,
+                            min_axis: min_x,
+                            max_axis: max_x,
+                            transform: None,
+                        });
+                    }
+                }
+            } else {
+                // Global range: update all cells
+                for (_, (x_axis, _)) in axis_ranges.iter_mut() {
+                    *x_axis = AxisData::Numeric(NumericAxisData {
+                        min_value: min_x,
+                        max_value: max_x,
+                        min_axis: min_x,
+                        max_axis: max_x,
+                        transform: None,
+                    });
+                }
+            }
+        }
+
+        println!("  Loaded X-axis ranges from table");
+        Ok(())
+    }
+
     /// Create a generic legend for level-based colors
     ///
     /// When we can't get actual category names, use generic labels: "Level 0", "Level 1", etc.
-    /// Assumes 8 levels (the default tercen palette size)
     fn create_generic_level_legend(
         factor_name: &str,
     ) -> Result<LegendScale, Box<dyn std::error::Error>> {
-        let categories: Vec<String> = (0..8).map(|i| format!("Level {}", i)).collect();
+        let categories: Vec<String> = (0..DEFAULT_PALETTE_LEVELS)
+            .map(|i| format!("Level {}", i))
+            .collect();
         Ok(LegendScale::Discrete {
             values: categories,
             aesthetic_name: factor_name.to_string(),
@@ -791,9 +1117,13 @@ impl TercenStreamGenerator {
     /// For categorical colors with .colorLevels, this streams the color table
     /// to extract unique category names.
     /// For continuous colors, this extracts the min/max from the palette.
+    /// Falls back to facet tables if color table is empty and factor matches facet column.
     async fn load_legend_scale(
         client: &TercenClient,
         color_infos: &[crate::tercen::ColorInfo],
+        col_facet_table_id: &str,
+        row_facet_table_id: &str,
+        schema_cache: &Option<SchemaCache>,
     ) -> Result<LegendScale, Box<dyn std::error::Error>> {
         if color_infos.is_empty() {
             return Ok(LegendScale::None);
@@ -849,7 +1179,7 @@ impl TercenStreamGenerator {
                         color_table_id
                     );
 
-                    let streamer = TableStreamer::new(client);
+                    let streamer = Self::create_streamer(client, schema_cache);
 
                     // Stream the entire color table (it's usually small)
                     // The table contains the mapping from level index to category name
@@ -901,8 +1231,117 @@ impl TercenStreamGenerator {
                             Self::create_generic_level_legend(&color_info.factor_name)
                         }
                     } else {
-                        // Color table is empty - fall back to generic level labels
-                        eprintln!("DEBUG: Color table is empty, using generic level labels");
+                        // Color table is empty - try facet tables as fallback
+                        // This happens when color factor is same as facet factor
+                        eprintln!(
+                            "DEBUG: Color table is empty, trying facet tables for '{}' (col={}, row={})",
+                            color_info.factor_name,
+                            col_facet_table_id,
+                            row_facet_table_id
+                        );
+
+                        // Try column facet table first
+                        // Get schema to find column names (required for data materialization)
+                        let col_schema = streamer.get_schema(col_facet_table_id).await?;
+                        let col_columns = extract_column_names_from_schema(&col_schema)?;
+                        let col_facet_data = streamer
+                            .stream_tson(
+                                col_facet_table_id,
+                                if col_columns.is_empty() {
+                                    None
+                                } else {
+                                    Some(col_columns.clone())
+                                },
+                                0,
+                                100000,
+                            )
+                            .await?;
+                        let col_df = tson_to_dataframe(&col_facet_data)?;
+                        eprintln!(
+                            "DEBUG: Col facet table has {} rows, columns: {:?}",
+                            col_df.nrow(),
+                            col_df.columns()
+                        );
+
+                        if col_df.nrow() > 0 {
+                            if let Ok(column) = col_df.column(&color_info.factor_name) {
+                                use std::collections::HashSet;
+                                let mut seen = HashSet::new();
+                                let mut categories: Vec<String> = Vec::new();
+                                for val in column {
+                                    let s = val.to_string();
+                                    // Filter out empty strings
+                                    if !s.is_empty() && seen.insert(s.clone()) {
+                                        categories.push(s);
+                                    }
+                                }
+                                if !categories.is_empty() {
+                                    categories.sort();
+                                    eprintln!(
+                                        "DEBUG: Found {} categories in col facet table: {:?}",
+                                        categories.len(),
+                                        categories
+                                    );
+                                    return Ok(LegendScale::Discrete {
+                                        values: categories,
+                                        aesthetic_name: color_info.factor_name.clone(),
+                                    });
+                                }
+                            } else {
+                                eprintln!(
+                                    "DEBUG: Col facet table has no column '{}', columns are: {:?}",
+                                    color_info.factor_name,
+                                    col_df.columns()
+                                );
+                            }
+                        }
+
+                        // Try row facet table
+                        let row_schema = streamer.get_schema(row_facet_table_id).await?;
+                        let row_columns = extract_column_names_from_schema(&row_schema)?;
+                        let row_facet_data = streamer
+                            .stream_tson(
+                                row_facet_table_id,
+                                if row_columns.is_empty() {
+                                    None
+                                } else {
+                                    Some(row_columns.clone())
+                                },
+                                0,
+                                100000,
+                            )
+                            .await?;
+                        let row_df = tson_to_dataframe(&row_facet_data)?;
+
+                        if row_df.nrow() > 0 {
+                            if let Ok(column) = row_df.column(&color_info.factor_name) {
+                                use std::collections::HashSet;
+                                let mut seen = HashSet::new();
+                                let mut categories: Vec<String> = Vec::new();
+                                for val in column {
+                                    let s = val.to_string();
+                                    if seen.insert(s.clone()) {
+                                        categories.push(s);
+                                    }
+                                }
+                                if !categories.is_empty() {
+                                    eprintln!(
+                                        "DEBUG: Found {} categories in row facet table: {:?}",
+                                        categories.len(),
+                                        categories
+                                    );
+                                    return Ok(LegendScale::Discrete {
+                                        values: categories,
+                                        aesthetic_name: color_info.factor_name.clone(),
+                                    });
+                                }
+                            }
+                        }
+
+                        // Still no luck - use generic level labels
+                        eprintln!(
+                            "DEBUG: Factor not found in facet tables, using generic level labels"
+                        );
                         Self::create_generic_level_legend(&color_info.factor_name)
                     }
                 } else {
@@ -930,21 +1369,20 @@ impl TercenStreamGenerator {
             data_range.end - data_range.start
         );
 
-        let streamer = TableStreamer::new(&self.client);
+        let streamer = Self::create_streamer(&self.client, &self.schema_cache);
 
-        // For bulk streaming, ALWAYS include facet indices
+        // For bulk streaming, include facet indices and quantized coordinates
+        // Note: We DON'T request .x/.y columns - axis ranges come from:
+        //   - Y-axis table (always exists, Y is mandatory)
+        //   - X-axis table (if continuous X axis defined)
+        //   - Or 1..n_rows for sequential X (when no X-axis table)
+        // The .xs/.ys columns are quantized (0-65535) for GGRS rendering
         let mut columns = vec![
             ".ci".to_string(),
             ".ri".to_string(),
             ".xs".to_string(),
             ".ys".to_string(),
         ];
-
-        // For heatmaps, include level columns for proper grid positioning
-        // .xLevels = column index in heatmap grid
-        // .nXLevels = total number of columns
-        columns.push(".xLevels".to_string());
-        columns.push(".nXLevels".to_string());
 
         // NOTE: Don't add page_factors to columns!
         // Page factors exist in facet tables, not the main data table.
@@ -1053,7 +1491,7 @@ impl TercenStreamGenerator {
     /// Multiple color factors would require a strategy (e.g., blend, choose first, etc.)
     fn add_color_columns(
         &self,
-        df: ggrs_core::data::DataFrame,
+        mut df: ggrs_core::data::DataFrame,
     ) -> Result<ggrs_core::data::DataFrame, Box<dyn std::error::Error>> {
         use polars::prelude::*;
 
@@ -1061,7 +1499,8 @@ impl TercenStreamGenerator {
         // TODO: Handle multiple color factors (blend? choose first? user option?)
         let color_info = &self.color_infos[0];
 
-        let mut polars_df = df.inner().clone();
+        // Get mutable reference to inner Polars DataFrame (no cloning)
+        let polars_df = df.inner_mut();
 
         // Generate RGB values based on mapping type
         let nrows = polars_df.height();
@@ -1196,28 +1635,38 @@ impl TercenStreamGenerator {
             }
         }
 
-        // Convert RGB values to hex color strings for GGRS
-        let color_hex_strings: Vec<String> = (0..r_values.len())
-            .map(|i| format!("#{:02X}{:02X}{:02X}", r_values[i], g_values[i], b_values[i]))
+        // Pack RGB values directly as u32 (stored as i64 in Polars)
+        // This avoids String allocation per point and hex parsing at render time
+        // Memory saving: ~24MB for 475K points (Option<String> vs i64)
+        let packed_colors: Vec<i64> = (0..r_values.len())
+            .map(|i| {
+                ggrs_core::PackedRgba::rgb(r_values[i], g_values[i], b_values[i]).to_u32() as i64
+            })
             .collect();
 
-        // Add color column as hex strings
-        polars_df.with_column(Series::new(".color".into(), color_hex_strings))?;
+        // Add color column as packed integers
+        polars_df.with_column(Series::new(".color".into(), packed_colors))?;
 
         // Debug: Print first color values
         if polars_df.height() > 0 {
             if let Ok(color_col) = polars_df.column(".color") {
-                let str_col = color_col.str().unwrap();
-                let first_colors: Vec<&str> = str_col
+                let int_col = color_col.i64().unwrap();
+                let first_colors: Vec<String> = int_col
                     .into_iter()
                     .take(3)
-                    .map(|opt| opt.unwrap_or("NULL"))
+                    .map(|opt| {
+                        opt.map(|v| {
+                            let packed = ggrs_core::PackedRgba::from_u32(v as u32);
+                            format!("RGB({},{},{})", packed.red(), packed.green(), packed.blue())
+                        })
+                        .unwrap_or_else(|| "NULL".to_string())
+                    })
                     .collect();
-                eprintln!("DEBUG: First 3 .color hex values: {:?}", first_colors);
+                eprintln!("DEBUG: First 3 .color packed values: {:?}", first_colors);
             }
         }
 
-        Ok(ggrs_core::data::DataFrame::from_polars(polars_df))
+        Ok(df)
     }
 
     // NOTE: Dequantization now happens in GGRS, not in the operator
@@ -1235,31 +1684,20 @@ impl StreamGenerator for TercenStreamGenerator {
     fn n_col_facets(&self) -> usize {
         // In heatmap mode, we have a single panel (1x1 facets)
         if self.heatmap_mode.is_some() {
-            eprintln!("DEBUG PHASE 2: n_col_facets() returning 1 (heatmap mode)");
             return 1;
         }
-        let count = self.facet_info.n_col_facets();
-        eprintln!("DEBUG PHASE 2: n_col_facets() returning {}", count);
-        count
+        self.facet_info.n_col_facets()
     }
 
     fn n_row_facets(&self) -> usize {
         // In heatmap mode, we have a single panel (1x1 facets)
         if self.heatmap_mode.is_some() {
-            eprintln!("DEBUG PHASE 2: n_row_facets() returning 1 (heatmap mode)");
             return 1;
         }
-        let count = self.facet_info.n_row_facets();
-        eprintln!("DEBUG PHASE 2: n_row_facets() returning {}", count);
-        count
+        self.facet_info.n_row_facets()
     }
 
     fn n_total_data_rows(&self) -> usize {
-        // Return total row count across ALL facets
-        eprintln!(
-            "DEBUG PHASE 2: n_total_data_rows() returning {}",
-            self.total_rows
-        );
         self.total_rows
     }
 
@@ -1274,12 +1712,6 @@ impl StreamGenerator for TercenStreamGenerator {
             .iter()
             .map(|group| group.label.clone())
             .collect();
-
-        eprintln!(
-            "DEBUG PHASE 2: query_col_facet_labels() returning {} labels: {:?}",
-            labels.len(),
-            labels.iter().take(3).collect::<Vec<_>>()
-        );
 
         if labels.is_empty() {
             return ggrs_core::data::DataFrame::new();
@@ -1302,7 +1734,7 @@ impl StreamGenerator for TercenStreamGenerator {
 
         let series = Series::new(column_name.into(), labels);
         let polars_df = polars::frame::DataFrame::new(vec![series.into_column()])
-            .unwrap_or_else(|_| polars::frame::DataFrame::empty());
+            .expect("DataFrame creation from single series should not fail");
 
         ggrs_core::data::DataFrame::from_polars(polars_df)
     }
@@ -1319,17 +1751,6 @@ impl StreamGenerator for TercenStreamGenerator {
             .map(|group| group.label.clone())
             .collect();
 
-        eprintln!(
-            "DEBUG PHASE 2: query_row_facet_labels() returning {} labels",
-            labels.len()
-        );
-        if !labels.is_empty() {
-            eprintln!(
-                "  First 3 labels: {:?}",
-                labels.iter().take(3).collect::<Vec<_>>()
-            );
-        }
-
         if labels.is_empty() {
             return ggrs_core::data::DataFrame::new();
         }
@@ -1351,7 +1772,7 @@ impl StreamGenerator for TercenStreamGenerator {
 
         let series = Series::new(column_name.into(), labels);
         let polars_df = polars::frame::DataFrame::new(vec![series.into_column()])
-            .unwrap_or_else(|_| polars::frame::DataFrame::empty());
+            .expect("DataFrame creation from single series should not fail");
 
         ggrs_core::data::DataFrame::from_polars(polars_df)
     }
@@ -1370,22 +1791,10 @@ impl StreamGenerator for TercenStreamGenerator {
 
             // If we have labels, return categorical; otherwise fall back to numeric
             if !categories.is_empty() && categories.len() == n_cols {
-                eprintln!(
-                    "DEBUG PHASE 2: query_x_axis({}, {}) returning categorical with {} labels",
-                    col_idx,
-                    row_idx,
-                    categories.len()
-                );
                 return AxisData::Categorical(CategoricalAxisData { categories });
             }
 
             // Fallback: return numeric if labels don't match grid size
-            eprintln!(
-                "DEBUG PHASE 2: query_x_axis({}, {}) returning heatmap range [-0.5, {}]",
-                col_idx,
-                row_idx,
-                n_cols as f64 - 0.5
-            );
             return AxisData::Numeric(NumericAxisData {
                 min_value: -0.5,
                 max_value: n_cols as f64 - 0.5,
@@ -1395,17 +1804,24 @@ impl StreamGenerator for TercenStreamGenerator {
             });
         }
 
+        // Translate grid position to original indices
+        // axis_ranges is keyed by (original_col_idx, original_row_idx)
+        let original_col_idx = self.get_original_col_idx(col_idx);
+        let original_row_idx = self.get_original_row_idx(row_idx);
+
         self.axis_ranges
-            .get(&(col_idx, row_idx))
+            .get(&(original_col_idx, original_row_idx))
             .map(|(x_axis, _)| x_axis.clone())
             .unwrap_or_else(|| {
-                AxisData::Numeric(NumericAxisData {
-                    min_value: 0.0,
-                    max_value: 1.0,
-                    min_axis: 0.0,
-                    max_axis: 1.0,
-                    transform: None,
-                })
+                panic!(
+                    "No X-axis range for cell ({}, {}) [original: ({}, {})]. \
+                    axis_ranges has {} entries. This indicates missing axis range data.",
+                    col_idx,
+                    row_idx,
+                    original_col_idx,
+                    original_row_idx,
+                    self.axis_ranges.len()
+                )
             })
     }
 
@@ -1423,22 +1839,10 @@ impl StreamGenerator for TercenStreamGenerator {
 
             // If we have labels, return categorical; otherwise fall back to numeric
             if !categories.is_empty() && categories.len() == n_rows {
-                eprintln!(
-                    "DEBUG PHASE 2: query_y_axis({}, {}) returning categorical with {} labels",
-                    col_idx,
-                    row_idx,
-                    categories.len()
-                );
                 return AxisData::Categorical(CategoricalAxisData { categories });
             }
 
             // Fallback: return numeric if labels don't match grid size
-            eprintln!(
-                "DEBUG PHASE 2: query_y_axis({}, {}) returning heatmap range [-0.5, {}]",
-                col_idx,
-                row_idx,
-                n_rows as f64 - 0.5
-            );
             return AxisData::Numeric(NumericAxisData {
                 min_value: -0.5,
                 max_value: n_rows as f64 - 0.5,
@@ -1448,41 +1852,44 @@ impl StreamGenerator for TercenStreamGenerator {
             });
         }
 
-        let axis = self
-            .axis_ranges
-            .get(&(col_idx, row_idx))
+        // Translate grid position to original indices
+        // axis_ranges is keyed by (original_col_idx, original_row_idx)
+        let original_col_idx = self.get_original_col_idx(col_idx);
+        let original_row_idx = self.get_original_row_idx(row_idx);
+
+        self.axis_ranges
+            .get(&(original_col_idx, original_row_idx))
             .map(|(_, y_axis)| y_axis.clone())
             .unwrap_or_else(|| {
-                AxisData::Numeric(NumericAxisData {
-                    min_value: 0.0,
-                    max_value: 1.0,
-                    min_axis: 0.0,
-                    max_axis: 1.0,
-                    transform: None,
-                })
-            });
-
-        // Log first call for each facet
-        static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-        if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
-            if let AxisData::Numeric(ref data) = axis {
-                eprintln!(
-                    "DEBUG PHASE 2: query_y_axis({}, {}) called",
-                    col_idx, row_idx
-                );
-                eprintln!(
-                    "  Returning Y range: [{}, {}]",
-                    data.min_value, data.max_value
-                );
-            }
-        }
-
-        axis
+                panic!(
+                    "No Y-axis range for cell ({}, {}) [original: ({}, {})]. \
+                    axis_ranges has {} entries. This indicates missing axis range data.",
+                    col_idx,
+                    row_idx,
+                    original_col_idx,
+                    original_row_idx,
+                    self.axis_ranges.len()
+                )
+            })
     }
 
     fn query_legend_scale(&self) -> LegendScale {
         // Return cached legend scale (loaded during initialization)
         self.cached_legend_scale.clone()
+    }
+
+    fn query_color_metadata(&self) -> ggrs_core::stream::ColorMetadata {
+        // Tercen pre-computes colors in add_color_columns()
+        // The .color column contains ready-to-use hex strings (e.g., "#FF0000")
+        // Legend metadata is provided via query_legend_scale()
+        // No scale training needed - colors are ready to use
+        if self.color_infos.is_empty() {
+            // No color aesthetic configured
+            ggrs_core::stream::ColorMetadata::Unknown
+        } else {
+            // Colors are pre-computed by Tercen
+            ggrs_core::stream::ColorMetadata::Precomputed
+        }
     }
 
     fn facet_spec(&self) -> &FacetSpec {
@@ -1514,8 +1921,11 @@ impl StreamGenerator for TercenStreamGenerator {
                 .block_on(async { self.stream_bulk_data(data_range).await })
         })
         .unwrap_or_else(|e| {
-            eprintln!("Error querying bulk data: {}", e);
-            DataFrame::new()
+            panic!(
+                "Failed to fetch bulk data from Tercen: {}. \
+                This indicates a network error or invalid table configuration.",
+                e
+            )
         })
     }
 
@@ -1527,7 +1937,14 @@ impl StreamGenerator for TercenStreamGenerator {
             .groups
             .get(col_idx)
             .map(|group| group.original_index)
-            .unwrap_or(col_idx) // Fallback to col_idx if not found (shouldn't happen)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Invalid col_idx {}: FacetInfo only has {} column groups. \
+                    This is a bug in facet metadata construction.",
+                    col_idx,
+                    self.facet_info.col_facets.groups.len()
+                )
+            })
     }
 
     fn get_original_row_idx(&self, row_idx: usize) -> usize {
@@ -1538,6 +1955,13 @@ impl StreamGenerator for TercenStreamGenerator {
             .groups
             .get(row_idx)
             .map(|group| group.original_index)
-            .unwrap_or(row_idx) // Fallback to row_idx if not found (shouldn't happen)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Invalid row_idx {}: FacetInfo only has {} row groups. \
+                    This is a bug in facet metadata construction.",
+                    row_idx,
+                    self.facet_info.row_facets.groups.len()
+                )
+            })
     }
 }

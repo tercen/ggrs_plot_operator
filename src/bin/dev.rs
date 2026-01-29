@@ -13,6 +13,7 @@
 //! ```
 
 use ggrs_plot_operator::config::OperatorConfig;
+use ggrs_plot_operator::memprof;
 use ggrs_plot_operator::pipeline;
 use ggrs_plot_operator::tercen::{DevContext, TercenClient, TercenContext};
 use std::sync::Arc;
@@ -26,6 +27,8 @@ fn log_phase(start: Instant, phase: &str) {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
+    let m0 = memprof::checkpoint_return("main() START");
+    let t0 = memprof::time_start("main() START");
 
     log_phase(start, "START: Development test");
     println!("=== GGRS Plot Operator - Development Mode ===\n");
@@ -54,12 +57,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = TercenClient::from_env().await?;
     let client_arc = Arc::new(client);
     println!("✓ Connected successfully\n");
+    let m1 = memprof::delta("After TercenClient::from_env()", m0);
+    let t1 = memprof::time_delta("After TercenClient::from_env()", t0, t0);
 
     // Create DevContext
     log_phase(start, "PHASE 2: Creating DevContext");
     println!("Creating DevContext from workflow/step...");
     let ctx = DevContext::from_workflow_step(client_arc.clone(), &workflow_id, &step_id).await?;
     println!("✓ Context created\n");
+    let _ = memprof::delta("After DevContext::from_workflow_step()", m1);
+    let _ = memprof::time_delta("After DevContext::from_workflow_step()", t0, t1);
 
     // Load configuration
     let config = load_dev_config(ctx.point_size());

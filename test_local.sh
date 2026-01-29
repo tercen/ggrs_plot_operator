@@ -31,10 +31,20 @@ set -e
 # Configuration
 export TERCEN_URI="http://127.0.0.1:50051"
 export TERCEN_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjU0MDAiLCJleHAiOjE3NzE0MzQzMTYsImRhdGEiOnsiZCI6IiIsInUiOiJ0ZXN0IiwiZSI6MTc3MTQzNDMxNjk2MH19.IsYnlDE8fBGlzfD776GKjFxcF35ws48MABWGctYiwFs"
-#http://127.0.0.1:5400/test/w/28e3c9888e9935f667aed6f07c007c7c/ds/b9659735-27db-4480-b398-4e391431480f  --> heatmap Data Step
-#http://127.0.0.1:5400/test/w/28e3c9888e9935f667aed6f07c007c7c/ds/7a8eb4a9-d7bf-4fb9-8385-6f902fb73693  --> Scatter Data Step
+# EXAMPLE1
+# Heatmap Data Step
+#export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
+#export STEP_ID="b9659735-27db-4480-b398-4e391431480f"
+
+# EXAMPLE2
+# Scatter simple (no X-axis table - uses sequential X range)
 export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
-export STEP_ID="b9659735-27db-4480-b398-4e391431480f"
+export STEP_ID="7a8eb4a9-d7bf-4fb9-8385-6f902fb73693"
+
+# EXAMPLE3
+# Scatter crabs (has X-axis table)
+#export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
+#export STEP_ID="102a1b30-ee6d-42ae-9681-607ceb526b5e"
 
 # Memory tracker path
 MEMORY_TRACKER="/home/thiago/workspaces/tercen/main/memory_tracker/target/release/memory_tracker"
@@ -43,7 +53,7 @@ MEMORY_TRACKER="/home/thiago/workspaces/tercen/main/memory_tracker/target/releas
 BACKEND="${1:-cpu}"
 LEGEND_POSITION="right" # position test # position test # position test # position test
 LEGEND_POSITION_INSIDE="${3:-}"
-LEGEND_JUSTIFICATION="0.1,0.1"
+LEGEND_JUSTIFICATION="0.5,0.5"
 PNG_COMPRESSION="fast"
 
 # Valid values for properties (from operator.json)
