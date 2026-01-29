@@ -239,28 +239,22 @@ impl TercenStreamGenerator {
         // NO FILTERING! Operator is dumb - GGRS handles everything via original_index.
         // We just keep the facet_info which has both index and original_index for each facet.
 
-        // Load axis ranges from pre-computed Y-axis table (if available)
-        let (mut axis_ranges, total_rows) = if let Some(ref y_table_id) = y_axis_table_id {
-            println!("Loading axis ranges from Y-axis table: {}", y_table_id);
-            Self::load_axis_ranges_from_table(
-                &client,
-                y_table_id,
-                &main_table_id,
-                &facet_info,
-                &schema_cache,
-            )
-            .await?
-        } else {
-            println!("No Y-axis table provided, computing from data");
-            Self::compute_axis_ranges(
-                &client,
-                &main_table_id,
-                &facet_info,
-                chunk_size,
-                &schema_cache,
-            )
-            .await?
-        };
+        // Load axis ranges from pre-computed Y-axis table (required)
+        let y_table_id = y_axis_table_id.ok_or(
+            "Y-axis table is required but was not found. \
+             This usually means schema_ids is empty in the task. \
+             Ensure the crosstab has a Y-axis factor defined.",
+        )?;
+
+        println!("Loading axis ranges from Y-axis table: {}", y_table_id);
+        let (mut axis_ranges, total_rows) = Self::load_axis_ranges_from_table(
+            &client,
+            &y_table_id,
+            &main_table_id,
+            &facet_info,
+            &schema_cache,
+        )
+        .await?;
 
         eprintln!(
             "DEBUG: axis_ranges has {} entries (before X range computation), total_rows: {}",
@@ -771,165 +765,6 @@ impl TercenStreamGenerator {
         println!("  Loaded {} axis ranges", axis_ranges.len());
         Ok((axis_ranges, total_rows))
     }
-    /// Compute axis ranges by scanning the main data table
-    ///
-    /// This is the fallback when no pre-computed Y-axis table is available.
-    async fn compute_axis_ranges(
-        client: &TercenClient,
-        table_id: &str,
-        facet_info: &FacetInfo,
-        chunk_size: usize,
-        schema_cache: &Option<SchemaCache>,
-    ) -> Result<(HashMap<(usize, usize), (AxisData, AxisData)>, usize), Box<dyn std::error::Error>>
-    {
-        println!("Computing axis ranges...");
-
-        let streamer = Self::create_streamer(client, schema_cache);
-        let schema = streamer.get_schema(table_id).await?;
-        let total_rows = extract_row_count_from_schema(&schema)?;
-        println!("  Total rows: {}", total_rows);
-
-        let chunk_size = chunk_size as i64;
-        let mut offset = 0;
-
-        // Track min/max for each facet cell
-        let mut cell_stats: HashMap<(usize, usize), (f64, f64, f64, f64)> = HashMap::new();
-
-        // Initialize all cells
-        for col_idx in 0..facet_info.n_col_facets() {
-            for row_idx in 0..facet_info.n_row_facets() {
-                cell_stats.insert(
-                    (col_idx, row_idx),
-                    (
-                        f64::INFINITY,
-                        f64::NEG_INFINITY,
-                        f64::INFINITY,
-                        f64::NEG_INFINITY,
-                    ),
-                );
-            }
-        }
-
-        let columns = Some(vec![
-            ".ci".to_string(),
-            ".ri".to_string(),
-            ".x".to_string(),
-            ".y".to_string(),
-        ]);
-
-        // Stream through data
-        loop {
-            let remaining = total_rows - offset;
-            if remaining <= 0 {
-                break;
-            }
-            let limit = remaining.min(chunk_size);
-
-            let tson_data = streamer
-                .stream_tson(table_id, columns.clone(), offset, limit)
-                .await?;
-
-            if tson_data.is_empty() {
-                break;
-            }
-
-            let df = tson_to_dataframe(&tson_data)?;
-            let row_count = df.nrow();
-
-            // Update min/max for each row
-            for i in 0..row_count {
-                let col_idx = df
-                    .get_value(i, ".ci")
-                    .ok()
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0) as usize;
-
-                let row_idx = df
-                    .get_value(i, ".ri")
-                    .ok()
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0) as usize;
-
-                let x = df
-                    .get_value(i, ".x")
-                    .ok()
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
-
-                let y = df
-                    .get_value(i, ".y")
-                    .ok()
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
-
-                let stats = cell_stats.entry((col_idx, row_idx)).or_insert((
-                    f64::INFINITY,
-                    f64::NEG_INFINITY,
-                    f64::INFINITY,
-                    f64::NEG_INFINITY,
-                ));
-
-                // Update X min/max (stats.0 and stats.1)
-                stats.0 = stats.0.min(x);
-                stats.1 = stats.1.max(x);
-                // Update Y min/max (stats.2 and stats.3)
-                stats.2 = stats.2.min(y);
-                stats.3 = stats.3.max(y);
-            }
-
-            offset += row_count as i64;
-
-            if offset % (chunk_size * 5) < chunk_size {
-                println!("    Progress: {}/{}", offset.min(total_rows), total_rows);
-            }
-
-            if row_count == 0 {
-                break;
-            }
-        }
-
-        // Convert to axis ranges
-        let mut axis_ranges = HashMap::new();
-        for ((col_idx, row_idx), (min_x, max_x, min_y, max_y)) in cell_stats {
-            // Require valid axis ranges - no fallbacks
-            if !min_x.is_finite() || !max_x.is_finite() {
-                return Err(format!(
-                    "No valid X data found for facet ({}, {}). Cannot compute axis range.",
-                    col_idx, row_idx
-                )
-                .into());
-            }
-            if !min_y.is_finite() || !max_y.is_finite() {
-                return Err(format!(
-                    "No valid Y data found for facet ({}, {}). Cannot compute axis range.",
-                    col_idx, row_idx
-                )
-                .into());
-            }
-
-            let x_axis = AxisData::Numeric(NumericAxisData {
-                min_value: min_x,
-                max_value: max_x,
-                min_axis: min_x,
-                max_axis: max_x,
-                transform: None,
-            });
-
-            let y_axis = AxisData::Numeric(NumericAxisData {
-                min_value: min_y,
-                max_value: max_y,
-                min_axis: min_y,
-                max_axis: max_y,
-                transform: None,
-            });
-
-            axis_ranges.insert((col_idx, row_idx), (x_axis, y_axis));
-        }
-
-        println!("  Computed {} axis ranges", axis_ranges.len());
-        Ok((axis_ranges, total_rows as usize))
-    }
-
     /// Compute X-axis ranges by scanning the main data table
     /// Set sequential X ranges when no X-axis table exists
     ///
