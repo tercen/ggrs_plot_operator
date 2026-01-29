@@ -168,18 +168,33 @@ impl ProductionContext {
             cube_query.row_hash.as_str(),
         ];
 
+        eprintln!(
+            "DEBUG find_y_axis_table: schema_ids={:?}, known_tables={:?}",
+            schema_ids, known_tables
+        );
+
         for schema_id in schema_ids {
             if !known_tables.contains(&schema_id.as_str()) {
                 let schema = streamer.get_schema(schema_id).await?;
                 if let Some(e_schema::Object::Cubequerytableschema(cqts)) = schema.object {
+                    eprintln!(
+                        "DEBUG find_y_axis_table: schema {} has query_table_type='{}'",
+                        schema_id, cqts.query_table_type
+                    );
                     if cqts.query_table_type == "y" {
                         println!("[ProductionContext] Found Y-axis table: {}", schema_id);
                         return Ok(Some(schema_id.clone()));
                     }
                 }
+            } else {
+                eprintln!(
+                    "DEBUG find_y_axis_table: skipping known table {}",
+                    schema_id
+                );
             }
         }
 
+        eprintln!("DEBUG find_y_axis_table: No Y-axis table found");
         Ok(None)
     }
 
