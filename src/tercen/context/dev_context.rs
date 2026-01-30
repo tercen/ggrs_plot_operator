@@ -298,7 +298,7 @@ impl DevContext {
         workflow: &crate::tercen::client::proto::Workflow,
         step_id: &str,
     ) -> Result<Vec<ColorInfo>, Box<dyn std::error::Error>> {
-        use crate::tercen::client::proto::e_schema;
+        use crate::tercen::client::proto::{e_column_schema, e_schema};
         use crate::tercen::TableStreamer;
 
         if schema_ids.is_empty() {
@@ -306,11 +306,15 @@ impl DevContext {
             return Ok(Vec::new());
         }
 
-        // Find color tables
+        // Find color tables and cache their schemas
         // Note: A color factor may be the same as a facet factor (column/row),
         // so we check ALL schema_ids, not just "unknown" ones.
         let streamer = TableStreamer::new(client);
         let mut color_table_ids: Vec<Option<String>> = Vec::new();
+        let mut color_table_schemas: std::collections::HashMap<
+            String,
+            crate::tercen::client::proto::CubeQueryTableSchema,
+        > = std::collections::HashMap::new();
 
         for schema_id in schema_ids {
             let schema = streamer.get_schema(schema_id).await?;
@@ -322,6 +326,7 @@ impl DevContext {
                                 color_table_ids.push(None);
                             }
                             color_table_ids[idx] = Some(schema_id.clone());
+                            color_table_schemas.insert(schema_id.clone(), cqts);
                             println!("[DevContext] Found color table {}: {}", idx, schema_id);
                         }
                     }
@@ -330,8 +335,57 @@ impl DevContext {
         }
 
         // Extract color info from step
-        let color_infos =
+        let mut color_infos =
             crate::tercen::extract_color_info_from_step(workflow, step_id, &color_table_ids)?;
+
+        // Fetch quartiles for continuous color mappings that are not user-defined
+        for color_info in &mut color_infos {
+            // Only process continuous mappings
+            let is_user_defined = match &color_info.mapping {
+                crate::tercen::ColorMapping::Continuous(palette) => palette.is_user_defined,
+                _ => true, // Categorical is always "user defined" in our context
+            };
+
+            eprintln!(
+                "DEBUG extract_color_info: factor='{}' is_user_defined={}",
+                color_info.factor_name, is_user_defined
+            );
+
+            if !is_user_defined {
+                // Need to fetch quartiles from the color table schema
+                if let Some(ref table_id) = color_info.color_table_id {
+                    if let Some(cqts) = color_table_schemas.get(table_id) {
+                        // Find the column that matches the color factor
+                        for col_schema in &cqts.columns {
+                            if let Some(e_column_schema::Object::Columnschema(cs)) =
+                                &col_schema.object
+                            {
+                                if cs.name == color_info.factor_name {
+                                    if let Some(ref meta) = cs.meta_data {
+                                        if !meta.quartiles.is_empty() {
+                                            eprintln!(
+                                                "DEBUG extract_color_info: Found quartiles for '{}': {:?}",
+                                                color_info.factor_name, meta.quartiles
+                                            );
+                                            color_info.quartiles = Some(meta.quartiles.clone());
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // If we still don't have quartiles, warn
+                if color_info.quartiles.is_none() {
+                    eprintln!(
+                        "WARN extract_color_info: is_user_defined=false for '{}' but no quartiles found",
+                        color_info.factor_name
+                    );
+                }
+            }
+        }
 
         Ok(color_infos)
     }

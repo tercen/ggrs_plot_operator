@@ -22,6 +22,10 @@ pub struct ColorInfo {
     /// Optional color table ID (for categorical colors with .colorLevels)
     /// This table contains the mapping from level index to category name
     pub color_table_id: Option<String>,
+    /// Quartiles from the color column schema metadata.
+    /// Used to rescale the palette when is_user_defined=false.
+    /// Format: [Q1, Q2, Q3, min, max] as strings
+    pub quartiles: Option<Vec<String>>,
 }
 
 /// Color mapping - either continuous interpolation or categorical lookup
@@ -38,6 +42,9 @@ pub enum ColorMapping {
 pub struct ColorPalette {
     /// Sorted list of color stops (by value, ascending)
     pub stops: Vec<ColorStop>,
+    /// Whether the user explicitly defined the color breakpoints.
+    /// If false, the palette should be rescaled based on data quartiles.
+    pub is_user_defined: bool,
 }
 
 /// A single color stop in a palette
@@ -61,7 +68,10 @@ pub struct CategoryColorMap {
 impl ColorPalette {
     /// Create a new empty palette
     pub fn new() -> Self {
-        ColorPalette { stops: Vec::new() }
+        ColorPalette {
+            stops: Vec::new(),
+            is_user_defined: true, // Default to user-defined
+        }
     }
 
     /// Add a color stop and maintain sorted order
@@ -87,6 +97,119 @@ impl ColorPalette {
                 self.stops.last().unwrap().value,
             ))
         }
+    }
+
+    /// Rescale the palette based on quartiles.
+    ///
+    /// When `is_user_defined=false`, Tercen auto-scales the palette based on data quartiles.
+    /// The formula is:
+    /// - min = Q2 - 1.5 * IQR (where IQR = Q3 - Q1)
+    /// - max = Q2 + 1.5 * IQR
+    /// - middle = (min + max) / 2
+    ///
+    /// The existing color stops are linearly remapped from their original positions
+    /// to the new [min, middle, max] range.
+    ///
+    /// # Arguments
+    /// * `quartiles` - Array of quartile values as strings: [Q1, Q2, Q3, min, max]
+    ///
+    /// # Returns
+    /// A new palette with rescaled stops, or the original palette if rescaling fails.
+    pub fn rescale_from_quartiles(&self, quartiles: &[String]) -> Self {
+        // Need at least Q1, Q2, Q3 (first 3 values)
+        if quartiles.len() < 3 {
+            eprintln!(
+                "DEBUG rescale_from_quartiles: Not enough quartiles ({} < 3), returning unchanged",
+                quartiles.len()
+            );
+            return self.clone();
+        }
+
+        // Parse Q1, Q2, Q3
+        let q1: f64 = match quartiles[0].parse() {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!(
+                    "DEBUG rescale_from_quartiles: Failed to parse Q1 '{}': {}",
+                    quartiles[0], e
+                );
+                return self.clone();
+            }
+        };
+        let q2: f64 = match quartiles[1].parse() {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!(
+                    "DEBUG rescale_from_quartiles: Failed to parse Q2 '{}': {}",
+                    quartiles[1], e
+                );
+                return self.clone();
+            }
+        };
+        let q3: f64 = match quartiles[2].parse() {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!(
+                    "DEBUG rescale_from_quartiles: Failed to parse Q3 '{}': {}",
+                    quartiles[2], e
+                );
+                return self.clone();
+            }
+        };
+
+        // Calculate IQR and new range
+        let iqr = q3 - q1;
+        let new_min = q2 - 1.5 * iqr;
+        let new_max = q2 + 1.5 * iqr;
+        let new_middle = (new_min + new_max) / 2.0;
+
+        eprintln!(
+            "DEBUG rescale_from_quartiles: Q1={:.2}, Q2={:.2}, Q3={:.2}, IQR={:.2}",
+            q1, q2, q3, iqr
+        );
+        eprintln!(
+            "DEBUG rescale_from_quartiles: new_min={:.2}, new_middle={:.2}, new_max={:.2}",
+            new_min, new_middle, new_max
+        );
+
+        // Get current palette range
+        let (old_min, old_max) = match self.range() {
+            Some(r) => r,
+            None => return self.clone(),
+        };
+
+        eprintln!(
+            "DEBUG rescale_from_quartiles: old_min={:.2}, old_max={:.2}",
+            old_min, old_max
+        );
+
+        // Create new palette with rescaled stops
+        let mut new_palette = ColorPalette {
+            stops: Vec::with_capacity(self.stops.len()),
+            is_user_defined: true, // After rescaling, it's effectively "user defined"
+        };
+
+        // Linear remap from [old_min, old_max] to [new_min, new_max]
+        for stop in &self.stops {
+            let t = if old_max > old_min {
+                (stop.value - old_min) / (old_max - old_min)
+            } else {
+                0.5
+            };
+            let new_value = new_min + t * (new_max - new_min);
+
+            eprintln!(
+                "DEBUG rescale_from_quartiles: stop {:.2} -> {:.2} (t={:.2})",
+                stop.value, new_value, t
+            );
+
+            new_palette.stops.push(ColorStop {
+                value: new_value,
+                color: stop.color,
+            });
+        }
+
+        new_palette
     }
 }
 
@@ -121,12 +244,20 @@ pub fn parse_palette(e_palette: &proto::EPalette) -> Result<ColorMapping> {
 
 /// Parse a JetPalette into a ColorPalette
 fn parse_jet_palette(jet: &proto::JetPalette) -> Result<ColorPalette> {
-    parse_double_color_elements(&jet.double_color_elements)
+    eprintln!(
+        "DEBUG parse_jet_palette: is_user_defined = {}",
+        jet.is_user_defined
+    );
+    parse_double_color_elements(&jet.double_color_elements, jet.is_user_defined)
 }
 
 /// Parse a RampPalette into a ColorPalette
 fn parse_ramp_palette(ramp: &proto::RampPalette) -> Result<ColorPalette> {
-    parse_double_color_elements(&ramp.double_color_elements)
+    eprintln!(
+        "DEBUG parse_ramp_palette: is_user_defined = {}",
+        ramp.is_user_defined
+    );
+    parse_double_color_elements(&ramp.double_color_elements, ramp.is_user_defined)
 }
 
 /// Parse a CategoryPalette into a CategoryColorMap
@@ -178,8 +309,12 @@ fn parse_category_palette(cat: &proto::CategoryPalette) -> Result<CategoryColorM
 }
 
 /// Parse DoubleColorElement array into ColorPalette
-fn parse_double_color_elements(elements: &[proto::DoubleColorElement]) -> Result<ColorPalette> {
+fn parse_double_color_elements(
+    elements: &[proto::DoubleColorElement],
+    is_user_defined: bool,
+) -> Result<ColorPalette> {
     let mut palette = ColorPalette::new();
+    palette.is_user_defined = is_user_defined;
 
     for element in elements {
         let value = element.string_value.parse::<f64>().map_err(|e| {
@@ -357,6 +492,7 @@ pub fn extract_color_info_from_step(
             factor_type: factor.r#type.clone(),
             mapping,
             color_table_id,
+            quartiles: None, // Will be populated later from column schema metadata
         });
     }
 
@@ -617,6 +753,35 @@ mod tests {
         assert_eq!(palette.stops[0].value, 0.0);
         assert_eq!(palette.stops[1].value, 50.0);
         assert_eq!(palette.stops[2].value, 100.0);
+        assert!(palette.is_user_defined); // Default is true
+    }
+
+    #[test]
+    fn test_palette_rescale_from_quartiles() {
+        // Create a palette with stops at 0, 50, 100
+        let mut palette = ColorPalette::new();
+        palette.is_user_defined = false;
+        palette.add_stop(0.0, [0, 0, 255]); // Blue at min
+        palette.add_stop(50.0, [255, 255, 255]); // White at middle
+        palette.add_stop(100.0, [255, 0, 0]); // Red at max
+
+        // Quartiles: Q1=40, Q2=50, Q3=60
+        // IQR = 60 - 40 = 20
+        // new_min = 50 - 1.5 * 20 = 20
+        // new_max = 50 + 1.5 * 20 = 80
+        let quartiles = vec!["40".to_string(), "50".to_string(), "60".to_string()];
+        let rescaled = palette.rescale_from_quartiles(&quartiles);
+
+        // Check that the stops have been rescaled
+        assert_eq!(rescaled.stops.len(), 3);
+        assert!((rescaled.stops[0].value - 20.0).abs() < 0.001); // min -> 20
+        assert!((rescaled.stops[1].value - 50.0).abs() < 0.001); // middle -> 50
+        assert!((rescaled.stops[2].value - 80.0).abs() < 0.001); // max -> 80
+
+        // Colors should be preserved
+        assert_eq!(rescaled.stops[0].color, [0, 0, 255]);
+        assert_eq!(rescaled.stops[1].color, [255, 255, 255]);
+        assert_eq!(rescaled.stops[2].color, [255, 0, 0]);
     }
 
     #[test]

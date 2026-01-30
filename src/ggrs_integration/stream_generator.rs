@@ -1501,9 +1501,34 @@ impl TercenStreamGenerator {
             crate::tercen::ColorMapping::Continuous(palette) => {
                 let color_col_name = &color_info.factor_name;
                 eprintln!(
-                    "DEBUG add_color_columns: Using continuous color mapping for '{}'",
-                    color_col_name
+                    "DEBUG add_color_columns: Using continuous color mapping for '{}', is_user_defined={}",
+                    color_col_name, palette.is_user_defined
                 );
+
+                // Rescale palette if is_user_defined=false and quartiles are available
+                let effective_palette: std::borrow::Cow<'_, crate::tercen::ColorPalette> =
+                    if !palette.is_user_defined {
+                        if let Some(ref quartiles) = color_info.quartiles {
+                            eprintln!(
+                                "DEBUG add_color_columns: Rescaling palette using quartiles: {:?}",
+                                quartiles
+                            );
+                            let rescaled = palette.rescale_from_quartiles(quartiles);
+                            eprintln!(
+                                "DEBUG add_color_columns: Original range: {:?}, Rescaled range: {:?}",
+                                palette.range(),
+                                rescaled.range()
+                            );
+                            std::borrow::Cow::Owned(rescaled)
+                        } else {
+                            eprintln!(
+                                "WARN add_color_columns: is_user_defined=false but no quartiles available, using original palette"
+                            );
+                            std::borrow::Cow::Borrowed(palette)
+                        }
+                    } else {
+                        std::borrow::Cow::Borrowed(palette)
+                    };
 
                 // Get the color factor column
                 let color_series = polars_df
@@ -1532,7 +1557,7 @@ impl TercenStreamGenerator {
                 // Map each value to RGB using palette interpolation
                 for opt_value in color_values.iter() {
                     if let Some(value) = opt_value {
-                        let rgb = crate::tercen::interpolate_color(value, palette);
+                        let rgb = crate::tercen::interpolate_color(value, &effective_palette);
                         r_values.push(rgb[0]);
                         g_values.push(rgb[1]);
                         b_values.push(rgb[2]);
