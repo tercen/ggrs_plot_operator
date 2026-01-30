@@ -115,10 +115,11 @@ impl ProductionContext {
 
         // If schema_ids is empty, fetch from the step's CubeQueryTask
         // Path: workflow -> step -> model.taskId -> CubeQueryTask.schemaIds
+        // Retry with exponential backoff because Rust may be faster than the backend
         let schema_ids = if schema_ids.is_empty() && !workflow_id.is_empty() && !step_id.is_empty()
         {
             eprintln!("DEBUG: schema_ids empty, fetching from step's CubeQueryTask");
-            Self::fetch_schema_ids_from_step(&client, &workflow_id, &step_id).await?
+            Self::fetch_schema_ids_with_retry(&client, &workflow_id, &step_id).await?
         } else {
             schema_ids
         };
@@ -169,6 +170,78 @@ impl ProductionContext {
             point_size,
             chart_kind,
         })
+    }
+
+    /// Fetch schema_ids with retry logic
+    ///
+    /// Rust operators may be faster than R/Python, sometimes hitting the API before
+    /// the backend has finished preparing schema tables. This retries with exponential
+    /// backoff: 250ms, 500ms, 1000ms before giving up.
+    async fn fetch_schema_ids_with_retry(
+        client: &TercenClient,
+        workflow_id: &str,
+        step_id: &str,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        use tokio::time::{sleep, Duration};
+
+        let retry_delays_ms = [250, 500, 1000];
+        let mut last_error: Option<Box<dyn std::error::Error>> = None;
+
+        // First attempt (no delay)
+        match Self::fetch_schema_ids_from_step(client, workflow_id, step_id).await {
+            Ok(ids) if !ids.is_empty() => {
+                return Ok(ids);
+            }
+            Ok(_) => {
+                eprintln!("DEBUG: schema_ids empty on first attempt, will retry...");
+            }
+            Err(e) => {
+                eprintln!("DEBUG: fetch_schema_ids failed on first attempt: {}", e);
+                last_error = Some(e);
+            }
+        }
+
+        // Retry with exponential backoff
+        for (attempt, delay_ms) in retry_delays_ms.iter().enumerate() {
+            eprintln!(
+                "DEBUG: Retrying schema_ids fetch (attempt {}/{}), waiting {}ms...",
+                attempt + 2,
+                retry_delays_ms.len() + 1,
+                delay_ms
+            );
+            sleep(Duration::from_millis(*delay_ms)).await;
+
+            match Self::fetch_schema_ids_from_step(client, workflow_id, step_id).await {
+                Ok(ids) if !ids.is_empty() => {
+                    eprintln!(
+                        "DEBUG: schema_ids fetch succeeded on attempt {} with {} ids",
+                        attempt + 2,
+                        ids.len()
+                    );
+                    return Ok(ids);
+                }
+                Ok(_) => {
+                    eprintln!("DEBUG: schema_ids still empty on attempt {}", attempt + 2);
+                }
+                Err(e) => {
+                    eprintln!(
+                        "DEBUG: fetch_schema_ids failed on attempt {}: {}",
+                        attempt + 2,
+                        e
+                    );
+                    last_error = Some(e);
+                }
+            }
+        }
+
+        // All retries exhausted
+        if let Some(e) = last_error {
+            Err(e)
+        } else {
+            // schema_ids was empty on all attempts but no error occurred
+            eprintln!("WARN: schema_ids empty after all retry attempts");
+            Ok(Vec::new())
+        }
     }
 
     /// Fetch schema_ids from step's CubeQueryTask
