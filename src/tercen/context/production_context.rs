@@ -51,9 +51,22 @@ impl ProductionContext {
         let task = response.into_inner();
 
         // Extract data from task based on task type
-        let (cube_query, schema_ids, project_id, operator_settings, task_environment) =
-            match task.object.as_ref() {
-                Some(e_task::Object::Computationtask(ct)) => (
+        // Note: ComputationTask and RunComputationTask have parentTaskId pointing to CubeQueryTask
+        let (
+            cube_query,
+            schema_ids,
+            project_id,
+            operator_settings,
+            task_environment,
+            parent_task_id,
+        ) = match task.object.as_ref() {
+            Some(e_task::Object::Computationtask(ct)) => {
+                eprintln!(
+                    "DEBUG: Task is ComputationTask, parentTaskId='{}'",
+                    ct.parent_task_id
+                );
+                eprintln!("DEBUG: ComputationTask schema_ids={:?}", ct.schema_ids);
+                (
                     ct.query
                         .as_ref()
                         .ok_or("ComputationTask has no query")?
@@ -62,8 +75,16 @@ impl ProductionContext {
                     ct.project_id.clone(),
                     ct.query.as_ref().and_then(|q| q.operator_settings.clone()),
                     &ct.environment,
-                ),
-                Some(e_task::Object::Runcomputationtask(rct)) => (
+                    Some(ct.parent_task_id.clone()),
+                )
+            }
+            Some(e_task::Object::Runcomputationtask(rct)) => {
+                eprintln!(
+                    "DEBUG: Task is RunComputationTask, parentTaskId='{}'",
+                    rct.parent_task_id
+                );
+                eprintln!("DEBUG: RunComputationTask schema_ids={:?}", rct.schema_ids);
+                (
                     rct.query
                         .as_ref()
                         .ok_or("RunComputationTask has no query")?
@@ -72,8 +93,13 @@ impl ProductionContext {
                     rct.project_id.clone(),
                     rct.query.as_ref().and_then(|q| q.operator_settings.clone()),
                     &rct.environment,
-                ),
-                Some(e_task::Object::Cubequerytask(cqt)) => (
+                    Some(rct.parent_task_id.clone()),
+                )
+            }
+            Some(e_task::Object::Cubequerytask(cqt)) => {
+                eprintln!("DEBUG: Task is CubeQueryTask (no parent)");
+                eprintln!("DEBUG: CubeQueryTask schema_ids={:?}", cqt.schema_ids);
+                (
                     cqt.query
                         .as_ref()
                         .ok_or("CubeQueryTask has no query")?
@@ -82,9 +108,30 @@ impl ProductionContext {
                     cqt.project_id.clone(),
                     cqt.query.as_ref().and_then(|q| q.operator_settings.clone()),
                     &cqt.environment,
-                ),
-                _ => return Err("Unsupported task type".into()),
-            };
+                    None,
+                )
+            }
+            _ => return Err("Unsupported task type".into()),
+        };
+
+        // If schema_ids is empty and we have a parent task, fetch schema_ids from parent
+        let schema_ids = if schema_ids.is_empty() {
+            if let Some(ref parent_id) = parent_task_id {
+                if !parent_id.is_empty() {
+                    eprintln!(
+                        "DEBUG: schema_ids empty, fetching from parent task {}",
+                        parent_id
+                    );
+                    Self::fetch_parent_schema_ids(&client, parent_id).await?
+                } else {
+                    schema_ids
+                }
+            } else {
+                schema_ids
+            }
+        } else {
+            schema_ids
+        };
 
         // Extract namespace from operator settings
         let namespace = operator_settings
@@ -159,6 +206,57 @@ impl ProductionContext {
             point_size,
             chart_kind,
         })
+    }
+
+    /// Fetch schema_ids from parent task (CubeQueryTask)
+    async fn fetch_parent_schema_ids(
+        client: &TercenClient,
+        parent_task_id: &str,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        use crate::tercen::client::proto::{e_task, GetRequest};
+
+        eprintln!("DEBUG: Fetching parent task {}...", parent_task_id);
+
+        let mut task_service = client.task_service()?;
+        let request = tonic::Request::new(GetRequest {
+            id: parent_task_id.to_string(),
+            ..Default::default()
+        });
+        let response = task_service.get(request).await?;
+        let parent_task = response.into_inner();
+
+        let schema_ids = match parent_task.object.as_ref() {
+            Some(e_task::Object::Cubequerytask(cqt)) => {
+                eprintln!(
+                    "DEBUG: Parent is CubeQueryTask with schema_ids={:?}",
+                    cqt.schema_ids
+                );
+                cqt.schema_ids.clone()
+            }
+            Some(e_task::Object::Computationtask(ct)) => {
+                eprintln!(
+                    "DEBUG: Parent is ComputationTask with schema_ids={:?}",
+                    ct.schema_ids
+                );
+                ct.schema_ids.clone()
+            }
+            Some(e_task::Object::Runcomputationtask(rct)) => {
+                eprintln!(
+                    "DEBUG: Parent is RunComputationTask with schema_ids={:?}",
+                    rct.schema_ids
+                );
+                rct.schema_ids.clone()
+            }
+            other => {
+                eprintln!(
+                    "DEBUG: Parent task has unexpected type: {:?}",
+                    other.map(|_| "some variant")
+                );
+                Vec::new()
+            }
+        };
+
+        Ok(schema_ids)
     }
 
     /// Find Y-axis table from schema_ids
