@@ -125,7 +125,8 @@ pub async fn generate_plots<C: TercenContext>(
         .x_axis_table(ctx.x_axis_table_id().map(|s| s.to_string()))
         .colors(ctx.color_infos().to_vec())
         .page_factors(ctx.page_factors().to_vec())
-        .schema_cache(schema_cache.clone());
+        .schema_cache(schema_cache.clone())
+        .heatmap_cell_aggregation(config.heatmap_cell_aggregation);
 
         let mut stream_gen =
             TercenStreamGenerator::new(client_arc.clone(), stream_config, page_filter).await?;

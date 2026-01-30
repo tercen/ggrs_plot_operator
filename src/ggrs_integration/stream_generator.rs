@@ -3,6 +3,7 @@
 //! This module implements the GGRS `StreamGenerator` trait for Tercen,
 //! enabling lazy loading of data directly from Tercen's gRPC API.
 
+use crate::config::HeatmapCellAggregation;
 use crate::tercen::{tson_to_dataframe, FacetInfo, SchemaCache, TableStreamer, TercenClient};
 use ggrs_core::{
     aes::Aes,
@@ -42,6 +43,8 @@ pub struct TercenStreamConfig {
     pub page_factors: Vec<String>,
     /// Optional schema cache for multi-page plots
     pub schema_cache: Option<SchemaCache>,
+    /// How to aggregate multiple data points in the same heatmap cell
+    pub heatmap_cell_aggregation: HeatmapCellAggregation,
 }
 
 impl TercenStreamConfig {
@@ -62,6 +65,7 @@ impl TercenStreamConfig {
             color_infos: Vec::new(),
             page_factors: Vec::new(),
             schema_cache: None,
+            heatmap_cell_aggregation: HeatmapCellAggregation::Last,
         }
     }
 
@@ -92,6 +96,12 @@ impl TercenStreamConfig {
     /// Set schema cache
     pub fn schema_cache(mut self, cache: Option<SchemaCache>) -> Self {
         self.schema_cache = cache;
+        self
+    }
+
+    /// Set heatmap cell aggregation method
+    pub fn heatmap_cell_aggregation(mut self, method: HeatmapCellAggregation) -> Self {
+        self.heatmap_cell_aggregation = method;
         self
     }
 }
@@ -191,6 +201,9 @@ pub struct TercenStreamGenerator {
     /// When in heatmap mode, we aggregate all data by (ci, ri) and cache it here.
     /// This is necessary because GGRS streams in chunks, but aggregation requires all data.
     heatmap_cached_data: RwLock<Option<DataFrame>>,
+
+    /// How to aggregate multiple data points in the same heatmap cell
+    heatmap_cell_aggregation: HeatmapCellAggregation,
 }
 
 impl TercenStreamGenerator {
@@ -221,6 +234,7 @@ impl TercenStreamGenerator {
             color_infos,
             page_factors,
             schema_cache,
+            heatmap_cell_aggregation,
         } = config;
 
         // Load facets with optional filtering for pagination
@@ -422,6 +436,7 @@ impl TercenStreamGenerator {
             heatmap_mode: None,
             schema_cache,
             heatmap_cached_data: RwLock::new(None),
+            heatmap_cell_aggregation,
         })
     }
 
@@ -494,6 +509,7 @@ impl TercenStreamGenerator {
             heatmap_mode: None,
             schema_cache: None, // sync method - no caching
             heatmap_cached_data: RwLock::new(None),
+            heatmap_cell_aggregation: HeatmapCellAggregation::Last, // Default for sync constructor
         }
     }
 
@@ -565,14 +581,17 @@ impl TercenStreamGenerator {
         }
     }
 
-    /// Aggregate data for heatmaps by grouping on (ci, ri) and computing mean of color factors
+    /// Aggregate data for heatmaps by grouping on (ci, ri)
     ///
     /// This is necessary because Tercen streams raw data points, but heatmaps should display
-    /// the aggregated (mean) value per cell. Without aggregation, the last data point drawn
-    /// determines the visible color, which differs from Tercen's crosstab that shows means.
+    /// one value per cell. The aggregation method is configurable:
+    /// - `Last`: Use the last data point (matches Tercen's default overdraw behavior)
+    /// - `First`: Use the first data point
+    /// - `Mean`: Compute the mean of all data points
+    /// - `Median`: Compute the median of all data points
     ///
     /// # Returns
-    /// DataFrame with one row per unique (ci, ri) cell, with mean values for numeric columns
+    /// DataFrame with one row per unique (ci, ri) cell, with aggregated values
     async fn aggregate_heatmap_data(&self) -> Result<DataFrame, Box<dyn std::error::Error>> {
         use polars::prelude::*;
 
@@ -665,23 +684,38 @@ impl TercenStreamGenerator {
 
         eprintln!("DEBUG: Combined DataFrame has {} rows", all_data.height());
 
-        // Group by .ci and .ri, compute mean of all other columns
+        // Group by .ci and .ri, aggregate based on configured method
         let ci_col = col(".ci");
         let ri_col = col(".ri");
 
-        // Build aggregation expressions for color factors
+        eprintln!(
+            "DEBUG: Using heatmap cell aggregation: {:?}",
+            self.heatmap_cell_aggregation
+        );
+
+        // Build aggregation expressions for color factors based on configured method
         let mut agg_exprs: Vec<Expr> = Vec::new();
         for color_info in &self.color_infos {
             match &color_info.mapping {
                 crate::tercen::ColorMapping::Categorical(_) => {
-                    // For categorical colors, take the mode (most common value)
-                    // or just first() if mode is complex
-                    agg_exprs.push(col(".colorLevels").first().alias(".colorLevels"));
+                    // For categorical colors, use first/last based on config
+                    // (mean/median don't make sense for categorical)
+                    let expr = match self.heatmap_cell_aggregation {
+                        HeatmapCellAggregation::Last => col(".colorLevels").last(),
+                        _ => col(".colorLevels").first(), // first, mean, median all use first for categorical
+                    };
+                    agg_exprs.push(expr.alias(".colorLevels"));
                 }
                 crate::tercen::ColorMapping::Continuous(_) => {
-                    // For continuous colors, compute mean
+                    // For continuous colors, use the configured aggregation method
                     let col_name = &color_info.factor_name;
-                    agg_exprs.push(col(col_name).mean().alias(col_name));
+                    let expr = match self.heatmap_cell_aggregation {
+                        HeatmapCellAggregation::Last => col(col_name).last(),
+                        HeatmapCellAggregation::First => col(col_name).first(),
+                        HeatmapCellAggregation::Mean => col(col_name).mean(),
+                        HeatmapCellAggregation::Median => col(col_name).median(),
+                    };
+                    agg_exprs.push(expr.alias(col_name));
                 }
             }
         }

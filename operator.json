@@ -190,6 +190,13 @@
       "name": "axis.y.tick.rotation",
       "defaultValue": "0",
       "description": "Y-axis tick label rotation in degrees. Common values: 0 (horizontal), 90 (vertical). Default: 0."
+    },
+    {
+      "kind": "EnumeratedProperty",
+      "name": "heatmap.cell.aggregation",
+      "defaultValue": "last",
+      "description": "How to aggregate multiple data points in the same heatmap cell. 'last' matches Tercen's default behavior (last point wins). 'first' uses the first point. 'mean' computes the average. 'median' computes the median.",
+      "values": ["last", "first", "mean", "median"]
     }
   ]
 }

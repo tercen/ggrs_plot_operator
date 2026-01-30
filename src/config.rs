@@ -7,6 +7,39 @@
 use crate::tercen::client::proto::OperatorSettings;
 use crate::tercen::properties::{PlotDimension, PropertyReader};
 
+/// How to aggregate multiple data points in the same heatmap cell
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HeatmapCellAggregation {
+    /// Use the last data point (matches Tercen's default overdraw behavior)
+    #[default]
+    Last,
+    /// Use the first data point
+    First,
+    /// Compute the mean of all data points
+    Mean,
+    /// Compute the median of all data points
+    Median,
+}
+
+impl HeatmapCellAggregation {
+    /// Parse from string, returns default (Last) for invalid values
+    pub fn parse(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "last" => Self::Last,
+            "first" => Self::First,
+            "mean" => Self::Mean,
+            "median" => Self::Median,
+            other => {
+                eprintln!(
+                    "⚠ Invalid heatmap.cell.aggregation '{}', using 'last'",
+                    other
+                );
+                Self::Last
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct OperatorConfig {
     /// Number of rows per chunk (configurable via chunk_size property, default: 10000)
@@ -82,6 +115,9 @@ pub struct OperatorConfig {
 
     /// Y-axis tick label rotation in degrees (0 = horizontal, 90 = vertical)
     pub y_tick_rotation: f64,
+
+    /// How to aggregate multiple data points in the same heatmap cell
+    pub heatmap_cell_aggregation: HeatmapCellAggregation,
 }
 
 impl OperatorConfig {
@@ -207,6 +243,10 @@ impl OperatorConfig {
         let x_tick_rotation = Self::parse_rotation(&props.get_string("axis.x.tick.rotation", "0"));
         let y_tick_rotation = Self::parse_rotation(&props.get_string("axis.y.tick.rotation", "0"));
 
+        // Parse heatmap cell aggregation method (default: "last" to match Tercen)
+        let heatmap_cell_aggregation =
+            HeatmapCellAggregation::parse(&props.get_string("heatmap.cell.aggregation", "last"));
+
         // Parse point size multiplier (default: 1.0, must be > 0)
         let point_size_multiplier = {
             let mult_str = props.get_string("point.size.multiplier", "1");
@@ -250,6 +290,7 @@ impl OperatorConfig {
             y_axis_label,
             x_tick_rotation,
             y_tick_rotation,
+            heatmap_cell_aggregation,
         }
     }
 
