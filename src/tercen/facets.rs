@@ -152,8 +152,8 @@ impl FacetMetadata {
         }
 
         eprintln!("DEBUG: Created {} facet groups", groups.len());
-        if !groups.is_empty() {
-            eprintln!("DEBUG: First facet label: '{}'", groups[0].label);
+        for (i, group) in groups.iter().enumerate() {
+            eprintln!("DEBUG: Facet[{}] label='{}'", i, group.label);
         }
 
         Ok(FacetMetadata {
@@ -254,9 +254,18 @@ impl FacetInfo {
             FacetMetadata::load(client, row_table_id)
         );
 
+        let mut row_facets = row_result?;
+
+        // Reverse row facets to match ggplot2 convention (first level at top)
+        // GGRS renders row_idx 0 at the bottom, so we reverse to compensate
+        row_facets.groups.reverse();
+        for (new_idx, group) in row_facets.groups.iter_mut().enumerate() {
+            group.index = new_idx;
+        }
+
         Ok(FacetInfo {
             col_facets: col_result?,
-            row_facets: row_result?,
+            row_facets,
         })
     }
 
@@ -278,9 +287,18 @@ impl FacetInfo {
             FacetMetadata::load_with_filter(client, row_table_id, row_filter)
         );
 
+        let mut row_facets = row_result?;
+
+        // Reverse row facets to match ggplot2 convention (first level at top)
+        // GGRS renders row_idx 0 at the bottom, so we reverse to compensate
+        row_facets.groups.reverse();
+        for (new_idx, group) in row_facets.groups.iter_mut().enumerate() {
+            group.index = new_idx;
+        }
+
         Ok(FacetInfo {
             col_facets: col_result?,
-            row_facets: row_result?,
+            row_facets,
         })
     }
 

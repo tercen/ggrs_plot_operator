@@ -12,7 +12,7 @@ use ggrs_core::{
 };
 use polars::prelude::IntoColumn;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 /// Default number of categorical color levels in Tercen's built-in palette.
 /// When no actual category names are available, generic labels "Level 0" through "Level 7" are used.
@@ -186,6 +186,11 @@ pub struct TercenStreamGenerator {
     /// Optional schema cache for multi-page plots
     /// When provided, schemas are cached and reused across pages
     schema_cache: Option<SchemaCache>,
+
+    /// Cached aggregated data for heatmaps
+    /// When in heatmap mode, we aggregate all data by (ci, ri) and cache it here.
+    /// This is necessary because GGRS streams in chunks, but aggregation requires all data.
+    heatmap_cached_data: RwLock<Option<DataFrame>>,
 }
 
 impl TercenStreamGenerator {
@@ -416,6 +421,7 @@ impl TercenStreamGenerator {
             page_factors,
             heatmap_mode: None,
             schema_cache,
+            heatmap_cached_data: RwLock::new(None),
         })
     }
 
@@ -487,6 +493,7 @@ impl TercenStreamGenerator {
             page_factors,
             heatmap_mode: None,
             schema_cache: None, // sync method - no caching
+            heatmap_cached_data: RwLock::new(None),
         }
     }
 
@@ -556,6 +563,153 @@ impl TercenStreamGenerator {
         } else {
             Some(labels)
         }
+    }
+
+    /// Aggregate data for heatmaps by grouping on (ci, ri) and computing mean of color factors
+    ///
+    /// This is necessary because Tercen streams raw data points, but heatmaps should display
+    /// the aggregated (mean) value per cell. Without aggregation, the last data point drawn
+    /// determines the visible color, which differs from Tercen's crosstab that shows means.
+    ///
+    /// # Returns
+    /// DataFrame with one row per unique (ci, ri) cell, with mean values for numeric columns
+    async fn aggregate_heatmap_data(&self) -> Result<DataFrame, Box<dyn std::error::Error>> {
+        use polars::prelude::*;
+
+        eprintln!("DEBUG: Aggregating heatmap data by (.ci, .ri)");
+
+        let streamer = Self::create_streamer(&self.client, &self.schema_cache);
+
+        // Build list of columns to fetch: .ci, .ri, and color factors
+        let mut columns = vec![".ci".to_string(), ".ri".to_string()];
+        for color_info in &self.color_infos {
+            match &color_info.mapping {
+                crate::tercen::ColorMapping::Categorical(_) => {
+                    columns.push(".colorLevels".to_string());
+                }
+                crate::tercen::ColorMapping::Continuous(_) => {
+                    columns.push(color_info.factor_name.clone());
+                }
+            }
+        }
+        eprintln!(
+            "DEBUG: Fetching columns for heatmap aggregation: {:?}",
+            columns
+        );
+
+        // Get the actual row count from schema
+        let schema = streamer.get_schema(&self.main_table_id).await?;
+        let actual_total_rows = extract_row_count_from_schema(&schema)? as usize;
+        eprintln!(
+            "DEBUG: Schema says {} actual rows to aggregate",
+            actual_total_rows
+        );
+
+        // Stream data in chunks and accumulate (TSON decoding only handles one chunk at a time)
+        let chunk_size = 50000; // Larger chunks for aggregation efficiency
+        let mut accumulated_dfs: Vec<polars::frame::DataFrame> = Vec::new();
+        let mut offset = 0usize;
+
+        while offset < actual_total_rows {
+            let remaining = actual_total_rows - offset;
+            let limit = remaining.min(chunk_size);
+
+            let tson_data = streamer
+                .stream_tson(
+                    &self.main_table_id,
+                    Some(columns.clone()),
+                    offset as i64,
+                    limit as i64,
+                )
+                .await?;
+
+            if tson_data.is_empty() {
+                break;
+            }
+
+            let chunk_df = tson_to_dataframe(&tson_data)?;
+            let chunk_rows = chunk_df.nrow();
+
+            if chunk_rows == 0 {
+                break;
+            }
+
+            eprintln!(
+                "DEBUG: Aggregation chunk: offset={}, got {} rows",
+                offset, chunk_rows
+            );
+
+            accumulated_dfs.push(chunk_df.inner().clone());
+            offset += chunk_rows;
+        }
+
+        eprintln!(
+            "DEBUG: Accumulated {} chunks with {} total rows",
+            accumulated_dfs.len(),
+            offset
+        );
+
+        // Concatenate all chunks
+        let all_data = if accumulated_dfs.len() == 1 {
+            accumulated_dfs.into_iter().next().unwrap()
+        } else {
+            concat(
+                accumulated_dfs
+                    .iter()
+                    .map(|df| df.clone().lazy())
+                    .collect::<Vec<_>>(),
+                UnionArgs::default(),
+            )?
+            .collect()?
+        };
+
+        eprintln!("DEBUG: Combined DataFrame has {} rows", all_data.height());
+
+        // Group by .ci and .ri, compute mean of all other columns
+        let ci_col = col(".ci");
+        let ri_col = col(".ri");
+
+        // Build aggregation expressions for color factors
+        let mut agg_exprs: Vec<Expr> = Vec::new();
+        for color_info in &self.color_infos {
+            match &color_info.mapping {
+                crate::tercen::ColorMapping::Categorical(_) => {
+                    // For categorical colors, take the mode (most common value)
+                    // or just first() if mode is complex
+                    agg_exprs.push(col(".colorLevels").first().alias(".colorLevels"));
+                }
+                crate::tercen::ColorMapping::Continuous(_) => {
+                    // For continuous colors, compute mean
+                    let col_name = &color_info.factor_name;
+                    agg_exprs.push(col(col_name).mean().alias(col_name));
+                }
+            }
+        }
+
+        // Perform the aggregation
+        let aggregated = all_data
+            .lazy()
+            .group_by([ci_col, ri_col])
+            .agg(agg_exprs)
+            .collect()?;
+
+        eprintln!(
+            "DEBUG: Aggregated heatmap data: {} rows (from {} raw rows)",
+            aggregated.height(),
+            offset
+        );
+
+        // Wrap in ggrs DataFrame
+        let mut df = ggrs_core::data::DataFrame::from_polars(aggregated);
+
+        // Add color columns to the aggregated data
+        if !self.color_infos.is_empty() {
+            eprintln!("DEBUG: Adding color columns to aggregated data");
+            df = self.add_color_columns(df)?;
+            eprintln!("DEBUG: Color columns added to aggregated data");
+        }
+
+        Ok(df)
     }
 
     /// Load axis ranges from pre-computed Y-axis table
@@ -1533,6 +1687,16 @@ impl StreamGenerator for TercenStreamGenerator {
     }
 
     fn n_total_data_rows(&self) -> usize {
+        // For heatmaps, return the number of tiles (aggregated data rows)
+        // instead of raw data rows
+        if let Some((n_cols, n_rows)) = self.heatmap_mode {
+            let n_tiles = n_cols * n_rows;
+            eprintln!(
+                "DEBUG: Heatmap mode - returning {} tiles as total rows ({}×{})",
+                n_tiles, n_cols, n_rows
+            );
+            return n_tiles;
+        }
         self.total_rows
     }
 
@@ -1750,7 +1914,57 @@ impl StreamGenerator for TercenStreamGenerator {
     }
 
     fn query_data_multi_facet(&self, data_range: Range) -> DataFrame {
-        // Block on async within sync trait method
+        // For heatmaps, aggregate all data by (ci, ri) and return mean values
+        // This ensures the displayed color reflects the aggregate (mean) rather than
+        // the last data point drawn (which would depend on streaming order)
+        if self.heatmap_mode.is_some() {
+            // Check if we already have cached aggregated data
+            {
+                let cache_read = self.heatmap_cached_data.read().unwrap();
+                if cache_read.is_some() {
+                    // Data already aggregated and returned on first call
+                    // Return empty DataFrame for subsequent calls
+                    if data_range.start > 0 {
+                        eprintln!(
+                            "DEBUG: Heatmap data already returned, returning empty for range {}..{}",
+                            data_range.start, data_range.end
+                        );
+                        return DataFrame::new();
+                    }
+                    // Return the cached data on first call
+                    eprintln!("DEBUG: Returning cached aggregated heatmap data");
+                    return cache_read.as_ref().unwrap().clone();
+                }
+            }
+
+            // First call - aggregate and cache
+            eprintln!("DEBUG: First heatmap data request - aggregating all data");
+            let aggregated = tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current()
+                    .block_on(async { self.aggregate_heatmap_data().await })
+            })
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Failed to aggregate heatmap data: {}. \
+                    This indicates a data processing error.",
+                    e
+                )
+            });
+
+            // Cache the aggregated data
+            {
+                let mut cache_write = self.heatmap_cached_data.write().unwrap();
+                *cache_write = Some(aggregated.clone());
+            }
+
+            eprintln!(
+                "DEBUG: Returning {} aggregated heatmap rows",
+                aggregated.nrow()
+            );
+            return aggregated;
+        }
+
+        // Non-heatmap: stream data as usual
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current()
                 .block_on(async { self.stream_bulk_data(data_range).await })
