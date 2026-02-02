@@ -40,6 +40,9 @@ COPY tercen_grpc_api ./tercen_grpc_api
 # Copy source tree
 COPY src ./src
 
+# Copy palettes.json (used by include_str! at compile time)
+COPY palettes.json ./
+
 # Build with jemalloc feature enabled
 # Using dev-release profile for faster CI builds (4-5 min vs 12+ min)
 # For production releases, use --release instead
