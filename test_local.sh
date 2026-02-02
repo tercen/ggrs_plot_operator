@@ -38,13 +38,13 @@ export TERCEN_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vMT
 
 # EXAMPLE2
 # Scatter simple (no X-axis table - uses sequential X range)
-export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
-export STEP_ID="7a8eb4a9-d7bf-4fb9-8385-6f902fb73693"
+#export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
+#export STEP_ID="7a8eb4a9-d7bf-4fb9-8385-6f902fb73693"
 
 # EXAMPLE3
 # Scatter crabs (has X-axis table)
-#export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
-#export STEP_ID="102a1b30-ee6d-42ae-9681-607ceb526b5e"
+export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
+export STEP_ID="102a1b30-ee6d-42ae-9681-607ceb526b5e"
 
 # Memory tracker path
 MEMORY_TRACKER="/home/thiago/workspaces/tercen/main/memory_tracker/target/release/memory_tracker"
