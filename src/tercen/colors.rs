@@ -255,16 +255,33 @@ fn parse_jet_palette(jet: &proto::JetPalette) -> Result<ColorPalette> {
         "DEBUG parse_jet_palette: is_user_defined = {}",
         jet.is_user_defined
     );
-    parse_double_color_elements(&jet.double_color_elements, jet.is_user_defined)
+    parse_double_color_elements(&jet.double_color_elements, jet.is_user_defined, "Jet")
 }
 
 /// Parse a RampPalette into a ColorPalette
 fn parse_ramp_palette(ramp: &proto::RampPalette) -> Result<ColorPalette> {
+    // Extract palette name from properties (property with name="name")
+    let palette_name = ramp
+        .properties
+        .iter()
+        .find(|p| p.name == "name")
+        .map(|p| p.value.as_str())
+        .unwrap_or("Spectral"); // Fallback to Spectral if not specified
+
+    // "Divergent" is a special type where user defines min/middle/max colors manually.
+    // Always use element colors for Divergent, regardless of is_user_defined flag.
+    let use_element_colors = ramp.is_user_defined || palette_name.eq_ignore_ascii_case("divergent");
+
     eprintln!(
-        "DEBUG parse_ramp_palette: is_user_defined = {}",
-        ramp.is_user_defined
+        "DEBUG parse_ramp_palette: is_user_defined = {}, palette_name = '{}', use_element_colors = {}",
+        ramp.is_user_defined, palette_name, use_element_colors
     );
-    parse_double_color_elements(&ramp.double_color_elements, ramp.is_user_defined)
+
+    parse_double_color_elements(
+        &ramp.double_color_elements,
+        use_element_colors,
+        palette_name,
+    )
 }
 
 /// Parse a CategoryPalette into a CategoryColorMap
@@ -316,57 +333,76 @@ fn parse_category_palette(cat: &proto::CategoryPalette) -> Result<CategoryColorM
 }
 
 /// Parse DoubleColorElement array into ColorPalette
+///
+/// When color_int == -1, all colors from the named palette are distributed
+/// across the value range [min, max] from the elements.
 fn parse_double_color_elements(
     elements: &[proto::DoubleColorElement],
     is_user_defined: bool,
+    default_palette_name: &str,
 ) -> Result<ColorPalette> {
+    use crate::tercen::palettes::PALETTE_REGISTRY;
+
     let mut palette = ColorPalette::new();
     palette.is_user_defined = is_user_defined;
 
-    for element in elements {
-        let value = element.string_value.parse::<f64>().map_err(|e| {
-            TercenError::Data(format!(
-                "Invalid color value '{}': {}",
-                element.string_value, e
-            ))
+    if elements.is_empty() {
+        return Err(TercenError::Data(
+            "Palette has no color elements".to_string(),
+        ));
+    }
+
+    // Use is_user_defined to decide whether to use element colors or named palette.
+    // When is_user_defined=false, Tercen sends palette endpoint colors but we should
+    // distribute ALL colors from the named palette across the range instead.
+    if is_user_defined {
+        // User-defined colors: use them directly from elements
+        for element in elements {
+            let value = element.string_value.parse::<f64>().map_err(|err| {
+                TercenError::Data(format!(
+                    "Invalid color value '{}': {}",
+                    element.string_value, err
+                ))
+            })?;
+
+            let color = int_to_rgb(element.color);
+            eprintln!(
+                "DEBUG parse_palette: User color at {}: RGB({}, {}, {})",
+                value, color[0], color[1], color[2]
+            );
+            palette.add_stop(value, color);
+        }
+    } else {
+        // No user colors: distribute named palette across [min, max]
+        let values: Vec<f64> = elements
+            .iter()
+            .map(|e| e.string_value.parse::<f64>())
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|e| TercenError::Data(format!("Invalid value: {}", e)))?;
+
+        let min_val = values.iter().cloned().fold(f64::INFINITY, f64::min);
+        let max_val = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+
+        let named_palette = PALETTE_REGISTRY.get(default_palette_name).ok_or_else(|| {
+            TercenError::Data(format!("Palette '{}' not found", default_palette_name))
         })?;
 
+        let n_colors = named_palette.len();
         eprintln!(
-            "DEBUG parse_palette: element color_int={}, stringValue={}",
-            element.color, element.string_value
+            "DEBUG parse_palette: Distributing {} {} colors across [{}, {}]",
+            n_colors, default_palette_name, min_val, max_val
         );
 
-        // Tercen uses -1 as a sentinel for "no color defined" - use default gradient
-        let color = if element.color == -1 {
-            // Use viridis-like default gradient based on position
-            let t = if elements.len() > 1 {
-                (palette.stops.len() as f64) / ((elements.len() - 1) as f64)
+        for i in 0..n_colors {
+            let t = if n_colors > 1 {
+                i as f64 / (n_colors - 1) as f64
             } else {
                 0.5
             };
-            // Simple blue to yellow gradient
-            let r = (t * 255.0) as u8;
-            let g = (t * 255.0) as u8;
-            let b = ((1.0 - t) * 255.0) as u8;
-            eprintln!(
-                "DEBUG parse_palette: Using default gradient at t={:.2}, RGB({}, {}, {})",
-                t, r, g, b
-            );
-            [r, g, b]
-        } else {
-            let rgb = int_to_rgb(element.color);
-            eprintln!(
-                "DEBUG parse_palette: Parsed to RGB({}, {}, {})",
-                rgb[0], rgb[1], rgb[2]
-            );
-            rgb
-        };
-
-        palette.add_stop(value, color);
-    }
-
-    if palette.stops.is_empty() {
-        return Err(TercenError::Data("Palette has no color stops".to_string()));
+            let value = min_val + t * (max_val - min_val);
+            let color = named_palette.get_color(i);
+            palette.add_stop(value, color);
+        }
     }
 
     Ok(palette)

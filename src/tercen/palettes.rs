@@ -78,12 +78,45 @@ impl PaletteDefinition {
     pub fn is_empty(&self) -> bool {
         self.colors.is_empty()
     }
+
+    /// Interpolate a color from the palette at position t ∈ [0, 1]
+    ///
+    /// t=0 returns the first color, t=1 returns the last color.
+    /// Values in between are linearly interpolated.
+    pub fn interpolate(&self, t: f64) -> [u8; 3] {
+        if self.colors.is_empty() {
+            return [128, 128, 128]; // Gray fallback
+        }
+
+        let t = t.clamp(0.0, 1.0);
+        let n = self.colors.len();
+
+        if n == 1 {
+            return self.get_color(0);
+        }
+
+        // Map t to position in the color array
+        let pos = t * (n - 1) as f64;
+        let idx_low = pos.floor() as usize;
+        let idx_high = (idx_low + 1).min(n - 1);
+        let frac = pos - idx_low as f64;
+
+        let color_low = self.get_color(idx_low);
+        let color_high = self.get_color(idx_high);
+
+        // Linear interpolation between the two colors
+        [
+            (color_low[0] as f64 * (1.0 - frac) + color_high[0] as f64 * frac) as u8,
+            (color_low[1] as f64 * (1.0 - frac) + color_high[1] as f64 * frac) as u8,
+            (color_low[2] as f64 * (1.0 - frac) + color_high[2] as f64 * frac) as u8,
+        ]
+    }
 }
 
 /// Registry of all available palettes
 #[derive(Debug, Clone, Default)]
 pub struct PaletteRegistry {
-    /// All palettes by name (case-sensitive)
+    /// All palettes by name (lowercase keys for case-insensitive lookup)
     palettes: HashMap<String, PaletteDefinition>,
     /// Categorical palette names (for listing)
     categorical_names: Vec<String>,
@@ -108,7 +141,8 @@ impl PaletteRegistry {
                 PaletteType::Sequential => registry.sequential_names.push(name.clone()),
                 PaletteType::Diverging => registry.diverging_names.push(name.clone()),
             }
-            registry.palettes.insert(name, def);
+            // Store with lowercase key for case-insensitive lookup
+            registry.palettes.insert(name.to_lowercase(), def);
         }
 
         eprintln!(
@@ -122,9 +156,9 @@ impl PaletteRegistry {
         Ok(registry)
     }
 
-    /// Get a palette by name
+    /// Get a palette by name (case-insensitive)
     pub fn get(&self, name: &str) -> Option<&PaletteDefinition> {
-        self.palettes.get(name)
+        self.palettes.get(&name.to_lowercase())
     }
 
     /// Get the default categorical palette

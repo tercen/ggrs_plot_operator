@@ -609,11 +609,17 @@ impl TercenStreamGenerator {
         let streamer = Self::create_streamer(&self.client, &self.schema_cache);
 
         // Build list of columns to fetch: .ci, .ri, and color factors
+        // .colorLevels is shared by all categorical factors - only add once
+        // Categorical colors on heatmaps are unusual but we handle them with "last"
         let mut columns = vec![".ci".to_string(), ".ri".to_string()];
+        let mut has_color_levels = false;
         for color_info in &self.color_infos {
             match &color_info.mapping {
                 crate::tercen::ColorMapping::Categorical(_) => {
-                    columns.push(".colorLevels".to_string());
+                    if !has_color_levels {
+                        columns.push(".colorLevels".to_string());
+                        has_color_levels = true;
+                    }
                 }
                 crate::tercen::ColorMapping::Continuous(_) => {
                     columns.push(color_info.factor_name.clone());
@@ -703,17 +709,18 @@ impl TercenStreamGenerator {
         );
 
         // Build aggregation expressions for color factors based on configured method
+        // .colorLevels is shared by all categorical factors - only aggregate once
         let mut agg_exprs: Vec<Expr> = Vec::new();
+        let mut has_color_levels_agg = false;
         for color_info in &self.color_infos {
             match &color_info.mapping {
                 crate::tercen::ColorMapping::Categorical(_) => {
-                    // For categorical colors, use first/last based on config
-                    // (mean/median don't make sense for categorical)
-                    let expr = match self.heatmap_cell_aggregation {
-                        HeatmapCellAggregation::Last => col(".colorLevels").last(),
-                        _ => col(".colorLevels").first(), // first, mean, median all use first for categorical
-                    };
-                    agg_exprs.push(expr.alias(".colorLevels"));
+                    if !has_color_levels_agg {
+                        // Categorical always uses last (mean/median don't make sense)
+                        let expr = col(".colorLevels").last();
+                        agg_exprs.push(expr.alias(".colorLevels"));
+                        has_color_levels_agg = true;
+                    }
                 }
                 crate::tercen::ColorMapping::Continuous(_) => {
                     // For continuous colors, use the configured aggregation method
@@ -1159,6 +1166,18 @@ impl TercenStreamGenerator {
             return Ok(LegendScale::None);
         }
 
+        // Build combined aesthetic name from all categorical factor names
+        let categorical_names: Vec<&str> = color_infos
+            .iter()
+            .filter(|ci| matches!(ci.mapping, crate::tercen::ColorMapping::Categorical(_)))
+            .map(|ci| ci.factor_name.as_str())
+            .collect();
+        let combined_name = if categorical_names.is_empty() {
+            color_infos[0].factor_name.clone()
+        } else {
+            categorical_names.join(", ")
+        };
+
         // Only handle the first color factor for now
         let color_info = &color_infos[0];
 
@@ -1204,14 +1223,14 @@ impl TercenStreamGenerator {
 
                     Ok(LegendScale::Discrete {
                         entries,
-                        aesthetic_name: color_info.factor_name.clone(),
+                        aesthetic_name: combined_name.clone(),
                     })
                 } else if let Some(ref labels) = color_info.color_labels {
                     // Use actual color labels from the color table with palette colors
                     eprintln!(
                         "DEBUG: Using {} color labels from color table for '{}'",
                         labels.len(),
-                        color_info.factor_name
+                        combined_name
                     );
                     let entries: Vec<(String, [u8; 3])> = labels
                         .iter()
@@ -1223,13 +1242,13 @@ impl TercenStreamGenerator {
                         .collect();
                     Ok(LegendScale::Discrete {
                         entries,
-                        aesthetic_name: color_info.factor_name.clone(),
+                        aesthetic_name: combined_name.clone(),
                     })
                 } else if let Some(n_levels) = color_info.n_levels {
                     // Fallback: Use n_levels from color table schema with generic labels
                     eprintln!(
                         "DEBUG: Using n_levels={} with generic labels for '{}' (no color_labels)",
-                        n_levels, color_info.factor_name
+                        n_levels, combined_name
                     );
                     let entries: Vec<(String, [u8; 3])> = (0..n_levels)
                         .map(|i| {
@@ -1240,14 +1259,14 @@ impl TercenStreamGenerator {
                         .collect();
                     Ok(LegendScale::Discrete {
                         entries,
-                        aesthetic_name: color_info.factor_name.clone(),
+                        aesthetic_name: combined_name.clone(),
                     })
                 } else {
                     // No explicit mappings and no n_levels - use default generic level labels
                     eprintln!(
                         "DEBUG: No explicit mappings or n_levels, using default generic level labels"
                     );
-                    Self::create_generic_level_legend(&color_info.factor_name)
+                    Self::create_generic_level_legend(&combined_name)
                 }
             }
         }

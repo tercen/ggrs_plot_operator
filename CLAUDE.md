@@ -199,6 +199,20 @@ For local testing, create `operator_config.json` with properties to override def
 }
 ```
 
+## Known Limitations
+
+### Same Factor on Both Column and Row Axes
+
+When the same factor is used for both column and row facets (e.g., `sp` on both axes with values B, O), GGRS may display data in all 4 cells of the 2×2 grid instead of only the diagonal cells (B,B) and (O,O).
+
+**Expected behavior:** Data with sp=B should only appear in cell (B,B), data with sp=O only in (O,O).
+
+**Actual behavior:** Data appears in all cells including off-diagonal (B,O) and (O,B).
+
+**Root cause:** Not fully investigated. Likely related to how Tercen assigns `.ci` and `.ri` values independently when the same factor appears on both axes, or how GGRS filters data per facet cell.
+
+**Status:** Documented, not prioritized for fix.
+
 ## Notes for Claude Code
 
 ### Git Policy
