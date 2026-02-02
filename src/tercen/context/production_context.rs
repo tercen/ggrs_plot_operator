@@ -34,18 +34,60 @@ pub struct ProductionContext {
 impl ProductionContext {
     /// Create a new ProductionContext from a task_id
     ///
-    /// This fetches the task, extracts the CubeQuery, schema_ids, and other
-    /// necessary data for plot generation.
+    /// This fetches the task, extracts the CubeQuery, and retrieves schema_ids
+    /// from the CubeQueryTask (via step.model.taskId).
+    ///
+    /// The CubeQueryTask MUST complete before the operator runs, so schema_ids
+    /// should always be available. No retry logic - if missing, it's a bug.
     pub async fn from_task_id(
         client: Arc<TercenClient>,
         task_id: &str,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        use crate::tercen::client::proto::{e_task, GetRequest};
+
         println!("[ProductionContext] Fetching task {}...", task_id);
 
-        // Fetch task with retry logic for schema_ids
-        // Rust operators start faster than R/Python, sometimes before backend is ready
-        let (cube_query, schema_ids, project_id, operator_settings, workflow_id, step_id) =
-            Self::fetch_task_with_retry(&client, task_id).await?;
+        // Fetch the operator task
+        let mut task_service = client.task_service()?;
+        let request = tonic::Request::new(GetRequest {
+            id: task_id.to_string(),
+            ..Default::default()
+        });
+        let response = task_service.get(request).await?;
+        let task = response.into_inner();
+
+        // Extract CubeQuery and metadata from task (but NOT schema_ids - that comes from CubeQueryTask)
+        let (cube_query, project_id, operator_settings, task_environment) =
+            match task.object.as_ref() {
+                Some(e_task::Object::Computationtask(ct)) => (
+                    ct.query
+                        .as_ref()
+                        .ok_or("ComputationTask has no query")?
+                        .clone(),
+                    ct.project_id.clone(),
+                    ct.query.as_ref().and_then(|q| q.operator_settings.clone()),
+                    &ct.environment,
+                ),
+                Some(e_task::Object::Runcomputationtask(rct)) => (
+                    rct.query
+                        .as_ref()
+                        .ok_or("RunComputationTask has no query")?
+                        .clone(),
+                    rct.project_id.clone(),
+                    rct.query.as_ref().and_then(|q| q.operator_settings.clone()),
+                    &rct.environment,
+                ),
+                Some(e_task::Object::Cubequerytask(cqt)) => (
+                    cqt.query
+                        .as_ref()
+                        .ok_or("CubeQueryTask has no query")?
+                        .clone(),
+                    cqt.project_id.clone(),
+                    cqt.query.as_ref().and_then(|q| q.operator_settings.clone()),
+                    &cqt.environment,
+                ),
+                _ => return Err("Unsupported task type".into()),
+            };
 
         // Extract namespace from operator settings
         let namespace = operator_settings
@@ -53,10 +95,30 @@ impl ProductionContext {
             .map(|os| os.namespace.clone())
             .unwrap_or_default();
 
+        // Get workflow_id and step_id from task environment
+        let workflow_id = task_environment
+            .iter()
+            .find(|p| p.key == "workflow.id")
+            .map(|p| p.value.clone())
+            .or_else(|| std::env::var("WORKFLOW_ID").ok())
+            .ok_or("workflow.id not found in task environment")?;
+
+        let step_id = task_environment
+            .iter()
+            .find(|p| p.key == "step.id")
+            .map(|p| p.value.clone())
+            .or_else(|| std::env::var("STEP_ID").ok())
+            .ok_or("step.id not found in task environment")?;
+
         println!(
             "[ProductionContext] workflow_id={}, step_id={}",
             workflow_id, step_id
         );
+
+        // Fetch schema_ids from CubeQueryTask (the canonical source)
+        // Path: workflow → step → model.taskId → CubeQueryTask.schema_ids
+        let schema_ids =
+            Self::fetch_schema_ids_from_cube_query_task(&client, &workflow_id, &step_id).await?;
 
         if schema_ids.is_empty() {
             println!("[ProductionContext] schema_ids is empty");
@@ -111,155 +173,114 @@ impl ProductionContext {
         })
     }
 
-    /// Fetch task with retry logic when schema_ids is empty
+    /// Fetch schema_ids from the CubeQueryTask (canonical source)
     ///
-    /// Rust operators start faster than R/Python, sometimes before the backend
-    /// has finished populating schema_ids. Retries with backoff: 500ms, 1000ms, 2000ms.
-    async fn fetch_task_with_retry(
+    /// Path: workflow → step → model.taskId → CubeQueryTask.schema_ids
+    ///
+    /// The CubeQueryTask must complete before the operator runs, so this
+    /// should always succeed. No retry logic - if missing, it's a bug.
+    async fn fetch_schema_ids_from_cube_query_task(
         client: &TercenClient,
-        task_id: &str,
-    ) -> Result<
-        (
-            CubeQuery,
-            Vec<String>,
-            String,
-            Option<OperatorSettings>,
-            String,
-            String,
-        ),
-        Box<dyn std::error::Error>,
-    > {
-        use tokio::time::{sleep, Duration};
+        workflow_id: &str,
+        step_id: &str,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        use crate::tercen::client::proto::{e_step, e_task, GetRequest};
 
-        let retry_delays_ms = [500, 1000, 2000];
+        // Fetch workflow
+        let mut workflow_service = client.workflow_service()?;
+        let request = tonic::Request::new(GetRequest {
+            id: workflow_id.to_string(),
+            ..Default::default()
+        });
+        let response = workflow_service.get(request).await?;
+        let e_workflow = response.into_inner();
 
-        // First attempt
-        let result = Self::fetch_task_once(client, task_id).await?;
-        if !result.1.is_empty() {
-            return Ok(result);
+        let workflow = e_workflow
+            .object
+            .as_ref()
+            .map(|obj| match obj {
+                crate::tercen::client::proto::e_workflow::Object::Workflow(wf) => wf,
+            })
+            .ok_or("EWorkflow has no workflow object")?;
+
+        // Find the step by step_id
+        let step = workflow
+            .steps
+            .iter()
+            .find(|s| {
+                s.object.as_ref().is_some_and(|obj| match obj {
+                    e_step::Object::Datastep(ds) => ds.id == step_id,
+                    e_step::Object::Crosstabstep(cs) => cs.id == step_id,
+                    _ => false,
+                })
+            })
+            .ok_or_else(|| format!("Step {} not found in workflow {}", step_id, workflow_id))?;
+
+        // Get the CubeQueryTask ID from the step's model.taskId
+        let cube_query_task_id = match step.object.as_ref() {
+            Some(e_step::Object::Datastep(ds)) => ds.model.as_ref().and_then(|m| {
+                if !m.task_id.is_empty() {
+                    Some(m.task_id.clone())
+                } else {
+                    None
+                }
+            }),
+            Some(e_step::Object::Crosstabstep(cs)) => cs.model.as_ref().and_then(|m| {
+                if !m.task_id.is_empty() {
+                    Some(m.task_id.clone())
+                } else {
+                    None
+                }
+            }),
+            _ => None,
         }
+        .ok_or_else(|| {
+            format!(
+                "Step {} has no model.taskId - CubeQueryTask may not have completed",
+                step_id
+            )
+        })?;
 
-        eprintln!(
-            "DEBUG: schema_ids empty on first attempt, will retry (task_id={})",
-            task_id
+        println!(
+            "[ProductionContext] CubeQueryTask ID: {}",
+            cube_query_task_id
         );
 
-        // Retry with backoff
-        for (attempt, delay_ms) in retry_delays_ms.iter().enumerate() {
-            eprintln!(
-                "DEBUG: Retrying task fetch (attempt {}/{}), waiting {}ms...",
-                attempt + 2,
-                retry_delays_ms.len() + 1,
-                delay_ms
-            );
-            sleep(Duration::from_millis(*delay_ms)).await;
-
-            let result = Self::fetch_task_once(client, task_id).await?;
-            if !result.1.is_empty() {
-                eprintln!(
-                    "DEBUG: schema_ids fetch succeeded on attempt {} with {} ids",
-                    attempt + 2,
-                    result.1.len()
-                );
-                return Ok(result);
-            }
-            eprintln!("DEBUG: schema_ids still empty on attempt {}", attempt + 2);
-        }
-
-        // All retries exhausted - fail with clear error
-        Err(format!(
-            "Task {} schema_ids is empty after {} retries (total wait: 3.5s). \
-             The backend may not be ready yet.",
-            task_id,
-            retry_delays_ms.len()
-        )
-        .into())
-    }
-
-    /// Fetch task once and extract required data
-    async fn fetch_task_once(
-        client: &TercenClient,
-        task_id: &str,
-    ) -> Result<
-        (
-            CubeQuery,
-            Vec<String>,
-            String,
-            Option<OperatorSettings>,
-            String,
-            String,
-        ),
-        Box<dyn std::error::Error>,
-    > {
-        use crate::tercen::client::proto::{e_task, GetRequest};
-
+        // Fetch the CubeQueryTask
         let mut task_service = client.task_service()?;
         let request = tonic::Request::new(GetRequest {
-            id: task_id.to_string(),
+            id: cube_query_task_id.clone(),
             ..Default::default()
         });
         let response = task_service.get(request).await?;
         let task = response.into_inner();
 
-        // Extract data from task based on task type
-        let (cube_query, schema_ids, project_id, operator_settings, task_environment) =
-            match task.object.as_ref() {
-                Some(e_task::Object::Computationtask(ct)) => (
-                    ct.query
-                        .as_ref()
-                        .ok_or("ComputationTask has no query")?
-                        .clone(),
-                    ct.schema_ids.clone(),
-                    ct.project_id.clone(),
-                    ct.query.as_ref().and_then(|q| q.operator_settings.clone()),
-                    &ct.environment,
-                ),
-                Some(e_task::Object::Runcomputationtask(rct)) => (
-                    rct.query
-                        .as_ref()
-                        .ok_or("RunComputationTask has no query")?
-                        .clone(),
-                    rct.schema_ids.clone(),
-                    rct.project_id.clone(),
-                    rct.query.as_ref().and_then(|q| q.operator_settings.clone()),
-                    &rct.environment,
-                ),
-                Some(e_task::Object::Cubequerytask(cqt)) => (
-                    cqt.query
-                        .as_ref()
-                        .ok_or("CubeQueryTask has no query")?
-                        .clone(),
-                    cqt.schema_ids.clone(),
-                    cqt.project_id.clone(),
-                    cqt.query.as_ref().and_then(|q| q.operator_settings.clone()),
-                    &cqt.environment,
-                ),
-                _ => return Err("Unsupported task type".into()),
-            };
+        // Extract schema_ids from CubeQueryTask
+        let schema_ids = match task.object.as_ref() {
+            Some(e_task::Object::Cubequerytask(cqt)) => cqt.schema_ids.clone(),
+            _ => {
+                return Err(format!(
+                    "Task {} is not a CubeQueryTask as expected",
+                    cube_query_task_id
+                )
+                .into())
+            }
+        };
 
-        // Get workflow_id and step_id from task environment
-        let workflow_id = task_environment
-            .iter()
-            .find(|p| p.key == "workflow.id")
-            .map(|p| p.value.clone())
-            .or_else(|| std::env::var("WORKFLOW_ID").ok())
-            .unwrap_or_default();
+        if schema_ids.is_empty() {
+            return Err(format!(
+                "CubeQueryTask {} has empty schema_ids - this should not happen",
+                cube_query_task_id
+            )
+            .into());
+        }
 
-        let step_id = task_environment
-            .iter()
-            .find(|p| p.key == "step.id")
-            .map(|p| p.value.clone())
-            .or_else(|| std::env::var("STEP_ID").ok())
-            .unwrap_or_else(|| task_id.to_string());
+        println!(
+            "[ProductionContext] Found {} schema_ids from CubeQueryTask",
+            schema_ids.len()
+        );
 
-        Ok((
-            cube_query,
-            schema_ids,
-            project_id,
-            operator_settings,
-            workflow_id,
-            step_id,
-        ))
+        Ok(schema_ids)
     }
 
     /// Find Y-axis table from schema_ids
