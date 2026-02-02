@@ -32,6 +32,7 @@ pub mod properties;
 
 // Color handling (Version 0.0.3)
 pub mod colors;
+pub mod palettes;
 
 // Page handling (Version 0.0.4)
 pub mod pages;
@@ -42,9 +43,9 @@ pub mod context;
 // Re-exports for convenience
 pub use client::TercenClient;
 pub use colors::{
-    categorical_color_from_level, extract_chart_kind_from_step, extract_color_info_from_step,
-    extract_point_size_from_step, interpolate_color, parse_palette, CategoryColorMap, ChartKind,
-    ColorInfo, ColorMapping, ColorPalette, ColorStop,
+    extract_chart_kind_from_step, extract_color_info_from_step, extract_point_size_from_step,
+    interpolate_color, parse_palette, CategoryColorMap, ChartKind, ColorInfo, ColorMapping,
+    ColorPalette, ColorStop,
 };
 pub use context::{DevContext, ProductionContext, TercenContext};
 #[allow(unused_imports)]
@@ -53,6 +54,7 @@ pub use error::{Result, TercenError};
 pub use facets::{FacetGroup, FacetInfo, FacetMetadata};
 pub use logger::TercenLogger;
 pub use pages::{extract_page_factors, extract_page_values, PageValue};
+pub use palettes::{categorical_color_from_level, PaletteRegistry, PALETTE_REGISTRY};
 pub use properties::{PlotDimension, PropertyReader};
 pub use result::PlotResult;
 #[allow(unused_imports)]

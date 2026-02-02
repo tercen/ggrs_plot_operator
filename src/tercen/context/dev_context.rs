@@ -338,6 +338,111 @@ impl DevContext {
         let mut color_infos =
             crate::tercen::extract_color_info_from_step(workflow, step_id, &color_table_ids)?;
 
+        // All color factors share the same color table (color_0)
+        // Assign the color table ID to ALL factors, not just the first
+        let shared_color_table_id = color_table_ids.first().and_then(|opt| opt.clone());
+        if let Some(ref table_id) = shared_color_table_id {
+            for color_info in &mut color_infos {
+                if color_info.color_table_id.is_none() {
+                    eprintln!(
+                        "DEBUG extract_color_info: assigning shared color table {} to factor '{}'",
+                        table_id, color_info.factor_name
+                    );
+                    color_info.color_table_id = Some(table_id.clone());
+                }
+            }
+        }
+
+        // Fetch actual color labels from color table for categorical colors
+        // With multiple factors, the color table has the cross-product of all factors
+        // Each row is a unique combination (e.g., "F, BD") that maps to a .colorLevels index
+        // We only need to populate labels for the FIRST categorical color factor
+        // (since .colorLevels is a single column representing the combined index)
+        if let Some(first_categorical_idx) = color_infos
+            .iter()
+            .position(|ci| matches!(ci.mapping, crate::tercen::ColorMapping::Categorical(_)))
+        {
+            let color_info = &color_infos[first_categorical_idx];
+
+            if let Some(ref table_id) = color_info.color_table_id {
+                // Get the schema to find all factor columns and row count
+                if let Some(cqts) = color_table_schemas.get(table_id) {
+                    let n_rows = cqts.n_rows as usize;
+
+                    // Get all factor column names from the schema
+                    let factor_columns: Vec<String> = cqts
+                        .columns
+                        .iter()
+                        .filter_map(|c| {
+                            if let Some(e_column_schema::Object::Columnschema(cs)) = &c.object {
+                                Some(cs.name.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
+                    if n_rows > 0 && !factor_columns.is_empty() {
+                        eprintln!(
+                            "DEBUG extract_color_info: fetching combined color labels from table {} ({} rows, columns: {:?})",
+                            table_id, n_rows, factor_columns
+                        );
+
+                        // Stream all factor columns
+                        match streamer
+                            .stream_tson(table_id, Some(factor_columns.clone()), 0, n_rows as i64)
+                            .await
+                        {
+                            Ok(tson_data) => {
+                                if !tson_data.is_empty() {
+                                    match crate::tercen::tson_to_dataframe(&tson_data) {
+                                        Ok(df) => {
+                                            // Create combined labels by joining all factor values
+                                            let mut combined_labels = Vec::with_capacity(n_rows);
+                                            for i in 0..df.nrow() {
+                                                let parts: Vec<String> = factor_columns
+                                                    .iter()
+                                                    .filter_map(|col| {
+                                                        df.get_value(i, col)
+                                                            .ok()
+                                                            .map(|v| v.as_string())
+                                                    })
+                                                    .collect();
+                                                combined_labels.push(parts.join(", "));
+                                            }
+                                            eprintln!(
+                                                "DEBUG extract_color_info: got {} combined color labels: {:?}",
+                                                combined_labels.len(),
+                                                combined_labels
+                                            );
+
+                                            // Set labels on the first categorical color factor
+                                            color_infos[first_categorical_idx].n_levels =
+                                                Some(combined_labels.len());
+                                            color_infos[first_categorical_idx].color_labels =
+                                                Some(combined_labels);
+                                        }
+                                        Err(e) => {
+                                            eprintln!(
+                                                "WARN extract_color_info: failed to parse color table TSON: {}",
+                                                e
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!(
+                                    "WARN extract_color_info: failed to stream color table {}: {}",
+                                    table_id, e
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Fetch quartiles for continuous color mappings that are not user-defined
         for color_info in &mut color_infos {
             // Only process continuous mappings

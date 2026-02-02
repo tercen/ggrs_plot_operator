@@ -53,13 +53,28 @@ PNG Output
 
 ### Data Flow Details
 
-**Coordinate System**: Tercen sends quantized coordinates (`.xs`, `.ys` as uint16 0-65535). GGRS dequantizes to actual values (`.x`, `.y`) using per-facet axis ranges.
+**Coordinate System**: Tercen sends quantized coordinates (`.xs`, `.ys` as uint16 0-65535). GGRS dequantizes to actual values (`.x`, `.y`) using per-facet axis ranges from Y-axis table.
 
 **Color Mapping**:
 - Continuous: Factor column (f64) → palette interpolation → `.color` hex strings
 - Categorical: `.colorLevels` (int32) → default palette → `.color` hex strings
 
 **Pagination**: Page factors filter facets (not data). GGRS matches data to facets via `original_index` mapping.
+
+### Table IDs and Hashes
+
+The hashes in `CubeQuery` ARE the table IDs - they can be passed directly to `get_schema()`:
+
+| Source | Table | Purpose |
+|--------|-------|---------|
+| `cube_query.qt_hash` | Main data table | Contains `.xs`, `.ys`, `.ci`, `.ri`, color factors |
+| `cube_query.column_hash` | Column facet table | Facet labels for columns |
+| `cube_query.row_hash` | Row facet table | Facet labels for rows, page factors |
+| `schema_ids` (Y-axis) | Y-axis range table | `.minY`, `.maxY` per facet - **REQUIRED** |
+| `schema_ids` (X-axis) | X-axis range table | `.minX`, `.maxX` - optional (default: 1 to nrow) |
+| `schema_ids` (color_N) | Color tables | Color factor data |
+
+**Important**: Y-axis table is required for dequantization. If not found, throw error (no fallback).
 
 ### Key Modules
 
@@ -159,6 +174,18 @@ DevContext::new(client, workflow_id, step_id)      // Local development
 - `tonic`/`prost` - gRPC client (v0.14)
 - `tokio` - Async runtime
 - `rustson` - Tercen TSON binary format parsing
+
+## gRPC Services (tercen.proto)
+
+Key services used by this operator:
+
+| Service | Key Methods | Notes |
+|---------|-------------|-------|
+| `TableSchemaService` | `get`, `streamTable` | Fetch schema by ID, stream table data |
+| `TaskService` | `get` | Fetch task by ID |
+| `WorkflowService` | `get`, `getCubeQuery` | Fetch workflow, get CubeQuery |
+
+**Note**: No batch/list methods available - only single `get` by ID.
 
 ## Dev Config Override
 

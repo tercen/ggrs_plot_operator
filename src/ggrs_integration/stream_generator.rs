@@ -324,16 +324,9 @@ impl TercenStreamGenerator {
         );
 
         // Load legend scale data
-        // Pass facet table IDs for fallback when color table is empty but factor matches facet
+        // Load legend scale from color info (n_levels from schema)
         println!("Loading legend scale data...");
-        let cached_legend_scale = Self::load_legend_scale(
-            &client,
-            &color_infos,
-            &col_facet_table_id,
-            &row_facet_table_id,
-            &schema_cache,
-        )
-        .await?;
+        let cached_legend_scale = Self::load_legend_scale(&color_infos)?;
         eprintln!("DEBUG: Cached legend scale: {:?}", cached_legend_scale);
 
         // Create default aesthetics
@@ -1126,27 +1119,25 @@ impl TercenStreamGenerator {
     fn create_generic_level_legend(
         factor_name: &str,
     ) -> Result<LegendScale, Box<dyn std::error::Error>> {
-        let categories: Vec<String> = (0..DEFAULT_PALETTE_LEVELS)
-            .map(|i| format!("Level {}", i))
+        let entries: Vec<(String, [u8; 3])> = (0..DEFAULT_PALETTE_LEVELS)
+            .map(|i| {
+                let label = format!("Level {}", i);
+                let color = crate::tercen::categorical_color_from_level(i as i32);
+                (label, color)
+            })
             .collect();
         Ok(LegendScale::Discrete {
-            values: categories,
+            entries,
             aesthetic_name: factor_name.to_string(),
         })
     }
 
     /// Load legend scale data during initialization
     ///
-    /// For categorical colors with .colorLevels, this streams the color table
-    /// to extract unique category names.
-    /// For continuous colors, this extracts the min/max from the palette.
-    /// Falls back to facet tables if color table is empty and factor matches facet column.
-    async fn load_legend_scale(
-        client: &TercenClient,
+    /// For categorical colors, uses n_levels from color table schema.
+    /// For continuous colors, extracts the min/max from the palette.
+    fn load_legend_scale(
         color_infos: &[crate::tercen::ColorInfo],
-        col_facet_table_id: &str,
-        row_facet_table_id: &str,
-        schema_cache: &Option<SchemaCache>,
     ) -> Result<LegendScale, Box<dyn std::error::Error>> {
         if color_infos.is_empty() {
             return Ok(LegendScale::None);
@@ -1187,190 +1178,58 @@ impl TercenStreamGenerator {
             crate::tercen::ColorMapping::Categorical(color_map) => {
                 // For categorical colors, check if we have explicit mappings
                 if !color_map.mappings.is_empty() {
-                    let mut values: Vec<String> = color_map.mappings.keys().cloned().collect();
-                    values.sort();
+                    // Explicit label→color mappings from palette
+                    let mut entries: Vec<(String, [u8; 3])> = color_map
+                        .mappings
+                        .iter()
+                        .map(|(label, color)| (label.clone(), *color))
+                        .collect();
+                    entries.sort_by(|a, b| a.0.cmp(&b.0));
 
                     Ok(LegendScale::Discrete {
-                        values,
+                        entries,
                         aesthetic_name: color_info.factor_name.clone(),
                     })
-                } else if let Some(ref color_table_id) = color_info.color_table_id {
-                    // Level-based categorical colors (.colorLevels)
-                    // Try to stream the color table to get unique category names
+                } else if let Some(ref labels) = color_info.color_labels {
+                    // Use actual color labels from the color table with palette colors
                     eprintln!(
-                        "DEBUG: Loading category names from color table {}",
-                        color_table_id
+                        "DEBUG: Using {} color labels from color table for '{}'",
+                        labels.len(),
+                        color_info.factor_name
                     );
-
-                    let streamer = Self::create_streamer(client, schema_cache);
-
-                    // Stream the entire color table (it's usually small)
-                    // The table contains the mapping from level index to category name
-                    let tson_data = streamer
-                        .stream_tson(color_table_id, None, 0, 100000)
-                        .await?;
-
-                    let df = tson_to_dataframe(&tson_data)?;
+                    let entries: Vec<(String, [u8; 3])> = labels
+                        .iter()
+                        .enumerate()
+                        .map(|(i, label)| {
+                            let color = crate::tercen::categorical_color_from_level(i as i32);
+                            (label.clone(), color)
+                        })
+                        .collect();
+                    Ok(LegendScale::Discrete {
+                        entries,
+                        aesthetic_name: color_info.factor_name.clone(),
+                    })
+                } else if let Some(n_levels) = color_info.n_levels {
+                    // Fallback: Use n_levels from color table schema with generic labels
                     eprintln!(
-                        "DEBUG: Color table has {} rows, columns: {:?}",
-                        df.nrow(),
-                        df.columns()
+                        "DEBUG: Using n_levels={} with generic labels for '{}' (no color_labels)",
+                        n_levels, color_info.factor_name
                     );
-
-                    // Check if we got any data from the color table
-                    if df.nrow() > 0 {
-                        // Extract unique category names from the factor column
-                        // The color table should have a column matching the factor name
-                        if let Ok(column) = df.column(&color_info.factor_name) {
-                            // Collect unique values and convert to strings
-                            use std::collections::HashSet;
-                            let mut seen = HashSet::new();
-                            let mut categories: Vec<String> = Vec::new();
-
-                            for val in column {
-                                let s = val.to_string();
-                                if seen.insert(s.clone()) {
-                                    categories.push(s);
-                                }
-                            }
-
-                            categories.sort();
-                            eprintln!(
-                                "DEBUG: Extracted {} unique categories: {:?}",
-                                categories.len(),
-                                categories
-                            );
-
-                            Ok(LegendScale::Discrete {
-                                values: categories,
-                                aesthetic_name: color_info.factor_name.clone(),
-                            })
-                        } else {
-                            eprintln!(
-                                "DEBUG: Color table does not have column '{}'",
-                                color_info.factor_name
-                            );
-                            // Fall back to generic level labels
-                            Self::create_generic_level_legend(&color_info.factor_name)
-                        }
-                    } else {
-                        // Color table is empty - try facet tables as fallback
-                        // This happens when color factor is same as facet factor
-                        eprintln!(
-                            "DEBUG: Color table is empty, trying facet tables for '{}' (col={}, row={})",
-                            color_info.factor_name,
-                            col_facet_table_id,
-                            row_facet_table_id
-                        );
-
-                        // Try column facet table first
-                        // Get schema to find column names (required for data materialization)
-                        let col_schema = streamer.get_schema(col_facet_table_id).await?;
-                        let col_columns = extract_column_names_from_schema(&col_schema)?;
-                        let col_facet_data = streamer
-                            .stream_tson(
-                                col_facet_table_id,
-                                if col_columns.is_empty() {
-                                    None
-                                } else {
-                                    Some(col_columns.clone())
-                                },
-                                0,
-                                100000,
-                            )
-                            .await?;
-                        let col_df = tson_to_dataframe(&col_facet_data)?;
-                        eprintln!(
-                            "DEBUG: Col facet table has {} rows, columns: {:?}",
-                            col_df.nrow(),
-                            col_df.columns()
-                        );
-
-                        if col_df.nrow() > 0 {
-                            if let Ok(column) = col_df.column(&color_info.factor_name) {
-                                use std::collections::HashSet;
-                                let mut seen = HashSet::new();
-                                let mut categories: Vec<String> = Vec::new();
-                                for val in column {
-                                    let s = val.to_string();
-                                    // Filter out empty strings
-                                    if !s.is_empty() && seen.insert(s.clone()) {
-                                        categories.push(s);
-                                    }
-                                }
-                                if !categories.is_empty() {
-                                    categories.sort();
-                                    eprintln!(
-                                        "DEBUG: Found {} categories in col facet table: {:?}",
-                                        categories.len(),
-                                        categories
-                                    );
-                                    return Ok(LegendScale::Discrete {
-                                        values: categories,
-                                        aesthetic_name: color_info.factor_name.clone(),
-                                    });
-                                }
-                            } else {
-                                eprintln!(
-                                    "DEBUG: Col facet table has no column '{}', columns are: {:?}",
-                                    color_info.factor_name,
-                                    col_df.columns()
-                                );
-                            }
-                        }
-
-                        // Try row facet table
-                        let row_schema = streamer.get_schema(row_facet_table_id).await?;
-                        let row_columns = extract_column_names_from_schema(&row_schema)?;
-                        let row_facet_data = streamer
-                            .stream_tson(
-                                row_facet_table_id,
-                                if row_columns.is_empty() {
-                                    None
-                                } else {
-                                    Some(row_columns.clone())
-                                },
-                                0,
-                                100000,
-                            )
-                            .await?;
-                        let row_df = tson_to_dataframe(&row_facet_data)?;
-
-                        if row_df.nrow() > 0 {
-                            if let Ok(column) = row_df.column(&color_info.factor_name) {
-                                use std::collections::HashSet;
-                                let mut seen = HashSet::new();
-                                let mut categories: Vec<String> = Vec::new();
-                                for val in column {
-                                    let s = val.to_string();
-                                    if seen.insert(s.clone()) {
-                                        categories.push(s);
-                                    }
-                                }
-                                if !categories.is_empty() {
-                                    eprintln!(
-                                        "DEBUG: Found {} categories in row facet table: {:?}",
-                                        categories.len(),
-                                        categories
-                                    );
-                                    return Ok(LegendScale::Discrete {
-                                        values: categories,
-                                        aesthetic_name: color_info.factor_name.clone(),
-                                    });
-                                }
-                            }
-                        }
-
-                        // Still no luck - use generic level labels
-                        eprintln!(
-                            "DEBUG: Factor not found in facet tables, using generic level labels"
-                        );
-                        Self::create_generic_level_legend(&color_info.factor_name)
-                    }
+                    let entries: Vec<(String, [u8; 3])> = (0..n_levels)
+                        .map(|i| {
+                            let label = format!("Level {}", i);
+                            let color = crate::tercen::categorical_color_from_level(i as i32);
+                            (label, color)
+                        })
+                        .collect();
+                    Ok(LegendScale::Discrete {
+                        entries,
+                        aesthetic_name: color_info.factor_name.clone(),
+                    })
                 } else {
-                    // No explicit mappings and no color table - use generic level labels
+                    // No explicit mappings and no n_levels - use default generic level labels
                     eprintln!(
-                        "DEBUG: No explicit mappings or color table, using generic level labels"
+                        "DEBUG: No explicit mappings or n_levels, using default generic level labels"
                     );
                     Self::create_generic_level_legend(&color_info.factor_name)
                 }

@@ -26,6 +26,13 @@ pub struct ColorInfo {
     /// Used to rescale the palette when is_user_defined=false.
     /// Format: [Q1, Q2, Q3, min, max] as strings
     pub quartiles: Option<Vec<String>>,
+    /// Number of categorical levels (from color table schema nRows)
+    /// Used to generate legend labels without streaming the table
+    pub n_levels: Option<usize>,
+    /// Actual category labels from the color table (for categorical colors).
+    /// These are the values from the factor column in the color table.
+    /// When available, used instead of generic "Level N" labels.
+    pub color_labels: Option<Vec<String>>,
 }
 
 /// Color mapping - either continuous interpolation or categorical lookup
@@ -492,7 +499,9 @@ pub fn extract_color_info_from_step(
             factor_type: factor.r#type.clone(),
             mapping,
             color_table_id,
-            quartiles: None, // Will be populated later from column schema metadata
+            quartiles: None,    // Will be populated later from column schema metadata
+            n_levels: None,     // Will be populated later from color table schema nRows
+            color_labels: None, // Will be populated later from color table data
         });
     }
 
@@ -501,32 +510,6 @@ pub fn extract_color_info_from_step(
         color_infos.len()
     );
     Ok(color_infos)
-}
-
-/// Generate a categorical color from a level index using a default palette
-///
-/// Uses a qualitative color scheme similar to R's default categorical colors.
-/// Colors repeat after 12 levels.
-pub fn categorical_color_from_level(level: i32) -> [u8; 3] {
-    // Default categorical palette (similar to R's default colors)
-    // Based on a qualitative color scheme with good distinguishability
-    const CATEGORICAL_COLORS: [[u8; 3]; 12] = [
-        [228, 26, 28],   // Red
-        [55, 126, 184],  // Blue
-        [77, 175, 74],   // Green
-        [152, 78, 163],  // Purple
-        [255, 127, 0],   // Orange
-        [255, 255, 51],  // Yellow
-        [166, 86, 40],   // Brown
-        [247, 129, 191], // Pink
-        [153, 153, 153], // Gray
-        [102, 194, 165], // Teal
-        [252, 141, 98],  // Coral
-        [141, 160, 203], // Lavender
-    ];
-
-    let index = (level as usize) % CATEGORICAL_COLORS.len();
-    CATEGORICAL_COLORS[index]
 }
 
 /// Interpolate a color value using the palette
