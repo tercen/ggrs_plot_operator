@@ -1126,6 +1126,7 @@ dependencies = [
 [[package]]
 name = "ggrs-core"
 version = "0.1.0"
+source = "git+https://github.com/tercen/ggrs?branch=main#40546a0f97320e9503ce36c66e55a827784f567b"
 dependencies = [
  "bytemuck",
  "cairo-rs",
@@ -1145,6 +1146,7 @@ dependencies = [
 [[package]]
 name = "ggrs-text"
 version = "0.1.0"
+source = "git+https://github.com/tercen/ggrs?branch=main#40546a0f97320e9503ce36c66e55a827784f567b"
 dependencies = [
  "ab_glyph",
  "thiserror 1.0.69",
@@ -1158,6 +1160,7 @@ dependencies = [
  "base64",
  "futures",
  "ggrs-core",
+ "once_cell",
  "polars",
  "prost",
  "prost-types",

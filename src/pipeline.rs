@@ -189,12 +189,23 @@ fn render_page<C: TercenContext>(
     use ggrs_core::renderer::{BackendChoice, OutputFormat};
 
     // Resolve plot dimensions
+    // Priority: 1) crosstab dimensions from Tercen UI, 2) grid-based calculation
+    let crosstab_dims = ctx.crosstab_dimensions();
+    let (sizing_cols, sizing_rows) = stream_gen.sizing_dims();
     let (plot_width, plot_height) =
-        config.resolve_dimensions(stream_gen.n_col_facets(), stream_gen.n_row_facets());
-    println!(
-        "  Resolved plot size: {}×{} pixels",
-        plot_width, plot_height
-    );
+        config.resolve_dimensions_with_crosstab(crosstab_dims, sizing_cols, sizing_rows);
+
+    if let Some((ct_w, ct_h)) = crosstab_dims {
+        println!(
+            "  Plot size: {}×{} pixels (from crosstab {}×{} + legend space)",
+            plot_width, plot_height, ct_w, ct_h
+        );
+    } else {
+        println!(
+            "  Plot size: {}×{} pixels (from {}×{} grid + legend space)",
+            plot_width, plot_height, sizing_cols, sizing_rows
+        );
+    }
 
     // Create theme
     let mut theme = Theme {

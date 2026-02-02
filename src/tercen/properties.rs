@@ -129,26 +129,24 @@ impl PlotDimension {
 
     /// Resolve to actual pixels
     ///
-    /// For Auto: derives from facet count using formula:
-    /// - base_size (800px) + (n_facets - 1) * size_per_facet (400px)
-    /// - Capped at max_size (4000px)
+    /// For Auto: derives from grid dimension using formula:
+    /// - base_size (800px) + (n - 1) * size_per_unit (400px)
+    /// - No upper limit (grows with grid size)
     ///
     /// Examples:
-    /// - 1 facet → 800px
-    /// - 2 facets → 1200px
-    /// - 3 facets → 1600px
-    /// - 4 facets → 2000px
-    /// - 10 facets → 4000px (capped)
-    pub fn resolve(&self, n_facets: usize) -> i32 {
+    /// - 1 unit → 800px
+    /// - 2 units → 1200px
+    /// - 3 units → 1600px
+    /// - 10 units → 4400px
+    /// - 50 units → 20400px
+    pub fn resolve(&self, n_units: usize) -> i32 {
         match self {
             PlotDimension::Pixels(px) => *px,
             PlotDimension::Auto => {
                 const BASE_SIZE: i32 = 800;
-                const SIZE_PER_FACET: i32 = 400;
-                const MAX_SIZE: i32 = 4000;
+                const SIZE_PER_UNIT: i32 = 400;
 
-                let computed = BASE_SIZE + (n_facets.saturating_sub(1) as i32 * SIZE_PER_FACET);
-                computed.min(MAX_SIZE)
+                BASE_SIZE + (n_units.saturating_sub(1) as i32 * SIZE_PER_UNIT)
             }
         }
     }
@@ -174,7 +172,7 @@ mod tests {
         assert_eq!(dim.resolve(2), 1200); // 2 facets
         assert_eq!(dim.resolve(3), 1600); // 3 facets
         assert_eq!(dim.resolve(4), 2000); // 4 facets
-        assert_eq!(dim.resolve(10), 4000); // Capped at max
+        assert_eq!(dim.resolve(10), 4400); // 10 facets (no cap)
     }
 
     #[test]

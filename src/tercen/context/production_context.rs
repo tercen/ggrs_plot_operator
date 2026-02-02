@@ -26,6 +26,9 @@ pub struct ProductionContext {
     x_axis_table_id: Option<String>,
     point_size: Option<i32>,
     chart_kind: ChartKind,
+    /// Crosstab dimensions from model (width, height) in pixels
+    /// Calculated as cellSize × nRows for each axis
+    crosstab_dimensions: Option<(i32, i32)>,
 }
 
 impl ProductionContext {
@@ -154,6 +157,10 @@ impl ProductionContext {
         // Extract chart kind from workflow step
         let chart_kind = Self::extract_chart_kind(&client, &workflow_id, &step_id).await?;
 
+        // Extract crosstab dimensions from workflow step model
+        let crosstab_dimensions =
+            Self::extract_crosstab_dimensions(&client, &workflow_id, &step_id).await?;
+
         Ok(Self {
             client,
             cube_query,
@@ -169,6 +176,7 @@ impl ProductionContext {
             x_axis_table_id,
             point_size,
             chart_kind,
+            crosstab_dimensions,
         })
     }
 
@@ -718,6 +726,91 @@ impl ProductionContext {
             }
         }
     }
+
+    /// Extract crosstab dimensions from workflow step model
+    ///
+    /// Returns (width, height) calculated as:
+    /// - width = columnTable.cellSize × columnTable.nRows
+    /// - height = rowTable.cellSize × rowTable.nRows
+    async fn extract_crosstab_dimensions(
+        client: &TercenClient,
+        workflow_id: &str,
+        step_id: &str,
+    ) -> Result<Option<(i32, i32)>, Box<dyn std::error::Error>> {
+        use crate::tercen::client::proto::e_step;
+
+        if workflow_id.is_empty() || step_id.is_empty() {
+            return Ok(None);
+        }
+
+        // Fetch workflow
+        let mut workflow_service = client.workflow_service()?;
+        let request = tonic::Request::new(crate::tercen::client::proto::GetRequest {
+            id: workflow_id.to_string(),
+            ..Default::default()
+        });
+        let response = workflow_service.get(request).await?;
+        let e_workflow = response.into_inner();
+
+        let workflow = e_workflow
+            .object
+            .as_ref()
+            .map(|obj| match obj {
+                crate::tercen::client::proto::e_workflow::Object::Workflow(wf) => wf,
+            })
+            .ok_or("EWorkflow has no workflow object")?;
+
+        // Find the step
+        let step = workflow.steps.iter().find(|s| match &s.object {
+            Some(e_step::Object::Datastep(ds)) => ds.id == step_id,
+            Some(e_step::Object::Crosstabstep(cs)) => cs.id == step_id,
+            _ => false,
+        });
+
+        let step = match step {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+
+        // Get the Crosstab model from the step
+        let model = match &step.object {
+            Some(e_step::Object::Datastep(ds)) => ds.model.as_ref(),
+            Some(e_step::Object::Crosstabstep(cs)) => cs.model.as_ref(),
+            _ => None,
+        };
+
+        let model = match model {
+            Some(m) => m,
+            None => return Ok(None),
+        };
+
+        // Extract dimensions from columnTable and rowTable
+        let width = model.column_table.as_ref().map(|ct| {
+            let cell_size = ct.cell_size as i32;
+            let n_rows = ct.n_rows.max(1); // At least 1
+            cell_size * n_rows
+        });
+
+        let height = model.row_table.as_ref().map(|rt| {
+            let cell_size = rt.cell_size as i32;
+            let n_rows = rt.n_rows.max(1); // At least 1
+            cell_size * n_rows
+        });
+
+        match (width, height) {
+            (Some(w), Some(h)) if w > 0 && h > 0 => {
+                println!(
+                    "[ProductionContext] Crosstab dimensions: {}×{} pixels",
+                    w, h
+                );
+                Ok(Some((w, h)))
+            }
+            _ => {
+                eprintln!("[ProductionContext] Could not extract crosstab dimensions");
+                Ok(None)
+            }
+        }
+    }
 }
 
 impl TercenContext for ProductionContext {
@@ -771,6 +864,10 @@ impl TercenContext for ProductionContext {
 
     fn chart_kind(&self) -> ChartKind {
         self.chart_kind
+    }
+
+    fn crosstab_dimensions(&self) -> Option<(i32, i32)> {
+        self.crosstab_dimensions
     }
 
     fn client(&self) -> &Arc<TercenClient> {

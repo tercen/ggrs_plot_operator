@@ -62,6 +62,10 @@ pub trait TercenContext: Send + Sync {
     /// Get the chart kind (Point, Heatmap, Line, Bar)
     fn chart_kind(&self) -> ChartKind;
 
+    /// Get the crosstab dimensions from the model (cellSize × nRows for each axis)
+    /// Returns (width, height) in pixels, or None if not available
+    fn crosstab_dimensions(&self) -> Option<(i32, i32)>;
+
     /// Get the Tercen client
     fn client(&self) -> &Arc<TercenClient>;
 

@@ -27,6 +27,7 @@ pub struct DevContext {
     x_axis_table_id: Option<String>,
     point_size: Option<i32>,
     chart_kind: ChartKind,
+    crosstab_dimensions: Option<(i32, i32)>,
 }
 
 impl DevContext {
@@ -193,6 +194,9 @@ impl DevContext {
             }
         };
 
+        // Extract crosstab dimensions from step model
+        let crosstab_dimensions = Self::extract_crosstab_dimensions(&workflow, step_id);
+
         Ok(Self {
             client,
             cube_query,
@@ -208,7 +212,53 @@ impl DevContext {
             x_axis_table_id,
             point_size,
             chart_kind,
+            crosstab_dimensions,
         })
+    }
+
+    /// Extract crosstab dimensions from workflow step model
+    fn extract_crosstab_dimensions(
+        workflow: &crate::tercen::client::proto::Workflow,
+        step_id: &str,
+    ) -> Option<(i32, i32)> {
+        use crate::tercen::client::proto::e_step;
+
+        // Find the step
+        let step = workflow.steps.iter().find(|s| match &s.object {
+            Some(e_step::Object::Datastep(ds)) => ds.id == step_id,
+            Some(e_step::Object::Crosstabstep(cs)) => cs.id == step_id,
+            _ => false,
+        })?;
+
+        // Get the Crosstab model from the step
+        let model = match &step.object {
+            Some(e_step::Object::Datastep(ds)) => ds.model.as_ref(),
+            Some(e_step::Object::Crosstabstep(cs)) => cs.model.as_ref(),
+            _ => None,
+        }?;
+
+        // Extract dimensions from columnTable and rowTable
+        let width = model.column_table.as_ref().map(|ct| {
+            let cell_size = ct.cell_size as i32;
+            let n_rows = ct.n_rows.max(1);
+            cell_size * n_rows
+        })?;
+
+        let height = model.row_table.as_ref().map(|rt| {
+            let cell_size = rt.cell_size as i32;
+            let n_rows = rt.n_rows.max(1);
+            cell_size * n_rows
+        })?;
+
+        if width > 0 && height > 0 {
+            println!(
+                "[DevContext] Crosstab dimensions: {}×{} pixels",
+                width, height
+            );
+            Some((width, height))
+        } else {
+            None
+        }
     }
 
     /// Find Y-axis table from schema_ids
@@ -547,6 +597,10 @@ impl TercenContext for DevContext {
 
     fn chart_kind(&self) -> ChartKind {
         self.chart_kind
+    }
+
+    fn crosstab_dimensions(&self) -> Option<(i32, i32)> {
+        self.crosstab_dimensions
     }
 
     fn client(&self) -> &Arc<TercenClient> {

@@ -342,16 +342,53 @@ impl OperatorConfig {
 
     /// Resolve plot dimensions to actual pixels
     ///
-    /// Called after knowing facet counts. For "auto" dimensions,
-    /// derives size from facet count using:
-    /// - base_size (800px) + (n_facets - 1) * 400px
-    /// - Capped at 4000px
+    /// Priority for auto-sizing:
+    /// 1. If crosstab_dimensions provided, use those (from Tercen UI)
+    /// 2. Otherwise, derive from grid dimensions (facet count or heatmap size)
+    ///
+    /// Legend space is added based on legend position:
+    /// - left/right: adds width
+    /// - top/bottom: adds height
+    /// - inside/none: no extra space
     ///
     /// Returns (width, height) in pixels
+    pub fn resolve_dimensions_with_crosstab(
+        &self,
+        crosstab_dims: Option<(i32, i32)>,
+        grid_cols: usize,
+        grid_rows: usize,
+    ) -> (i32, i32) {
+        // Calculate legend space based on position
+        let (legend_width, legend_height) = match self.legend_position.to_lowercase().as_str() {
+            "left" | "right" => (150, 0), // Space for vertical legend
+            "top" | "bottom" => (0, 100), // Space for horizontal legend
+            _ => (0, 0),                  // Inside or none
+        };
+
+        // Resolve base dimensions
+        let (base_width, base_height) = if let Some((w, h)) = crosstab_dims {
+            // Use crosstab dimensions from Tercen UI (cellSize × nRows)
+            match (&self.plot_width, &self.plot_height) {
+                (PlotDimension::Auto, PlotDimension::Auto) => (w, h),
+                (PlotDimension::Pixels(pw), PlotDimension::Auto) => (*pw, h),
+                (PlotDimension::Auto, PlotDimension::Pixels(ph)) => (w, *ph),
+                (PlotDimension::Pixels(pw), PlotDimension::Pixels(ph)) => (*pw, *ph),
+            }
+        } else {
+            // Fallback to grid-based calculation
+            let width = self.plot_width.resolve(grid_cols);
+            let height = self.plot_height.resolve(grid_rows);
+            (width, height)
+        };
+
+        // Add legend space
+        (base_width + legend_width, base_height + legend_height)
+    }
+
+    /// Legacy method for backwards compatibility
+    /// Prefer resolve_dimensions_with_crosstab when crosstab info is available
     pub fn resolve_dimensions(&self, n_col_facets: usize, n_row_facets: usize) -> (i32, i32) {
-        let width = self.plot_width.resolve(n_col_facets);
-        let height = self.plot_height.resolve(n_row_facets);
-        (width, height)
+        self.resolve_dimensions_with_crosstab(None, n_col_facets, n_row_facets)
     }
 
     /// Convert legend config to GGRS LegendPosition enum

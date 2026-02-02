@@ -538,6 +538,22 @@ impl TercenStreamGenerator {
         )
     }
 
+    /// Get dimensions for auto-sizing the plot
+    ///
+    /// Returns (n_cols, n_rows) to use for calculating plot width/height.
+    /// - For heatmaps: uses the grid dimensions (tiles)
+    /// - For regular plots: uses the facet counts
+    pub fn sizing_dims(&self) -> (usize, usize) {
+        if let Some((n_cols, n_rows)) = self.heatmap_mode {
+            (n_cols, n_rows)
+        } else {
+            (
+                self.facet_info.n_col_facets(),
+                self.facet_info.n_row_facets(),
+            )
+        }
+    }
+
     /// Get X-axis labels for heatmaps (from column facet schema)
     /// Returns None if not in heatmap mode or no labels available
     pub fn heatmap_x_labels(&self) -> Option<Vec<String>> {
