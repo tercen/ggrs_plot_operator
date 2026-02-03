@@ -29,6 +29,8 @@ pub struct ProductionContext {
     /// Crosstab dimensions from model (width, height) in pixels
     /// Calculated as cellSize × nRows for each axis
     crosstab_dimensions: Option<(i32, i32)>,
+    y_transform: Option<String>,
+    x_transform: Option<String>,
 }
 
 impl ProductionContext {
@@ -154,6 +156,9 @@ impl ProductionContext {
         let crosstab_dimensions =
             Self::extract_crosstab_dimensions(&client, &workflow_id, &step_id).await?;
 
+        // Extract axis transforms from CubeAxisQuery
+        let (y_transform, x_transform) = Self::extract_transforms(&cube_query);
+
         Ok(Self {
             client,
             cube_query,
@@ -170,7 +175,75 @@ impl ProductionContext {
             point_size,
             chart_kind,
             crosstab_dimensions,
+            y_transform,
+            x_transform,
         })
+    }
+
+    /// Extract axis transform types from Crosstab model
+    ///
+    /// Transforms are stored in step.model.axis.xyAxis[0].preprocessors
+    /// The structure is:
+    /// - preprocessors[i].type = "y" or "x" (which axis the transform applies to)
+    /// - preprocessors[i].operatorRef.name = "log", "asinh", etc. (the actual transform)
+    fn extract_transforms(cube_query: &CubeQuery) -> (Option<String>, Option<String>) {
+        // In production, we only have CubeQuery, not direct access to Crosstab
+        // The CubeQuery.axisQueries also contains preprocessors, but they use operatorRef.name
+
+        for (i, aq) in cube_query.axis_queries.iter().enumerate() {
+            for (j, pp) in aq.preprocessors.iter().enumerate() {
+                let transform_name = pp
+                    .operator_ref
+                    .as_ref()
+                    .map(|op_ref| op_ref.name.as_str())
+                    .unwrap_or("");
+
+                eprintln!(
+                    "DEBUG extract_transforms: axisQuery[{}].preprocessors[{}] type='{}', operatorRef.name='{}'",
+                    i, j, pp.r#type, transform_name
+                );
+            }
+        }
+
+        // Get the first axis query
+        let axis_query = match cube_query.axis_queries.first() {
+            Some(aq) => aq,
+            None => return (None, None),
+        };
+
+        let mut y_transform = None;
+        let mut x_transform = None;
+
+        for pp in &axis_query.preprocessors {
+            let transform_name = pp
+                .operator_ref
+                .as_ref()
+                .map(|op_ref| op_ref.name.as_str())
+                .unwrap_or("");
+
+            let axis_type = pp.r#type.as_str();
+
+            let is_valid_transform = matches!(
+                transform_name,
+                "log" | "log10" | "ln" | "log2" | "asinh" | "sqrt"
+            );
+
+            if is_valid_transform {
+                match axis_type {
+                    "y" => {
+                        println!("[ProductionContext] Y-axis transform: {}", transform_name);
+                        y_transform = Some(transform_name.to_string());
+                    }
+                    "x" => {
+                        println!("[ProductionContext] X-axis transform: {}", transform_name);
+                        x_transform = Some(transform_name.to_string());
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        (y_transform, x_transform)
     }
 
     /// Fetch schema_ids from the CubeQueryTask (canonical source)
@@ -808,6 +881,14 @@ impl TercenContext for ProductionContext {
 
     fn crosstab_dimensions(&self) -> Option<(i32, i32)> {
         self.crosstab_dimensions
+    }
+
+    fn y_transform(&self) -> Option<&str> {
+        self.y_transform.as_deref()
+    }
+
+    fn x_transform(&self) -> Option<&str> {
+        self.x_transform.as_deref()
     }
 
     fn client(&self) -> &Arc<TercenClient> {

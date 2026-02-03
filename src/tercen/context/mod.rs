@@ -66,6 +66,14 @@ pub trait TercenContext: Send + Sync {
     /// Returns (width, height) in pixels, or None if not available
     fn crosstab_dimensions(&self) -> Option<(i32, i32)>;
 
+    /// Get the Y-axis transform type (e.g., "log", "asinh", "sqrt")
+    /// Returns None if no transform is applied (identity)
+    fn y_transform(&self) -> Option<&str>;
+
+    /// Get the X-axis transform type (e.g., "log", "asinh", "sqrt")
+    /// Returns None if no transform is applied (identity) or if no X-axis is defined
+    fn x_transform(&self) -> Option<&str>;
+
     /// Get the Tercen client
     fn client(&self) -> &Arc<TercenClient>;
 

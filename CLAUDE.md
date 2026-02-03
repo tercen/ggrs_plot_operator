@@ -6,6 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the GGRS plotting library with Tercen's gRPC API. It receives tabular data from Tercen, generates high-performance plots with faceting and colors, and returns PNG images.
 
+## Session Continuity
+
+**Read these first for current context:**
+- `CONTINUE.md` - Current ongoing work status, next tasks, test configuration
+- `SESSION_*.md` - Recent session notes with implementation details
+- `docs/` - Architecture docs (numbered in reading order, start with `09_FINAL_DESIGN.md`)
+
 ## Essential Commands
 
 ```bash
@@ -97,7 +104,15 @@ The hashes in `CubeQuery` ARE the table IDs - they can be passed directly to `ge
 
 ### Related Repository
 
-The `ggrs-core` library at `../ggrs/crates/ggrs-core` is the plotting engine. Changes often span both repositories. Use local path for dev, switch to git dependency for CI.
+The `ggrs-core` library at `../ggrs/crates/ggrs-core` is the plotting engine. Changes often span both repositories.
+
+**IMPORTANT**: Cargo.toml uses local path for dev, must switch to git dependency for CI:
+```toml
+# Dev (local):
+ggrs-core = { path = "../ggrs/crates/ggrs-core", features = [...] }
+# CI/Production (git):
+# ggrs-core = { git = "https://github.com/tercen/ggrs", branch = "main", features = [...] }
+```
 
 ### Chart-Type Driven Layout
 
@@ -224,8 +239,3 @@ When the same factor is used for both column and row facets (e.g., `sp` on both 
 2. `cargo clippy -- -D warnings`
 3. `cargo build --profile dev-release`
 4. `cargo test`
-
-### Session Context
-- `CONTINUE.md` - Current ongoing work status (read this first for context)
-- `SESSION_*.md` - Recent session notes
-- `docs/` - Architecture and implementation docs (numbered in reading order)

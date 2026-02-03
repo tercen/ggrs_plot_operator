@@ -126,7 +126,9 @@ pub async fn generate_plots<C: TercenContext>(
         .colors(ctx.color_infos().to_vec())
         .page_factors(ctx.page_factors().to_vec())
         .schema_cache(schema_cache.clone())
-        .heatmap_cell_aggregation(config.heatmap_cell_aggregation);
+        .heatmap_cell_aggregation(config.heatmap_cell_aggregation)
+        .y_transform(ctx.y_transform().map(|s| s.to_string()))
+        .x_transform(ctx.x_transform().map(|s| s.to_string()));
 
         let mut stream_gen =
             TercenStreamGenerator::new(client_arc.clone(), stream_config, page_filter).await?;
@@ -290,6 +292,10 @@ fn render_page<C: TercenContext>(
             "  Chart layout: HeatmapLayout (grid {}×{}, no expansion)",
             n_cols, n_rows
         );
+    } else {
+        // Non-heatmap charts: use default ContinuousScale
+        // Transform handling will be implemented in GGRS via NumericAxisData.transform
+        println!("  Chart layout: Default (ContinuousScale)");
     }
 
     // Add text labels from configuration

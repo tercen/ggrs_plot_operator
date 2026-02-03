@@ -9,7 +9,10 @@ use ggrs_core::{
     aes::Aes,
     data::DataFrame,
     legend::{ColorStop as LegendColorStop, LegendScale},
-    stream::{AxisData, CategoricalAxisData, FacetSpec, NumericAxisData, Range, StreamGenerator},
+    stream::{
+        AxisData, CategoricalAxisData, FacetSpec, NumericAxisData, Range, StreamGenerator,
+        Transform, TransformType,
+    },
 };
 use polars::prelude::IntoColumn;
 use std::collections::HashMap;
@@ -45,6 +48,11 @@ pub struct TercenStreamConfig {
     pub schema_cache: Option<SchemaCache>,
     /// How to aggregate multiple data points in the same heatmap cell
     pub heatmap_cell_aggregation: HeatmapCellAggregation,
+    /// Y-axis transform type (e.g., "log", "ln", "log10")
+    /// When set, indicates data is pre-transformed and GGRS should invert it
+    pub y_transform: Option<String>,
+    /// X-axis transform type
+    pub x_transform: Option<String>,
 }
 
 impl TercenStreamConfig {
@@ -66,6 +74,8 @@ impl TercenStreamConfig {
             page_factors: Vec::new(),
             schema_cache: None,
             heatmap_cell_aggregation: HeatmapCellAggregation::Last,
+            y_transform: None,
+            x_transform: None,
         }
     }
 
@@ -102,6 +112,21 @@ impl TercenStreamConfig {
     /// Set heatmap cell aggregation method
     pub fn heatmap_cell_aggregation(mut self, method: HeatmapCellAggregation) -> Self {
         self.heatmap_cell_aggregation = method;
+        self
+    }
+
+    /// Set Y-axis transform type
+    ///
+    /// When set, indicates that Y-axis data is pre-transformed (e.g., already in log space).
+    /// GGRS will invert the transform to get original values before applying the scale.
+    pub fn y_transform(mut self, transform: Option<String>) -> Self {
+        self.y_transform = transform;
+        self
+    }
+
+    /// Set X-axis transform type
+    pub fn x_transform(mut self, transform: Option<String>) -> Self {
+        self.x_transform = transform;
         self
     }
 }
@@ -141,6 +166,56 @@ pub fn extract_column_names_from_schema(
     } else {
         Err("Schema is not a CubeQueryTableSchema".into())
     }
+}
+
+/// Convert a transform name string to a Transform struct
+///
+/// Tercen uses names like "log", "ln", "log10", "log2", "asinh", "sqrt", "logicle"
+/// For asinh and logicle, parameters can be passed as "asinh:cofactor=5" or "logicle:T=262144,W=0.5,M=4.5,A=0"
+fn string_to_transform(name: &str) -> Option<Transform> {
+    // Parse name and optional parameters (format: "transform:param1=val1,param2=val2")
+    let parts: Vec<&str> = name.splitn(2, ':').collect();
+    let transform_name = parts[0].to_lowercase();
+    let params_str = parts.get(1).copied();
+
+    let transform_type = match transform_name.as_str() {
+        "log" | "ln" => TransformType::Ln, // Tercen's "log" uses natural log
+        "log10" => TransformType::Log10,
+        "asinh" => TransformType::Asinh,
+        "logicle" => TransformType::Logicle,
+        "sqrt" => TransformType::Sqrt,
+        _ => return None,
+    };
+
+    // Parse parameters if provided
+    let parameters = if let Some(params) = params_str {
+        params
+            .split(',')
+            .filter_map(|p| {
+                let kv: Vec<&str> = p.splitn(2, '=').collect();
+                if kv.len() == 2 {
+                    let key = kv[0].trim().to_string();
+                    let value = kv[1].trim().parse::<f64>().ok()?;
+                    Some((key, ggrs_core::data::Value::Float(value)))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    } else {
+        // Default parameters for specific transforms
+        match transform_type {
+            TransformType::Asinh => {
+                vec![("cofactor".to_string(), ggrs_core::data::Value::Float(1.0))]
+            }
+            _ => vec![],
+        }
+    };
+
+    Some(Transform {
+        transform_type,
+        parameters,
+    })
 }
 
 /// Tercen implementation of GGRS StreamGenerator
@@ -204,6 +279,16 @@ pub struct TercenStreamGenerator {
 
     /// How to aggregate multiple data points in the same heatmap cell
     heatmap_cell_aggregation: HeatmapCellAggregation,
+
+    /// Y-axis transform type (e.g., "log", "ln", "log10")
+    /// When set, indicates Y data is pre-transformed and GGRS should invert it
+    /// Note: Transform is applied to axis_ranges, this field kept for debugging
+    #[allow(dead_code)]
+    y_transform: Option<Transform>,
+
+    /// X-axis transform type
+    #[allow(dead_code)]
+    x_transform: Option<Transform>,
 }
 
 impl TercenStreamGenerator {
@@ -235,7 +320,20 @@ impl TercenStreamGenerator {
             page_factors,
             schema_cache,
             heatmap_cell_aggregation,
+            y_transform,
+            x_transform,
         } = config;
+
+        // Convert transform strings to Transform structs
+        let y_transform = y_transform.and_then(|t| string_to_transform(&t));
+        let x_transform = x_transform.and_then(|t| string_to_transform(&t));
+
+        if y_transform.is_some() {
+            println!("  Y-axis transform: {:?}", y_transform);
+        }
+        if x_transform.is_some() {
+            println!("  X-axis transform: {:?}", x_transform);
+        }
 
         // Load facets with optional filtering for pagination
         // Each page should only show its own facet panels
@@ -317,6 +415,23 @@ impl TercenStreamGenerator {
         // load_axis_ranges_from_table() already maps table's .ri (0-11) → original_index (12-23)
         // This ensures data[.ri=12] can look up y_ranges[12] correctly
         eprintln!("DEBUG: axis_ranges keyed by original_index for data matching");
+
+        // Apply transform info to axis ranges
+        // This tells GGRS that the data is pre-transformed and needs inversion
+        if y_transform.is_some() || x_transform.is_some() {
+            for (x_axis, y_axis) in axis_ranges.values_mut() {
+                if let AxisData::Numeric(ref mut num) = y_axis {
+                    num.transform = y_transform.clone();
+                }
+                if let AxisData::Numeric(ref mut num) = x_axis {
+                    num.transform = x_transform.clone();
+                }
+            }
+            eprintln!(
+                "DEBUG: Applied transforms to axis_ranges - Y: {:?}, X: {:?}",
+                y_transform, x_transform
+            );
+        }
 
         eprintln!(
             "DEBUG: TercenStreamGenerator initialized with total_rows = {}",
@@ -430,6 +545,8 @@ impl TercenStreamGenerator {
             schema_cache,
             heatmap_cached_data: RwLock::new(None),
             heatmap_cell_aggregation,
+            y_transform,
+            x_transform,
         })
     }
 
@@ -503,6 +620,8 @@ impl TercenStreamGenerator {
             schema_cache: None, // sync method - no caching
             heatmap_cached_data: RwLock::new(None),
             heatmap_cell_aggregation: HeatmapCellAggregation::Last, // Default for sync constructor
+            y_transform: None, // Sync constructor doesn't support transforms
+            x_transform: None,
         }
     }
 

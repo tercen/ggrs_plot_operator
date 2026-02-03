@@ -28,6 +28,8 @@ pub struct DevContext {
     point_size: Option<i32>,
     chart_kind: ChartKind,
     crosstab_dimensions: Option<(i32, i32)>,
+    y_transform: Option<String>,
+    x_transform: Option<String>,
 }
 
 impl DevContext {
@@ -197,6 +199,11 @@ impl DevContext {
         // Extract crosstab dimensions from step model
         let crosstab_dimensions = Self::extract_crosstab_dimensions(&workflow, step_id);
 
+        // Extract axis transforms from Crosstab model (not CubeQuery)
+        // Transforms are in step.model.axis.xyAxis[0].preprocessors
+        let (y_transform, x_transform) =
+            Self::extract_transforms_from_step(&workflow, step_id, &cube_query);
+
         Ok(Self {
             client,
             cube_query,
@@ -213,7 +220,203 @@ impl DevContext {
             point_size,
             chart_kind,
             crosstab_dimensions,
+            y_transform,
+            x_transform,
         })
+    }
+
+    /// Extract axis transform types from Crosstab model and CubeQuery
+    ///
+    /// Transforms are stored in two places:
+    /// 1. step.model.axis.xyAxis[0].preprocessors - the actual transform settings
+    /// 2. cube_query.axis_queries[0].preprocessors - may contain axis type info
+    ///
+    /// The preprocessor type can be "log", "log10", "asinh", "sqrt", etc.
+    fn extract_transforms_from_step(
+        workflow: &crate::tercen::client::proto::Workflow,
+        step_id: &str,
+        cube_query: &CubeQuery,
+    ) -> (Option<String>, Option<String>) {
+        use crate::tercen::client::proto::e_step;
+
+        // First, try to get transforms from the Crosstab model (step.model.axis.xyAxis)
+        let step = workflow.steps.iter().find(|s| match &s.object {
+            Some(e_step::Object::Datastep(ds)) => ds.id == step_id,
+            Some(e_step::Object::Crosstabstep(cs)) => cs.id == step_id,
+            _ => false,
+        });
+
+        if let Some(step) = step {
+            let model = match &step.object {
+                Some(e_step::Object::Datastep(ds)) => ds.model.as_ref(),
+                Some(e_step::Object::Crosstabstep(cs)) => cs.model.as_ref(),
+                _ => None,
+            };
+
+            if let Some(crosstab) = model {
+                // Check axis.xyAxis for preprocessors
+                if let Some(ref axis_list) = crosstab.axis {
+                    eprintln!(
+                        "DEBUG extract_transforms: Found {} xyAxis in Crosstab.axis",
+                        axis_list.xy_axis.len()
+                    );
+
+                    for (i, xy_axis) in axis_list.xy_axis.iter().enumerate() {
+                        eprintln!(
+                            "DEBUG extract_transforms: xyAxis[{}] has {} preprocessors",
+                            i,
+                            xy_axis.preprocessors.len()
+                        );
+                        for (j, pp) in xy_axis.preprocessors.iter().enumerate() {
+                            eprintln!(
+                                "DEBUG extract_transforms: xyAxis[{}].preprocessors[{}].type = '{}'",
+                                i, j, pp.r#type
+                            );
+                        }
+                    }
+
+                    // Get the first xyAxis and look for transforms
+                    if let Some(xy_axis) = axis_list.xy_axis.first() {
+                        // Check yAxis.axisSettings.meta for transform info
+                        if let Some(ref y_axis) = xy_axis.y_axis {
+                            if let Some(ref axis_settings) = y_axis.axis_settings {
+                                eprintln!(
+                                    "DEBUG extract_transforms: yAxis.axisSettings.meta has {} pairs",
+                                    axis_settings.meta.len()
+                                );
+                                for pair in &axis_settings.meta {
+                                    eprintln!(
+                                        "DEBUG extract_transforms:   yAxis.axisSettings.meta['{}'] = '{}'",
+                                        pair.key, pair.value
+                                    );
+                                }
+
+                                // Look for transform in meta pairs
+                                for pair in &axis_settings.meta {
+                                    if pair.key == "transform" || pair.key == "scale" {
+                                        let t = pair.value.as_str();
+                                        if matches!(
+                                            t,
+                                            "log" | "log10" | "ln" | "log2" | "asinh" | "sqrt"
+                                        ) {
+                                            println!("[DevContext] Y-axis transform (from yAxis.axisSettings): {}", t);
+                                            return (Some(t.to_string()), None);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Check xAxis.axisSettings.meta for transform info
+                        if let Some(ref x_axis) = xy_axis.x_axis {
+                            if let Some(ref axis_settings) = x_axis.axis_settings {
+                                eprintln!(
+                                    "DEBUG extract_transforms: xAxis.axisSettings.meta has {} pairs",
+                                    axis_settings.meta.len()
+                                );
+                                for pair in &axis_settings.meta {
+                                    eprintln!(
+                                        "DEBUG extract_transforms:   xAxis.axisSettings.meta['{}'] = '{}'",
+                                        pair.key, pair.value
+                                    );
+                                }
+                            }
+                        }
+
+                        // Extract transforms from preprocessors
+                        // Structure: preprocessor.type = "y" or "x" (which axis)
+                        //            preprocessor.operatorRef.name = "log", "asinh", etc. (the transform)
+                        let mut y_transform = None;
+                        let mut x_transform = None;
+
+                        for pp in &xy_axis.preprocessors {
+                            let transform_name = pp
+                                .operator_ref
+                                .as_ref()
+                                .map(|op_ref| op_ref.name.as_str())
+                                .unwrap_or("");
+
+                            let axis_type = pp.r#type.as_str();
+
+                            eprintln!(
+                                "DEBUG extract_transforms: preprocessor type='{}', operatorRef.name='{}'",
+                                axis_type, transform_name
+                            );
+
+                            let is_valid_transform = matches!(
+                                transform_name,
+                                "log" | "log10" | "ln" | "log2" | "asinh" | "sqrt"
+                            );
+
+                            if is_valid_transform {
+                                match axis_type {
+                                    "y" => {
+                                        println!(
+                                            "[DevContext] Y-axis transform: {}",
+                                            transform_name
+                                        );
+                                        y_transform = Some(transform_name.to_string());
+                                    }
+                                    "x" => {
+                                        println!(
+                                            "[DevContext] X-axis transform: {}",
+                                            transform_name
+                                        );
+                                        x_transform = Some(transform_name.to_string());
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+
+                        if y_transform.is_some() || x_transform.is_some() {
+                            return (y_transform, x_transform);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback: check CubeQuery.axisQueries (for debugging)
+        eprintln!(
+            "DEBUG extract_transforms: Checking CubeQuery.axisQueries ({} queries)",
+            cube_query.axis_queries.len()
+        );
+
+        for (i, aq) in cube_query.axis_queries.iter().enumerate() {
+            eprintln!(
+                "DEBUG extract_transforms: axisQuery[{}] has {} preprocessors, chart_type='{}'",
+                i,
+                aq.preprocessors.len(),
+                aq.chart_type
+            );
+            for (j, pp) in aq.preprocessors.iter().enumerate() {
+                eprintln!(
+                    "DEBUG extract_transforms: axisQuery[{}].preprocessors[{}].type = '{}'",
+                    i, j, pp.r#type
+                );
+            }
+        }
+
+        // Try to extract from CubeQuery
+        if let Some(axis_query) = cube_query.axis_queries.first() {
+            let y_transform = axis_query.preprocessors.iter().find_map(|pp| {
+                let t = pp.r#type.as_str();
+                match t {
+                    "log" | "log10" | "ln" | "log2" | "asinh" | "sqrt" => {
+                        println!("[DevContext] Y-axis transform (from CubeQuery): {}", t);
+                        Some(t.to_string())
+                    }
+                    _ => None,
+                }
+            });
+
+            if y_transform.is_some() {
+                return (y_transform, None);
+            }
+        }
+
+        (None, None)
     }
 
     /// Extract crosstab dimensions from workflow step model
@@ -601,6 +804,14 @@ impl TercenContext for DevContext {
 
     fn crosstab_dimensions(&self) -> Option<(i32, i32)> {
         self.crosstab_dimensions
+    }
+
+    fn y_transform(&self) -> Option<&str> {
+        self.y_transform.as_deref()
+    }
+
+    fn x_transform(&self) -> Option<&str> {
+        self.x_transform.as_deref()
     }
 
     fn client(&self) -> &Arc<TercenClient> {
