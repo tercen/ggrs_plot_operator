@@ -11,8 +11,12 @@ use crate::tercen::colors::{ChartKind, ColorInfo};
 use crate::tercen::TercenClient;
 use std::sync::Arc;
 
+mod base;
 mod dev_context;
+mod helpers;
 mod production_context;
+
+pub use base::{ContextBase, ContextBaseBuilder};
 
 pub use dev_context::DevContext;
 pub use production_context::ProductionContext;
@@ -92,5 +96,34 @@ pub trait TercenContext: Send + Sync {
     /// Get the row facet table hash
     fn row_hash(&self) -> &str {
         &self.cube_query().row_hash
+    }
+
+    // === Factor name accessors (from CubeQuery.axisQueries[0]) ===
+
+    /// Get the color factor names from the first axis query
+    fn colors(&self) -> Vec<&str> {
+        self.cube_query()
+            .axis_queries
+            .first()
+            .map(|aq| aq.colors.iter().map(|f| f.name.as_str()).collect())
+            .unwrap_or_default()
+    }
+
+    /// Get the label factor names from the first axis query
+    fn labels(&self) -> Vec<&str> {
+        self.cube_query()
+            .axis_queries
+            .first()
+            .map(|aq| aq.labels.iter().map(|f| f.name.as_str()).collect())
+            .unwrap_or_default()
+    }
+
+    /// Get the error factor names from the first axis query
+    fn errors(&self) -> Vec<&str> {
+        self.cube_query()
+            .axis_queries
+            .first()
+            .map(|aq| aq.errors.iter().map(|f| f.name.as_str()).collect())
+            .unwrap_or_default()
     }
 }

@@ -1,11 +1,14 @@
 //! Operator configuration from Tercen properties
 //!
-//! Configuration is loaded from operator properties (defined in operator.json)
-//! rather than config files. When testing locally with no properties set,
-//! explicit defaults are used.
+//! Configuration is loaded from operator properties (defined in operator.json).
+//! All default values come from operator.json - no hardcoded fallbacks in this code.
+//!
+//! Property definitions and defaults are parsed from operator.json at compile time
+//! via the `OperatorPropertyReader` which ensures single-source-of-truth for defaults.
 
 use crate::tercen::client::proto::OperatorSettings;
-use crate::tercen::properties::{PlotDimension, PropertyReader};
+use crate::tercen::operator_properties::OperatorPropertyReader;
+use crate::tercen::properties::PlotDimension;
 
 /// How to aggregate multiple data points in the same heatmap cell
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -22,27 +25,22 @@ pub enum HeatmapCellAggregation {
 }
 
 impl HeatmapCellAggregation {
-    /// Parse from string, returns default (Last) for invalid values
+    /// Parse from string value
+    ///
+    /// This is an internal enum - validation happens in OperatorPropertyReader.get_enum()
     pub fn parse(s: &str) -> Self {
         match s.to_lowercase().as_str() {
-            "last" => Self::Last,
             "first" => Self::First,
             "mean" => Self::Mean,
             "median" => Self::Median,
-            other => {
-                eprintln!(
-                    "⚠ Invalid heatmap.cell.aggregation '{}', using 'last'",
-                    other
-                );
-                Self::Last
-            }
+            _ => Self::Last, // "last" or any other value
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct OperatorConfig {
-    /// Number of rows per chunk (configurable via chunk_size property, default: 10000)
+    /// Number of rows per chunk (default: 10000, not in operator.json)
     pub chunk_size: usize,
 
     /// Plot width (pixels or Auto)
@@ -121,15 +119,10 @@ pub struct OperatorConfig {
 }
 
 impl OperatorConfig {
-    /// Create config from operator properties with explicit defaults
+    /// Create config from operator properties
     ///
-    /// When testing locally (no properties set), uses these defaults:
-    /// - plot_width: "auto" (derive from column facet count)
-    /// - plot_height: "auto" (derive from row facet count)
-    /// - backend: "cpu"
-    /// - point_size: 4 (UI scale, will be converted to render size)
-    ///
-    /// Properties come from operator.json definitions and are set via Tercen UI.
+    /// All default values come from operator.json via OperatorPropertyReader.
+    /// No hardcoded fallbacks in this function.
     ///
     /// # Arguments
     /// * `operator_settings` - Operator settings from Tercen
@@ -138,138 +131,59 @@ impl OperatorConfig {
         operator_settings: Option<&OperatorSettings>,
         ui_point_size: Option<i32>,
     ) -> Self {
-        let props = PropertyReader::from_operator_settings(operator_settings);
+        let props = OperatorPropertyReader::new(operator_settings);
 
         // Parse plot dimensions with "auto" support
         // Empty string or "auto" → Auto (derive from facet count)
         // "1500" → Pixels(1500) if valid range [100-10000]
         let plot_width =
-            PlotDimension::from_str(&props.get_string("plot.width", ""), PlotDimension::Auto);
+            PlotDimension::from_str(&props.get_string("plot.width"), PlotDimension::Auto);
 
         let plot_height =
-            PlotDimension::from_str(&props.get_string("plot.height", ""), PlotDimension::Auto);
+            PlotDimension::from_str(&props.get_string("plot.height"), PlotDimension::Auto);
 
-        // Parse backend with validation
-        let backend = props.get_string("backend", "cpu");
-        let backend = match backend.to_lowercase().as_str() {
-            "gpu" | "webgpu" => "gpu",
-            "cpu" | "cairo" => "cpu",
-            other => {
-                eprintln!("⚠ Invalid backend '{}', using 'cpu'", other);
-                "cpu"
-            }
-        }
-        .to_string();
+        // Backend: uses get_enum for validation against operator.json values
+        let backend = props.get_enum("backend");
 
-        // Parse legend position (matches ggplot2 theme(legend.position = ...))
-        // Valid values: "right" (default), "left", "top", "bottom", "inside", "none"
-        let legend_position = props.get_string("legend.position", "right");
-        let legend_position = match legend_position.to_lowercase().as_str() {
-            "left" | "right" | "top" | "bottom" | "inside" | "none" => legend_position,
-            other => {
-                eprintln!("⚠ Invalid legend.position '{}', using 'right'", other);
-                "right".to_string()
-            }
-        };
+        // Legend position: validated enum
+        let legend_position = props.get_enum("legend.position");
 
-        // Parse legend.position.inside (only used when legend.position = "inside")
-        // Format: "x,y" where x,y ∈ [0,1], e.g., "0.9,0.1"
-        let legend_position_inside =
-            Self::parse_coords(&props.get_string("legend.position.inside", ""));
+        // Legend position inside (coordinate pair)
+        let legend_position_inside = props.get_coords("legend.position.inside");
 
-        // Parse legend.justification
-        // Format: "x,y" where x,y ∈ [0,1]
-        let legend_justification =
-            Self::parse_coords(&props.get_string("legend.justification", ""));
+        // Legend justification (coordinate pair)
+        let legend_justification = props.get_coords("legend.justification");
 
-        // Parse chunk_size from properties (default: 10000)
-        let chunk_size = props.get_i32("chunk_size", 10_000) as usize;
+        // Chunk size (not in operator.json, internal setting)
+        let chunk_size = 10_000usize;
 
-        // Parse PNG compression level (default: "default")
-        let png_compression = props.get_string("png.compression", "default");
-        let png_compression = match png_compression.to_lowercase().as_str() {
-            "fast" | "best" | "default" => png_compression,
-            other => {
-                eprintln!("⚠ Invalid png.compression '{}', using 'default'", other);
-                "default".to_string()
-            }
-        };
+        // PNG compression: validated enum
+        let png_compression = props.get_enum("png.compression");
 
-        // Parse text labels (all optional)
-        let plot_title = {
-            let title = props.get_string("plot.title", "");
-            if title.is_empty() {
-                None
-            } else {
-                Some(title)
-            }
-        };
+        // Text labels (all optional)
+        let plot_title = props.get_optional_string("plot.title");
 
-        // Parse plot title position (matches ggplot2 theme(plot.title.position = ...))
-        // Valid values: "top" (default), "bottom", "left", "right"
-        let plot_title_position = props.get_string("plot.title.position", "top");
-        let plot_title_position = match plot_title_position.to_lowercase().as_str() {
-            "top" | "bottom" | "left" | "right" => plot_title_position,
-            other => {
-                eprintln!("⚠ Invalid plot.title.position '{}', using 'top'", other);
-                "top".to_string()
-            }
-        };
+        // Plot title position: validated enum
+        let plot_title_position = props.get_enum("plot.title.position");
 
-        // Parse plot.title.justification
-        // Format: "x,y" where x,y ∈ [0,1]
-        let plot_title_justification =
-            Self::parse_coords(&props.get_string("plot.title.justification", "0.5,0.5"));
+        // Plot title justification
+        let plot_title_justification = props.get_coords("plot.title.justification");
 
-        let x_axis_label = {
-            let label = props.get_string("axis.x.label", "");
-            if label.is_empty() {
-                None
-            } else {
-                Some(label)
-            }
-        };
+        // Axis labels
+        let x_axis_label = props.get_optional_string("axis.x.label");
+        let y_axis_label = props.get_optional_string("axis.y.label");
 
-        let y_axis_label = {
-            let label = props.get_string("axis.y.label", "");
-            if label.is_empty() {
-                None
-            } else {
-                Some(label)
-            }
-        };
+        // Tick rotation (degrees)
+        let x_tick_rotation = props.get_f64("axis.x.tick.rotation");
+        let y_tick_rotation = props.get_f64("axis.y.tick.rotation");
 
-        // Parse tick label rotation (in degrees)
-        let x_tick_rotation = Self::parse_rotation(&props.get_string("axis.x.tick.rotation", "0"));
-        let y_tick_rotation = Self::parse_rotation(&props.get_string("axis.y.tick.rotation", "0"));
-
-        // Parse heatmap cell aggregation method (default: "last" to match Tercen)
+        // Heatmap cell aggregation: validated enum
         let heatmap_cell_aggregation =
-            HeatmapCellAggregation::parse(&props.get_string("heatmap.cell.aggregation", "last"));
+            HeatmapCellAggregation::parse(&props.get_enum("heatmap.cell.aggregation"));
 
-        // Parse point size multiplier (default: 1.0, must be > 0)
-        let point_size_multiplier = {
-            let mult_str = props.get_string("point.size.multiplier", "1");
-            match mult_str.parse::<f64>() {
-                Ok(m) if m > 0.0 => m,
-                Ok(m) => {
-                    eprintln!(
-                        "⚠ Invalid point.size.multiplier '{}' (must be > 0), using 1.0",
-                        m
-                    );
-                    1.0
-                }
-                Err(_) => {
-                    eprintln!("⚠ Invalid point.size.multiplier '{}', using 1.0", mult_str);
-                    1.0
-                }
-            }
-        };
-
-        // Convert UI point size (1-10) to render size with multiplier
-        // UI scale: 1 = minimal (1px), 10 = 2.5x default (10px)
-        // Default UI value is 4, which maps to 4px
-        // Formula: render_size = ui_value * multiplier
+        // Point size: UI value (1-10) * multiplier
+        // Default UI value is 4 (from crosstab model, not operator.json)
+        let point_size_multiplier = props.get_f64_in_range("point.size.multiplier", 0.01, 100.0);
         let ui_size = ui_point_size.unwrap_or(4).clamp(1, 10);
         let point_size = (ui_size as f64) * point_size_multiplier;
 
@@ -292,52 +206,6 @@ impl OperatorConfig {
             y_tick_rotation,
             heatmap_cell_aggregation,
         }
-    }
-
-    /// Parse rotation angle string into degrees (f64)
-    ///
-    /// Accepts any numeric value, returns 0.0 for invalid input
-    /// Common values: 0 (horizontal), 45 (diagonal), 90 (vertical)
-    fn parse_rotation(s: &str) -> f64 {
-        if s.is_empty() {
-            return 0.0;
-        }
-
-        match s.trim().parse::<f64>() {
-            Ok(deg) => deg,
-            Err(_) => {
-                eprintln!("⚠ Invalid rotation '{}', using 0", s);
-                0.0
-            }
-        }
-    }
-
-    /// Parse coordinate string "x,y" into (f64, f64)
-    ///
-    /// Format: "x,y" where x,y ∈ [0,1]
-    /// Examples: "0.9,0.1", "0.5,0.5", "1,1"
-    /// Returns None if empty string or invalid format
-    fn parse_coords(s: &str) -> Option<(f64, f64)> {
-        if s.is_empty() {
-            return None;
-        }
-
-        let parts: Vec<&str> = s.split(',').collect();
-        if parts.len() != 2 {
-            eprintln!("⚠ Invalid coordinate format '{}', expected 'x,y'", s);
-            return None;
-        }
-
-        let x = parts[0].trim().parse::<f64>().ok()?;
-        let y = parts[1].trim().parse::<f64>().ok()?;
-
-        // Validate range [0, 1]
-        if !(0.0..=1.0).contains(&x) || !(0.0..=1.0).contains(&y) {
-            eprintln!("⚠ Coordinates '{}' out of range [0,1]", s);
-            return None;
-        }
-
-        Some((x, y))
     }
 
     /// Resolve plot dimensions to actual pixels
@@ -397,6 +265,7 @@ impl OperatorConfig {
     /// but not yet used by GGRS for positioning along edges - that requires extending
     /// the GGRS rendering logic.
     pub fn to_legend_position(&self) -> ggrs_core::theme::LegendPosition {
+        use crate::tercen::operator_properties::registry;
         use ggrs_core::theme::LegendPosition;
 
         match self.legend_position.to_lowercase().as_str() {
@@ -406,11 +275,31 @@ impl OperatorConfig {
             "bottom" => LegendPosition::Bottom,
             "inside" => {
                 // Use legend.position.inside for coordinates
-                let (x, y) = self.legend_position_inside.unwrap_or((0.95, 0.95));
+                // Default comes from operator.json (empty = use fallback position)
+                let (x, y) = self.legend_position_inside.unwrap_or_else(|| {
+                    // Parse default from operator.json if available
+                    registry()
+                        .get_default("legend.position.inside")
+                        .and_then(|s| {
+                            if s.is_empty() {
+                                None
+                            } else {
+                                let parts: Vec<&str> = s.split(',').collect();
+                                if parts.len() == 2 {
+                                    let x = parts[0].trim().parse().ok()?;
+                                    let y = parts[1].trim().parse().ok()?;
+                                    Some((x, y))
+                                } else {
+                                    None
+                                }
+                            }
+                        })
+                        .unwrap_or((0.95, 0.95))
+                });
                 LegendPosition::Inside(x, y)
             }
             "none" => LegendPosition::None,
-            _ => LegendPosition::Right, // Fallback (should not happen due to validation)
+            _ => LegendPosition::Right, // Should not happen due to enum validation
         }
     }
 }

@@ -336,12 +336,8 @@ fn render_page<C: TercenContext>(
     };
     renderer.set_png_compression(png_compression);
 
-    // Enable lightweight rendering (direct Cairo drawing)
-    // This eliminates ~15-20MB memory overhead from ChartContext objects
-    renderer.set_lightweight_rendering(true);
-
     println!(
-        "  Rendering plot (backend: {}, PNG compression: {}, lightweight: true)...",
+        "  Rendering plot (backend: {}, PNG compression: {})...",
         config.backend, config.png_compression
     );
 

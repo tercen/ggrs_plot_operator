@@ -26,7 +26,7 @@ Note: Point size is hardcoded (4) - should come from crosstab model aesthetics.
 ### 0.0.3
 
 - [x] Use operator input specs to get projection information
-- [ ] Dynamic point size
+- [x] Dynamic point size
 - [x] Specify gRPC as communication protocol
 - [x] Add pages
 - [x] Add x axis support
@@ -43,24 +43,7 @@ Note: Legend positioning still requires fine-tuning
 - [x] Heatmap cell labels (category names from schema)
 - [x] Axis label overlap culling (automatic label hiding when dense)
 - [x] Legend colorbar uses actual Tercen palette (not hardcoded gradient)
-- [x] Tick label rotation (axis.x.tick.rotation, axis.y.tick.rotation)
-- [ ] Add Test context structure
-- [ ] Support for minimal and white themes
-
-## Heatmap Notes
-
-Heatmaps use a different coordinate system than scatter plots:
-
-| Aspect | Scatter Plot | Heatmap |
-|--------|--------------|---------|
-| Position columns | `.xs`, `.ys` (quantized) | `.ci`, `.ri` (grid indices) |
-| Axis type | Continuous | Discrete (categorical labels) |
-| Faceting | Yes (multiple panels) | No (grid IS the plot) |
-| Scale expansion | 5% padding | 0.5 units (centers labels in tiles) |
-
-**Axis labels**: Heatmaps display categorical labels (from facet group names) instead of numeric indices. Labels are centered within their tiles using a 0.5-unit expansion on the discrete scale, giving a range of (-0.5, n-0.5) that matches the tile extent.
-
-**Data behavior**: When multiple data points exist at the same grid position, tiles overlap and the last-rendered color is visible. This matches ggplot2's `geom_tile()` behavior. For aggregated heatmaps (one value per cell), pre-aggregate data before plotting.
+- [x] Log, asinh and logicle scales
 
 
 ### 0.0.5
@@ -68,13 +51,16 @@ Heatmaps use a different coordinate system than scatter plots:
 - [ ] Add bar plot
 - [ ] Add line plot
 - [ ] Add support for manual axis ranges
+- [ ] Tick label rotation (axis.x.tick.rotation, axis.y.tick.rotation)
+- [ ] Add logicle and asinh support
 
 
 
 ### Unspecified Version
 - [ ] Switching between GPU / CPU
 - [ ] Further optimize bulk streaming for multi-facet
-
+- [ ] Use factor name for y and x axis labels when parameter is not specified
+- [ ] Add themes
 
 ## Label Overlap Culling
 

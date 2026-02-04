@@ -32,7 +32,7 @@ set -e
 export TERCEN_URI="http://127.0.0.1:50051"
 export TERCEN_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjU0MDAiLCJleHAiOjE3NzE0MzQzMTYsImRhdGEiOnsiZCI6IiIsInUiOiJ0ZXN0IiwiZSI6MTc3MTQzNDMxNjk2MH19.IsYnlDE8fBGlzfD776GKjFxcF35ws48MABWGctYiwFs"
 # EXAMPLE1
-# Heatmap Data Step
+# Heatmap Data Step (Divergent palette)
 #export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
 #export STEP_ID="b9659735-27db-4480-b398-4e391431480f"
 
@@ -43,8 +43,20 @@ export TERCEN_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vMT
 
 # EXAMPLE3
 # Scatter crabs (has X-axis table)
+#export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
+#export STEP_ID="102a1b30-ee6d-42ae-9681-607ceb526b5e"
+
+
+# EXAMPLE4
+# No col, no row, log scale
 export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
-export STEP_ID="102a1b30-ee6d-42ae-9681-607ceb526b5e"
+export STEP_ID="07711b9a-0278-4116-b0fc-ba51b01da29a"
+
+# EXAMPLE3
+# Scatter crabs (has X-axis table)
+#export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
+#export STEP_ID="102a1b30-ee6d-42ae-9681-607ceb526b5e"
+
 
 # Memory tracker path
 MEMORY_TRACKER="/home/thiago/workspaces/tercen/main/memory_tracker/target/release/memory_tracker"

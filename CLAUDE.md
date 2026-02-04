@@ -6,12 +6,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ggrs_plot_operator** is a Rust-based Tercen operator that integrates the GGRS plotting library with Tercen's gRPC API. It receives tabular data from Tercen, generates high-performance plots with faceting and colors, and returns PNG images.
 
-## Session Continuity
+**Current status**: Scatter plots, heatmaps, continuous/categorical colors, faceting, pagination, and axis transforms (log, asinh, logicle) are implemented. Bar and line plots are planned.
 
-**Read these first for current context:**
-- `CONTINUE.md` - Current ongoing work status, next tasks, test configuration
+## Project Rules
+
+Detailed rules are in `.claude/rules/`:
+- `architecture.md` - Design principles, component responsibilities
+- `ggrs-integration.md` - GGRS bindings, StreamGenerator trait implementation
+- `tercen-api.md` - Tercen gRPC integration, table IDs, TSON format
+- `data-flow.md` - Coordinate systems, chart types, color flow
+- `commands.md` - Build, test, and development commands
+- `debugging.md` - Debugging practices, common errors, lessons learned
+
+## Session Context
+
+- `CONTINUE.md` - Current work status and next tasks (read first if resuming work)
 - `SESSION_*.md` - Recent session notes with implementation details
-- `docs/` - Architecture docs (numbered in reading order, start with `09_FINAL_DESIGN.md`)
+- `docs/` - Architecture docs (start with `09_FINAL_DESIGN.md`)
 
 ## Essential Commands
 
@@ -34,7 +45,7 @@ export STEP_ID=your_step_id
 cargo run --bin dev --profile dev-release
 
 # Local testing script
-./test_local.sh
+./test_local.sh [backend]  # cpu (default) or gpu
 
 # Proto submodule setup (required for gRPC definitions)
 git submodule update --init --recursive
@@ -58,93 +69,30 @@ ggrs-core library       → Plot rendering (../ggrs/crates/ggrs-core)
 PNG Output
 ```
 
-### Data Flow Details
-
-**Coordinate System**: Tercen sends quantized coordinates (`.xs`, `.ys` as uint16 0-65535). GGRS dequantizes to actual values (`.x`, `.y`) using per-facet axis ranges from Y-axis table.
-
-**Color Mapping**:
-- Continuous: Factor column (f64) → palette interpolation → `.color` hex strings
-- Categorical: `.colorLevels` (int32) → default palette → `.color` hex strings
-
-**Pagination**: Page factors filter facets (not data). GGRS matches data to facets via `original_index` mapping.
-
-### Table IDs and Hashes
-
-The hashes in `CubeQuery` ARE the table IDs - they can be passed directly to `get_schema()`:
-
-| Source | Table | Purpose |
-|--------|-------|---------|
-| `cube_query.qt_hash` | Main data table | Contains `.xs`, `.ys`, `.ci`, `.ri`, color factors |
-| `cube_query.column_hash` | Column facet table | Facet labels for columns |
-| `cube_query.row_hash` | Row facet table | Facet labels for rows, page factors |
-| `schema_ids` (Y-axis) | Y-axis range table | `.minY`, `.maxY` per facet - **REQUIRED** |
-| `schema_ids` (X-axis) | X-axis range table | `.minX`, `.maxX` - optional (default: 1 to nrow) |
-| `schema_ids` (color_N) | Color tables | Color factor data |
-
-**Important**: Y-axis table is required for dequantization. If not found, throw error (no fallback).
-
 ### Key Modules
 
-**Tercen Client** (`src/tercen/`)
-- `client.rs` - TercenClient with gRPC auth
-- `context/` - `TercenContext` trait + `ProductionContext`/`DevContext` implementations
-- `table.rs` - TableStreamer for chunked data streaming
-- `tson_convert.rs` - TSON → Polars DataFrame conversion
-- `colors.rs` - Color palette extraction, `ChartKind` enum, `ColorInfo`
-- `pages.rs` - Multi-page plot support
-- `facets.rs` - Facet metadata handling
-
-**GGRS Integration** (`src/ggrs_integration/`)
-- `stream_generator.rs` - `TercenStreamGenerator` implements GGRS `StreamGenerator` trait
-- `cached_stream_generator.rs` - Disk-cached version for multi-page plots
-
-**Configuration**
-- `src/config.rs` - `OperatorConfig` from `operator.json` properties
-- `operator.json` - Operator property definitions (plot.width, plot.height, backend, legend.position, axis labels, tick rotation, etc.)
+| Module | Purpose |
+|--------|---------|
+| `src/tercen/client.rs` | TercenClient with gRPC auth |
+| `src/tercen/context/` | `TercenContext` trait + `ProductionContext`/`DevContext` |
+| `src/tercen/table.rs` | TableStreamer for chunked data streaming |
+| `src/tercen/colors.rs` | Color palette extraction, `ChartKind` enum |
+| `src/ggrs_integration/stream_generator.rs` | `TercenStreamGenerator` implements GGRS `StreamGenerator` |
+| `src/pipeline.rs` | Orchestrates plot generation, selects geom, configures theme |
+| `src/config.rs` | `OperatorConfig` from `operator.json` properties |
 
 ### Related Repository
 
 The `ggrs-core` library at `../ggrs/crates/ggrs-core` is the plotting engine. Changes often span both repositories.
 
-**IMPORTANT**: Cargo.toml uses local path for dev, must switch to git dependency for CI:
+**Cargo.toml dependency switching**:
 ```toml
-# Dev (local):
-ggrs-core = { path = "../ggrs/crates/ggrs-core", features = [...] }
-# CI/Production (git):
-# ggrs-core = { git = "https://github.com/tercen/ggrs", branch = "main", features = [...] }
+# Local dev (uncomment for local changes):
+# ggrs-core = { path = "../ggrs/crates/ggrs-core", features = [...] }
+
+# CI/Production (current default):
+ggrs-core = { git = "https://github.com/tercen/ggrs", branch = "main", features = [...] }
 ```
-
-### Chart-Type Driven Layout
-
-Chart type (from Tercen UI) determines layout behavior via `ChartKind` enum:
-
-| Aspect | Scatter/Line/Bar | Heatmap |
-|--------|------------------|---------|
-| Position columns | `.xs`, `.ys` (quantized u16) | `.ci`, `.ri` (grid indices) |
-| Axis type | Continuous | Discrete (categorical labels) |
-| Faceting | Yes (`.ci`/`.ri` → panels) | No (grid IS the plot) |
-| Coordinate transform | Dequantize u16 → f64 | None (integers) |
-| Scale expansion | 5% padding | 0.5 units (centers labels in tiles) |
-
-**Reference**: R plot_operator (`main/plot_operator/utils.R`) for expected behavior.
-
-### Component Responsibilities
-
-**TercenStreamGenerator** (`src/ggrs_integration/stream_generator.rs`)
-- Streams raw data from Tercen tables
-- Provides facet metadata (cschema, rschema dimensions)
-- Returns data with original columns
-- **Does NOT know about chart types or layout**
-
-**Pipeline** (`src/pipeline.rs`)
-- Orchestrates plot generation across all pages
-- Selects geom (tile vs point) based on ChartKind
-- Configures theme, scales, and layout strategy
-
-**TercenContext** (`src/tercen/context/`)
-- Trait abstracting production vs development environments
-- Key methods: `cube_query()`, `color_infos()`, `page_factors()`, `chart_kind()`, `point_size()`
-- Extracts all workflow metadata needed for plot generation
 
 ## Core Technical Decisions
 
@@ -172,40 +120,33 @@ if data.has_column(".ys") { use_ys() } else { use_y() }
 data.column(".ys")
 ```
 
-### 3. Context Trait Pattern
+### 3. Direct Rendering Path
 
-The `TercenContext` trait abstracts production vs development environments:
+The renderer uses `stream_and_render_direct()` for all rendering. This is the only rendering path - there is no alternative standard path. Any rendering modifications must update this function.
 
-```rust
-// Both implement TercenContext
-ProductionContext::from_task_id(client, task_id)  // Production
-DevContext::new(client, workflow_id, step_id)      // Local development
-```
+## Implementation Notes
 
-## Key Dependencies
+### Tick Label Rotation
 
-- `ggrs-core` - Local path `../ggrs/crates/ggrs-core` (switch to git for CI). Features: `webgpu-backend`, `cairo-backend`
-- `polars` - Columnar DataFrame (critical for performance)
-- `tonic`/`prost` - gRPC client (v0.14)
-- `tokio` - Async runtime
-- `rustson` - Tercen TSON binary format parsing
+Due to plotters library limitations, rotation is mapped to the nearest 90° increment:
+- -45° to 44° → 0° (horizontal)
+- 45° to 134° → 90° (vertical)
+- 135° to 224° → 180° (upside down)
+- 225° to 314° → 270° (vertical, counter-clockwise)
 
-## gRPC Services (tercen.proto)
+### Label Overlap Culling
 
-Key services used by this operator:
+GGRS automatically hides overlapping axis labels. Labels are processed first-come-first-served; if a label's bounding box overlaps a previously rendered label (with 2px padding), it's skipped.
 
-| Service | Key Methods | Notes |
-|---------|-------------|-------|
-| `TableSchemaService` | `get`, `streamTable` | Fetch schema by ID, stream table data |
-| `TaskService` | `get` | Fetch task by ID |
-| `WorkflowService` | `get`, `getCubeQuery` | Fetch workflow, get CubeQuery |
+## Local Testing
 
-**Note**: No batch/list methods available - only single `get` by ID.
+Edit `test_local.sh` to change the active example (uncomment the desired WORKFLOW_ID/STEP_ID):
+- **EXAMPLE1**: Heatmap with divergent palette
+- **EXAMPLE2**: Simple scatter (no X-axis table)
+- **EXAMPLE3**: Scatter with X-axis table (crabs dataset)
+- **EXAMPLE4**: Log transform test
 
-## Dev Config Override
-
-For local testing, create `operator_config.json` with properties to override defaults:
-
+Create `operator_config.json` to override operator properties:
 ```json
 {
   "backend": "gpu",
@@ -214,28 +155,10 @@ For local testing, create `operator_config.json` with properties to override def
 }
 ```
 
-## Known Limitations
-
-### Same Factor on Both Column and Row Axes
-
-When the same factor is used for both column and row facets (e.g., `sp` on both axes with values B, O), GGRS may display data in all 4 cells of the 2×2 grid instead of only the diagonal cells (B,B) and (O,O).
-
-**Expected behavior:** Data with sp=B should only appear in cell (B,B), data with sp=O only in (O,O).
-
-**Actual behavior:** Data appears in all cells including off-diagonal (B,O) and (O,B).
-
-**Root cause:** Not fully investigated. Likely related to how Tercen assigns `.ci` and `.ri` values independently when the same factor appears on both axes, or how GGRS filters data per facet cell.
-
-**Status:** Documented, not prioritized for fix.
-
 ## Notes for Claude Code
 
-### Git Policy
 - Never commit/push unless explicitly requested
-- Run quality checks before reporting task complete
-
-### Code Completion Checklist
-1. `cargo fmt`
-2. `cargo clippy -- -D warnings`
-3. `cargo build --profile dev-release`
-4. `cargo test`
+- Run quality checks (`cargo fmt && cargo clippy -- -D warnings && cargo test`) before reporting task complete
+- Add diagnostic prints to verify data flow before making multiple changes
+- When modifying rendering: check if you're updating the lightweight path (`stream_and_render_direct`) or standard path
+- Verify ONE change at a time - don't batch multiple file changes without testing

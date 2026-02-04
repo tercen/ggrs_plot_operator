@@ -30,7 +30,11 @@ pub mod table_convert;
 // Operator properties (Phase 9 - Version 0.0.2)
 pub mod properties;
 
+// Operator property definitions from operator.json
+pub mod operator_properties;
+
 // Color handling (Version 0.0.3)
+pub mod color_processor;
 pub mod colors;
 pub mod palettes;
 
@@ -42,6 +46,7 @@ pub mod context;
 
 // Re-exports for convenience
 pub use client::TercenClient;
+pub use color_processor::add_color_columns;
 pub use colors::{
     extract_chart_kind_from_step, extract_color_info_from_step, extract_point_size_from_step,
     interpolate_color, parse_palette, CategoryColorMap, ChartKind, ColorInfo, ColorMapping,
@@ -53,6 +58,7 @@ pub use error::{Result, TercenError};
 #[allow(unused_imports)]
 pub use facets::{FacetGroup, FacetInfo, FacetMetadata};
 pub use logger::TercenLogger;
+pub use operator_properties::{OperatorPropertyReader, PropertyRegistry};
 pub use pages::{extract_page_factors, extract_page_values, PageValue};
 pub use palettes::{categorical_color_from_level, PaletteRegistry, PALETTE_REGISTRY};
 pub use properties::{PlotDimension, PropertyReader};
