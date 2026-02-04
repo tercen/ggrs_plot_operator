@@ -51,7 +51,7 @@ uuid = { version = "1.0", features = ["v4"] }
 # Use local path for development:
 # ggrs-core = { path = "../ggrs/crates/ggrs-core", features = ["webgpu-backend", "cairo-backend"] }
 # Use git dependency for CI/production:
-ggrs-core = { git = "https://github.com/tercen/ggrs", branch = "main", features = ["webgpu-backend", "cairo-backend"] }
+ggrs-core = { git = "https://github.com/tercen/ggrs", tag = "0.1.0", features = ["webgpu-backend", "cairo-backend"] }
 
 [features]
 jemalloc = ["tikv-jemallocator"]
