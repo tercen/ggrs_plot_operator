@@ -81,6 +81,18 @@ pub trait TercenContext: Send + Sync {
     /// Get the Tercen client
     fn client(&self) -> &Arc<TercenClient>;
 
+    /// Get per-layer color configuration (for mixed-layer scenarios)
+    ///
+    /// Returns None for legacy configurations that use uniform colors across all layers.
+    /// When Some, this takes precedence over color_infos() for color processing.
+    fn per_layer_colors(&self) -> Option<&crate::tercen::PerLayerColorConfig>;
+
+    /// Get Y-axis factor names per layer
+    ///
+    /// Used for legend entries when layers don't have explicit color factors.
+    /// Each name comes from axis_queries[i].yAxis.graphical_factor.factor.name
+    fn layer_y_factor_names(&self) -> &[String];
+
     // Convenience methods with default implementations
 
     /// Get the main table hash (qt_hash)
@@ -126,4 +138,18 @@ pub trait TercenContext: Send + Sync {
             .map(|aq| aq.errors.iter().map(|f| f.name.as_str()).collect())
             .unwrap_or_default()
     }
+
+    /// Get the number of layers (axis queries)
+    ///
+    /// Each axis query represents a layer in the plot. When there are multiple layers
+    /// and no colors are specified, we can use layer-based coloring.
+    fn n_layers(&self) -> usize {
+        self.cube_query().axis_queries.len().max(1)
+    }
+
+    /// Get the palette name for layer-based coloring
+    ///
+    /// Returns the palette name from the crosstab configuration, used when
+    /// coloring points by layer when no explicit color factors are defined.
+    fn layer_palette_name(&self) -> Option<&str>;
 }

@@ -239,6 +239,18 @@ pub fn categorical_color_from_palette(palette_name: &str, level: i32) -> [u8; 3]
     palette.get_color(level as usize)
 }
 
+/// Get all colors from a palette as a Vec of RGB arrays
+///
+/// Falls back to the default categorical palette if the named palette is not found.
+pub fn get_palette_colors(palette_name: &str) -> Vec<[u8; 3]> {
+    let palette = PALETTE_REGISTRY
+        .get(palette_name)
+        .or_else(|| PALETTE_REGISTRY.default_categorical())
+        .expect("No palette available");
+
+    palette.get_colors_rgb()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

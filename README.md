@@ -44,23 +44,21 @@ Note: Legend positioning still requires fine-tuning
 - [x] Axis label overlap culling (automatic label hiding when dense)
 - [x] Legend colorbar uses actual Tercen palette (not hardcoded gradient)
 - [x] Log, asinh and logicle scales
-
+- [x] Add support for manual axis ranges
 
 ### 0.0.5
 
+- [ ] Add themes
 - [ ] Add bar plot
 - [ ] Add line plot
-- [ ] Add support for manual axis ranges
 - [ ] Tick label rotation (axis.x.tick.rotation, axis.y.tick.rotation)
-- [ ] Add logicle and asinh support
-
 
 
 ### Unspecified Version
 - [ ] Switching between GPU / CPU
 - [ ] Further optimize bulk streaming for multi-facet
 - [ ] Use factor name for y and x axis labels when parameter is not specified
-- [ ] Add themes
+
 
 ## Label Overlap Culling
 

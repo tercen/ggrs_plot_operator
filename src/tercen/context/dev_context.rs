@@ -139,6 +139,19 @@ impl DevContext {
         println!("[DevContext]   qt_hash: {}", cube_query.qt_hash);
         println!("[DevContext]   column_hash: {}", cube_query.column_hash);
         println!("[DevContext]   row_hash: {}", cube_query.row_hash);
+        println!(
+            "[DevContext]   axis_queries count: {}",
+            cube_query.axis_queries.len()
+        );
+        for (i, aq) in cube_query.axis_queries.iter().enumerate() {
+            println!(
+                "[DevContext]   axis_queries[{}]: chart_type='{}', point_size={}, colors={:?}",
+                i,
+                aq.chart_type,
+                aq.point_size,
+                aq.colors.iter().map(|f| &f.name).collect::<Vec<_>>()
+            );
+        }
 
         // Extract operator settings and namespace from cube_query
         let operator_settings = cube_query.operator_settings.clone();
@@ -163,7 +176,17 @@ impl DevContext {
             None
         };
 
-        // Extract color information
+        // Extract per-layer color information
+        let per_layer_colors = super::helpers::extract_per_layer_color_info_from_workflow(
+            &client,
+            &schema_ids,
+            &workflow,
+            step_id,
+            "DevContext",
+        )
+        .await?;
+
+        // Also extract legacy color_infos for backwards compatibility
         let color_infos = super::helpers::extract_color_info_from_workflow(
             &client,
             &schema_ids,
@@ -208,6 +231,34 @@ impl DevContext {
         let (y_transform, x_transform) =
             super::helpers::extract_transforms_from_step(&workflow, step_id, &cube_query);
 
+        // Extract layer palette name from GlTask (preferred) or fallback to crosstab palette
+        let layer_palette_name =
+            match super::helpers::extract_layer_palette_from_gltask(&client, &workflow, step_id)
+                .await
+            {
+                Ok(Some(name)) => {
+                    println!("[DevContext] Layer palette (from GlTask): {}", name);
+                    Some(name)
+                }
+                Ok(None) | Err(_) => {
+                    // Fallback to crosstab palette extraction
+                    let name = crate::tercen::extract_crosstab_palette_name(&workflow, step_id);
+                    if let Some(ref n) = name {
+                        println!("[DevContext] Layer palette (from crosstab): {}", n);
+                    }
+                    name
+                }
+            };
+
+        // Extract Y-axis factor names per layer (for legend entries)
+        let layer_y_factor_names = super::helpers::extract_layer_y_factor_names(&workflow, step_id);
+        if !layer_y_factor_names.is_empty() {
+            println!(
+                "[DevContext] Layer Y-factor names: {:?}",
+                layer_y_factor_names
+            );
+        }
+
         // Build ContextBase using the builder
         let base = ContextBaseBuilder::new()
             .client(client)
@@ -219,6 +270,7 @@ impl DevContext {
             .namespace(namespace)
             .operator_settings(operator_settings)
             .color_infos(color_infos)
+            .per_layer_colors(Some(per_layer_colors))
             .page_factors(page_factors)
             .y_axis_table_id(y_axis_table_id)
             .x_axis_table_id(x_axis_table_id)
@@ -227,6 +279,8 @@ impl DevContext {
             .crosstab_dimensions(crosstab_dimensions)
             .y_transform(y_transform)
             .x_transform(x_transform)
+            .layer_palette_name(layer_palette_name)
+            .layer_y_factor_names(layer_y_factor_names)
             .build()?;
 
         Ok(Self(base))
@@ -296,6 +350,18 @@ impl TercenContext for DevContext {
 
     fn x_transform(&self) -> Option<&str> {
         self.0.x_transform()
+    }
+
+    fn layer_palette_name(&self) -> Option<&str> {
+        self.0.layer_palette_name()
+    }
+
+    fn per_layer_colors(&self) -> Option<&crate::tercen::PerLayerColorConfig> {
+        self.0.per_layer_colors()
+    }
+
+    fn layer_y_factor_names(&self) -> &[String] {
+        self.0.layer_y_factor_names()
     }
 
     fn client(&self) -> &Arc<TercenClient> {

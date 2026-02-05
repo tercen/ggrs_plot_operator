@@ -18,7 +18,7 @@ use crate::tercen::{
 use ggrs_core::scale::ContinuousScale;
 use ggrs_core::stream::{DataCache, StreamGenerator};
 use ggrs_core::theme::elements::Element;
-use ggrs_core::{EnginePlotSpec, Geom, HeatmapLayout, PlotGenerator, PlotRenderer, Theme};
+use ggrs_core::{EnginePlotSpec, Geom, HeatmapLayout, PlotGenerator, PlotRenderer};
 
 /// Error type for pipeline operations
 pub type PipelineError = Box<dyn std::error::Error>;
@@ -124,11 +124,15 @@ pub async fn generate_plots<C: TercenContext>(
         .y_axis_table(ctx.y_axis_table_id().map(|s| s.to_string()))
         .x_axis_table(ctx.x_axis_table_id().map(|s| s.to_string()))
         .colors(ctx.color_infos().to_vec())
+        .per_layer_colors(ctx.per_layer_colors().cloned())
         .page_factors(ctx.page_factors().to_vec())
         .schema_cache(schema_cache.clone())
         .heatmap_cell_aggregation(config.heatmap_cell_aggregation)
         .y_transform(ctx.y_transform().map(|s| s.to_string()))
-        .x_transform(ctx.x_transform().map(|s| s.to_string()));
+        .x_transform(ctx.x_transform().map(|s| s.to_string()))
+        .n_layers(ctx.n_layers())
+        .layer_palette_name(ctx.layer_palette_name().map(|s| s.to_string()))
+        .layer_y_factor_names(ctx.layer_y_factor_names().to_vec());
 
         let mut stream_gen =
             TercenStreamGenerator::new(client_arc.clone(), stream_config, page_filter).await?;
@@ -209,19 +213,21 @@ fn render_page<C: TercenContext>(
         );
     }
 
-    // Create theme
-    let mut theme = Theme {
-        legend_position: config.to_legend_position(),
-        legend_justification: config.legend_justification,
-        plot_title_position: config.plot_title_position.clone(),
-        ..Default::default()
-    };
+    // Create theme from config (gray, bw, or minimal)
+    let mut theme = config.to_theme();
+
+    // Apply config overrides
+    theme.legend_position = config.to_legend_position();
+    theme.legend_justification = config.legend_justification;
+    theme.plot_title_position = config.plot_title_position.clone();
+
+    println!("  Theme: {}", config.theme);
 
     // Apply plot title justification if configured
     if let Some((just_x, just_y)) = config.plot_title_justification {
         if let Element::Text(ref mut text_elem) = theme.plot_title {
-            text_elem.hjust = just_x;
-            text_elem.vjust = just_y;
+            text_elem.hjust = Some(just_x);
+            text_elem.vjust = Some(just_y);
         }
     }
 
@@ -308,6 +314,9 @@ fn render_page<C: TercenContext>(
     if let Some(ref y_label) = config.y_axis_label {
         plot_spec = plot_spec.y_label(y_label.clone());
     }
+
+    // Set point shapes per layer (cycles through layers based on .axisIndex)
+    plot_spec = plot_spec.layer_shapes(config.layer_shapes.clone());
 
     // Create PlotGenerator
     let m4 = memprof::checkpoint_return("Before PlotGenerator::new()");
@@ -410,6 +419,62 @@ fn print_context_info<C: TercenContext>(ctx: &C, config: &OperatorConfig) {
 
 /// Print color information
 fn print_color_info<C: TercenContext>(ctx: &C) {
+    // Check for per-layer color configuration first
+    if let Some(plc) = ctx.per_layer_colors() {
+        use crate::tercen::LayerColorConfig;
+
+        println!("  Per-layer color configuration:");
+        println!(
+            "    Layers: {}, has_explicit={}, is_mixed={}",
+            plc.n_layers,
+            plc.has_explicit_colors(),
+            plc.is_mixed()
+        );
+
+        for (layer_idx, config) in plc.layer_configs.iter().enumerate() {
+            match config {
+                LayerColorConfig::Continuous {
+                    palette,
+                    factor_name,
+                    ..
+                } => {
+                    println!(
+                        "    Layer {}: continuous factor '{}'",
+                        layer_idx, factor_name
+                    );
+                    if let Some((min, max)) = palette.range() {
+                        println!(
+                            "      Range: {} to {}, {} stops",
+                            min,
+                            max,
+                            palette.stops.len()
+                        );
+                    }
+                }
+                LayerColorConfig::Categorical {
+                    color_map,
+                    factor_name,
+                    ..
+                } => {
+                    println!(
+                        "    Layer {}: categorical factor '{}' ({} categories)",
+                        layer_idx,
+                        factor_name,
+                        color_map.mappings.len()
+                    );
+                }
+                LayerColorConfig::Constant { color } => {
+                    println!(
+                        "    Layer {}: constant color RGB({},{},{})",
+                        layer_idx, color[0], color[1], color[2]
+                    );
+                }
+            }
+        }
+        return;
+    }
+
+    // Fallback to legacy color_infos
     if ctx.color_infos().is_empty() {
         println!("  No color factors defined");
     } else {

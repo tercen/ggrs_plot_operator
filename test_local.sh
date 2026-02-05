@@ -3,27 +3,34 @@
 # Uses the 'dev' binary which shares the same pipeline as production
 #
 # Usage:
-#   ./test_local.sh [backend] [legend_position] [legend_position_inside] [legend_justification] [png_compression]
+#   ./test_local.sh [backend] [theme]
 #
 # Examples:
-#   ./test_local.sh                              # CPU, legend right, default compression
-#   ./test_local.sh cpu left                     # Legend on left (default center)
-#   ./test_local.sh cpu left "" "0,0"            # Legend on left, bottom-left corner
-#   ./test_local.sh cpu left "" "0,1"            # Legend on left, top-left corner
-#   ./test_local.sh cpu top "" "0.5,1"           # Legend on top, centered
-#   ./test_local.sh cpu inside 0.95,0.05         # Legend inside at bottom-right
-#   ./test_local.sh cpu inside 0.95,0.05 1,0     # Inside bottom-right, legend's bottom-right corner anchored
-#   ./test_local.sh cpu none                     # No legend
-#   ./test_local.sh cpu right "" "" fast         # Fast PNG compression (~30% speedup, +15% file size)
-#   ./test_local.sh cpu right "" "" best         # Best PNG compression (~40% slower, -10% file size)
+#   ./test_local.sh                    # CPU, gray theme (ggplot2 default)
+#   ./test_local.sh cpu gray           # Gray theme (default ggplot2 style)
+#   ./test_local.sh cpu bw             # Black & white theme
+#   ./test_local.sh cpu linedraw       # Black lines on white
+#   ./test_local.sh cpu light          # Light grey lines on white
+#   ./test_local.sh cpu dark           # Dark background
+#   ./test_local.sh cpu minimal        # Minimal (no decorations)
+#   ./test_local.sh cpu classic        # Classic (axis lines, no grid)
+#   ./test_local.sh cpu void           # Completely empty
+#   ./test_local.sh gpu bw             # GPU backend with bw theme
 #
-# Property explanation (matches ggplot2 3.5.0):
+# Themes (matches ggplot2 exactly):
+#   - gray:     Default ggplot2 theme with gray panel background and white grid
+#   - bw:       Black and white theme with white background and light gray grid
+#   - linedraw: Black lines of various widths on white backgrounds
+#   - light:    Light grey lines and axes, directing attention to data
+#   - dark:     Dark background (inverse of light), makes colors pop
+#   - minimal:  No background, border, or ticks - just grid lines
+#   - classic:  Traditional look with axis lines but no grid
+#   - void:     Completely empty - only shows the data
+#
+# Additional configuration can be set in operator_config.json:
 #   - legend.position: "left", "right", "top", "bottom", "inside", "none"
 #   - legend.position.inside: "x,y" coordinates for inside positioning
 #   - legend.justification: "x,y" anchor point
-#     - For left/right: y-value controls vertical (0=bottom, 0.5=center, 1=top)
-#     - For top/bottom: x-value controls horizontal (0=left, 0.5=center, 1=right)
-#     - For inside: which corner of legend aligns with position.inside coords
 #   - png.compression: "fast", "default", "best"
 
 set -e
@@ -49,29 +56,35 @@ export TERCEN_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vMT
 
 # EXAMPLE4
 # No col, no row, log scale
-export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
-export STEP_ID="07711b9a-0278-4116-b0fc-ba51b01da29a"
+#export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
+#export STEP_ID="07711b9a-0278-4116-b0fc-ba51b01da29a"
 
 # EXAMPLE3
 # Scatter crabs (has X-axis table)
 #export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
 #export STEP_ID="102a1b30-ee6d-42ae-9681-607ceb526b5e"
 
+#EXAMPLE6
+# Multiple layers
+#http://127.0.0.1:5400/test/w/28e3c9888e9935f667aed6f07c007c7c/ds/a7a3aaea-33b9-4dfd-81f9-d86de12d6dcc
+export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
+export STEP_ID="a7a3aaea-33b9-4dfd-81f9-d86de12d6dcc"
 
 # Memory tracker path
 MEMORY_TRACKER="/home/thiago/workspaces/tercen/main/memory_tracker/target/release/memory_tracker"
 
 # Parse arguments
 BACKEND="${1:-cpu}"
-LEGEND_POSITION="right" # position test # position test # position test # position test
-LEGEND_POSITION_INSIDE="${3:-}"
+THEME="${2:-gray}"
+
+# Fixed values (can be customized in operator_config.json directly)
+LEGEND_POSITION="right"
 LEGEND_JUSTIFICATION="0.5,0.5"
 PNG_COMPRESSION="fast"
 
 # Valid values for properties (from operator.json)
 VALID_BACKENDS=("cpu" "gpu")
-VALID_LEGEND_POSITIONS=("left" "right" "top" "bottom" "inside" "none")
-VALID_PNG_COMPRESSION=("fast" "default" "best")
+VALID_THEMES=("gray" "bw" "linedraw" "light" "dark" "minimal" "classic" "void")
 
 # Validate backend
 if [[ ! " ${VALID_BACKENDS[@]} " =~ " ${BACKEND} " ]]; then
@@ -80,52 +93,24 @@ if [[ ! " ${VALID_BACKENDS[@]} " =~ " ${BACKEND} " ]]; then
     exit 1
 fi
 
-# Validate legend position
-if [[ ! " ${VALID_LEGEND_POSITIONS[@]} " =~ " ${LEGEND_POSITION} " ]]; then
-    echo "ERROR: Invalid legend position '$LEGEND_POSITION'"
-    echo "Valid values: ${VALID_LEGEND_POSITIONS[*]}"
-    exit 1
-fi
-
-# Validate legend.position.inside (if provided)
-if [[ -n "$LEGEND_POSITION_INSIDE" ]]; then
-    # Check format: x,y where x,y are numbers in [0,1]
-    if ! [[ "$LEGEND_POSITION_INSIDE" =~ ^[0-9.]+,[0-9.]+$ ]]; then
-        echo "ERROR: Invalid legend.position.inside format '$LEGEND_POSITION_INSIDE'"
-        echo "Expected format: 'x,y' where x,y are numbers (e.g., '0.95,0.05')"
-        exit 1
-    fi
-fi
-
-# Validate legend.justification (if provided)
-if [[ -n "$LEGEND_JUSTIFICATION" ]]; then
-    # Check format: x,y where x,y are numbers in [0,1]
-    if ! [[ "$LEGEND_JUSTIFICATION" =~ ^[0-9.]+,[0-9.]+$ ]]; then
-        echo "ERROR: Invalid legend.justification format '$LEGEND_JUSTIFICATION'"
-        echo "Expected format: 'x,y' where x,y are numbers (e.g., '0.5,0.5')"
-        exit 1
-    fi
-fi
-
-# Validate PNG compression
-if [[ ! " ${VALID_PNG_COMPRESSION[@]} " =~ " ${PNG_COMPRESSION} " ]]; then
-    echo "ERROR: Invalid png.compression '$PNG_COMPRESSION'"
-    echo "Valid values: ${VALID_PNG_COMPRESSION[*]}"
+# Validate theme
+if [[ ! " ${VALID_THEMES[@]} " =~ " ${THEME} " ]]; then
+    echo "ERROR: Invalid theme '$THEME'"
+    echo "Valid values: ${VALID_THEMES[*]}"
     exit 1
 fi
 
 # Fixed chunk size (not configurable from command line anymore)
 CHUNK_SIZE=15000
 
-# Update operator_config.json with backend and legend settings
+# Update operator_config.json with backend and theme settings
 echo "Creating operator_config.json..."
 echo "  Backend: $BACKEND"
+echo "  Theme: $THEME"
 echo "  Legend position: $LEGEND_POSITION"
 echo "  PNG compression: $PNG_COMPRESSION"
-[[ -n "$LEGEND_POSITION_INSIDE" ]] && echo "  Legend position inside: $LEGEND_POSITION_INSIDE"
-[[ -n "$LEGEND_JUSTIFICATION" ]] && echo "  Legend justification: $LEGEND_JUSTIFICATION"
 
-# Build JSON dynamically based on what's provided
+# Build JSON
 cat > operator_config.json <<EOF
 {
   "chunk_size": $CHUNK_SIZE,
@@ -133,20 +118,17 @@ cat > operator_config.json <<EOF
   "cache_axis_ranges": true,
   "default_plot_width": 6000,
   "default_plot_height": 2000,
-  "render_backend": "$BACKEND",
-  "legend.position": "$LEGEND_POSITION"$(
-    [[ -n "$LEGEND_POSITION_INSIDE" ]] && echo ",
-  \"legend.position.inside\": \"$LEGEND_POSITION_INSIDE\""
-  )$(
-    [[ -n "$LEGEND_JUSTIFICATION" ]] && echo ",
-  \"legend.justification\": \"$LEGEND_JUSTIFICATION\""
-  ),
+  "backend": "cpu",
+  "theme": "light",
+  "legend.position": "$LEGEND_POSITION",
+  "legend.justification": "$LEGEND_JUSTIFICATION",
   "png.compression": "$PNG_COMPRESSION",
   "plot.title": "Test Plot via Local Script",
   "plot.title.position": "top",
   "plot.title.justification": "0,1",
   "axis.x.label": "X Axis Label",
-  "axis.y.label": "Y Axis Label"
+  "axis.y.label": "Y Axis Label",
+  "point.shapes": "19;17;15"
 }
 EOF
 

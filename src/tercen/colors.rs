@@ -548,6 +548,526 @@ pub fn extract_color_info_from_step(
     Ok(color_infos)
 }
 
+/// Configuration for how a single layer gets its colors
+///
+/// Each layer has exactly one color configuration:
+/// - Continuous: interpolate values using a palette (e.g., Jet, Viridis)
+/// - Categorical: map discrete levels to colors
+/// - Constant: all points in layer get the same pre-computed color
+#[derive(Debug, Clone)]
+pub enum LayerColorConfig {
+    /// Layer has a continuous color factor - interpolate using palette
+    Continuous {
+        palette: ColorPalette,
+        factor_name: String,
+        quartiles: Option<Vec<String>>,
+        color_table_id: Option<String>,
+    },
+    /// Layer has a categorical color factor - map levels to colors
+    Categorical {
+        color_map: CategoryColorMap,
+        factor_name: String,
+        color_table_id: Option<String>,
+    },
+    /// Layer has no color factor - all points get this constant color
+    Constant { color: [u8; 3] },
+}
+
+impl LayerColorConfig {
+    /// Get the factor name if this config uses a color factor
+    pub fn factor_name(&self) -> Option<&str> {
+        match self {
+            LayerColorConfig::Continuous { factor_name, .. } => Some(factor_name),
+            LayerColorConfig::Categorical { factor_name, .. } => Some(factor_name),
+            LayerColorConfig::Constant { .. } => None,
+        }
+    }
+
+    /// Check if this is a continuous mapping
+    pub fn is_continuous(&self) -> bool {
+        matches!(self, LayerColorConfig::Continuous { .. })
+    }
+
+    /// Check if this is a categorical mapping
+    pub fn is_categorical(&self) -> bool {
+        matches!(self, LayerColorConfig::Categorical { .. })
+    }
+
+    /// Check if this is a constant color (no color factor)
+    pub fn is_constant(&self) -> bool {
+        matches!(self, LayerColorConfig::Constant { .. })
+    }
+
+    /// Get the palette for continuous mappings
+    pub fn palette(&self) -> Option<&ColorPalette> {
+        match self {
+            LayerColorConfig::Continuous { palette, .. } => Some(palette),
+            _ => None,
+        }
+    }
+
+    /// Get quartiles for continuous mappings
+    pub fn quartiles(&self) -> Option<&Vec<String>> {
+        match self {
+            LayerColorConfig::Continuous { quartiles, .. } => quartiles.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// Set quartiles for continuous mappings
+    pub fn set_quartiles(&mut self, q: Vec<String>) {
+        if let LayerColorConfig::Continuous { quartiles, .. } = self {
+            *quartiles = Some(q);
+        }
+    }
+
+    /// Get color table ID if available
+    pub fn color_table_id(&self) -> Option<&str> {
+        match self {
+            LayerColorConfig::Continuous { color_table_id, .. } => color_table_id.as_deref(),
+            LayerColorConfig::Categorical { color_table_id, .. } => color_table_id.as_deref(),
+            LayerColorConfig::Constant { .. } => None,
+        }
+    }
+
+    /// Set color table ID
+    pub fn set_color_table_id(&mut self, id: String) {
+        match self {
+            LayerColorConfig::Continuous { color_table_id, .. } => *color_table_id = Some(id),
+            LayerColorConfig::Categorical { color_table_id, .. } => *color_table_id = Some(id),
+            LayerColorConfig::Constant { .. } => {}
+        }
+    }
+}
+
+/// Per-layer color configuration
+///
+/// Every layer has exactly one LayerColorConfig that determines how its
+/// points are colored. This unified structure handles all scenarios:
+/// - Layers with continuous color factors (interpolated palettes)
+/// - Layers with categorical color factors (discrete mappings)
+/// - Layers without color factors (constant colors from layer palette)
+#[derive(Debug, Clone, Default)]
+pub struct PerLayerColorConfig {
+    /// Color configuration for each layer. Index = layer index (axisIndex).
+    pub layer_configs: Vec<LayerColorConfig>,
+    /// Total number of layers
+    pub n_layers: usize,
+}
+
+impl PerLayerColorConfig {
+    /// Check if any layer has explicit colors (not constant)
+    pub fn has_explicit_colors(&self) -> bool {
+        self.layer_configs.iter().any(|c| !c.is_constant())
+    }
+
+    /// Check if any layer uses constant coloring (no color factor)
+    pub fn has_constant_colors(&self) -> bool {
+        self.layer_configs.iter().any(|c| c.is_constant())
+    }
+
+    /// Check if this is a mixed scenario (some layers have colors, some don't)
+    pub fn is_mixed(&self) -> bool {
+        self.has_explicit_colors() && self.has_constant_colors()
+    }
+
+    /// Get the config for a specific layer
+    pub fn get(&self, layer_idx: usize) -> Option<&LayerColorConfig> {
+        self.layer_configs.get(layer_idx)
+    }
+
+    /// Get mutable config for a specific layer
+    pub fn get_mut(&mut self, layer_idx: usize) -> Option<&mut LayerColorConfig> {
+        self.layer_configs.get_mut(layer_idx)
+    }
+
+    /// Get all color factor names across all layers (excludes constant-color layers)
+    pub fn all_color_factor_names(&self) -> Vec<String> {
+        self.layer_configs
+            .iter()
+            .filter_map(|c| c.factor_name().map(|s| s.to_string()))
+            .collect()
+    }
+
+    /// Check if any layer uses categorical colors
+    pub fn has_categorical(&self) -> bool {
+        self.layer_configs.iter().any(|c| c.is_categorical())
+    }
+
+    /// Check if any layer uses continuous colors
+    pub fn has_continuous(&self) -> bool {
+        self.layer_configs.iter().any(|c| c.is_continuous())
+    }
+
+    // Legacy compatibility methods (to be removed after full migration)
+
+    /// Legacy: Check if any layer needs layer-based coloring
+    #[deprecated(note = "Use has_constant_colors() instead")]
+    pub fn has_layers_needing_layer_colors(&self) -> bool {
+        self.has_constant_colors()
+    }
+
+    /// Legacy: Get the ColorInfo for a specific layer (if any)
+    /// Returns None for constant-color layers
+    #[deprecated(note = "Use get() and match on LayerColorConfig instead")]
+    pub fn get_color_info(&self, layer_idx: usize) -> Option<ColorInfo> {
+        match self.layer_configs.get(layer_idx)? {
+            LayerColorConfig::Continuous {
+                palette,
+                factor_name,
+                quartiles,
+                color_table_id,
+            } => Some(ColorInfo {
+                factor_name: factor_name.clone(),
+                factor_type: "double".to_string(),
+                mapping: ColorMapping::Continuous(palette.clone()),
+                color_table_id: color_table_id.clone(),
+                quartiles: quartiles.clone(),
+                n_levels: None,
+                color_labels: None,
+            }),
+            LayerColorConfig::Categorical {
+                color_map,
+                factor_name,
+                color_table_id,
+            } => Some(ColorInfo {
+                factor_name: factor_name.clone(),
+                factor_type: "string".to_string(),
+                mapping: ColorMapping::Categorical(color_map.clone()),
+                color_table_id: color_table_id.clone(),
+                quartiles: None,
+                n_levels: None,
+                color_labels: None,
+            }),
+            LayerColorConfig::Constant { .. } => None,
+        }
+    }
+}
+
+/// Extract palette name from an EPalette
+fn extract_palette_name_from_epalette(palette: &proto::EPalette) -> Option<String> {
+    use proto::e_palette::Object as PaletteObject;
+
+    match &palette.object {
+        Some(PaletteObject::Categorypalette(cat)) => {
+            // Try colorList.name first
+            cat.color_list
+                .as_ref()
+                .and_then(|cl| {
+                    if !cl.name.is_empty() {
+                        Some(cl.name.clone())
+                    } else {
+                        None
+                    }
+                })
+                // Fallback to properties["name"]
+                .or_else(|| {
+                    cat.properties
+                        .iter()
+                        .find(|p| p.name == "name")
+                        .map(|p| p.value.clone())
+                })
+        }
+        Some(PaletteObject::Ramppalette(ramp)) => ramp
+            .properties
+            .iter()
+            .find(|p| p.name == "name")
+            .map(|p| p.value.clone()),
+        Some(PaletteObject::Jetpalette(_)) => Some("Jet".to_string()),
+        Some(PaletteObject::Palette(p)) => p
+            .properties
+            .iter()
+            .find(|p| p.name == "name")
+            .map(|p| p.value.clone()),
+        None => None,
+    }
+}
+
+/// Get a constant color for a layer without color factors
+///
+/// Uses the layer's palette at the layer index to determine the color.
+fn get_constant_color_for_layer(layer_idx: usize, palette_name: Option<&str>) -> [u8; 3] {
+    use super::palettes::{DEFAULT_CATEGORICAL_PALETTE, PALETTE_REGISTRY};
+
+    let effective_name = palette_name.unwrap_or(DEFAULT_CATEGORICAL_PALETTE);
+
+    let color = PALETTE_REGISTRY
+        .get(effective_name)
+        .map(|p| p.get_color(layer_idx))
+        .unwrap_or_else(|| {
+            // Fallback to default palette if named palette not found
+            PALETTE_REGISTRY
+                .get(DEFAULT_CATEGORICAL_PALETTE)
+                .map(|p| p.get_color(layer_idx))
+                .unwrap_or([128, 128, 128])
+        });
+
+    eprintln!(
+        "DEBUG get_constant_color_for_layer: layer {} using palette '{}' -> RGB({},{},{})",
+        layer_idx, effective_name, color[0], color[1], color[2]
+    );
+
+    color
+}
+
+/// Extract color information for each layer from a workflow step
+///
+/// Navigates to step.model.axis.xyAxis[i].colors for each layer and extracts:
+/// - For layers with color factors: Continuous or Categorical config
+/// - For layers without color factors: Constant color from layer's palette at layer_idx
+///
+/// Returns a PerLayerColorConfig with a LayerColorConfig for every layer.
+pub fn extract_per_layer_color_info(
+    workflow: &proto::Workflow,
+    step_id: &str,
+    color_table_ids: &[Option<String>],
+) -> Result<PerLayerColorConfig> {
+    // Find the step by ID
+    let step = workflow
+        .steps
+        .iter()
+        .find(|s| {
+            if let Some(proto::e_step::Object::Datastep(ds)) = &s.object {
+                ds.id == step_id
+            } else {
+                false
+            }
+        })
+        .ok_or_else(|| TercenError::Data(format!("Step '{}' not found in workflow", step_id)))?;
+
+    // Extract DataStep
+    let data_step = match &step.object {
+        Some(proto::e_step::Object::Datastep(ds)) => ds,
+        _ => return Err(TercenError::Data("Step is not a DataStep".to_string())),
+    };
+
+    // Navigate to model.axis.xyAxis
+    let model = data_step
+        .model
+        .as_ref()
+        .ok_or_else(|| TercenError::Data("DataStep has no model".to_string()))?;
+
+    let axis = model
+        .axis
+        .as_ref()
+        .ok_or_else(|| TercenError::Data("Model has no axis".to_string()))?;
+
+    let n_layers = axis.xy_axis.len();
+    eprintln!(
+        "DEBUG extract_per_layer_color_info: Found {} layers (xyAxis entries)",
+        n_layers
+    );
+
+    let mut layer_configs: Vec<LayerColorConfig> = Vec::with_capacity(n_layers);
+
+    for (layer_idx, xy_axis) in axis.xy_axis.iter().enumerate() {
+        // Extract colors object for this layer
+        let colors = match &xy_axis.colors {
+            Some(c) => c,
+            None => {
+                // No colors object - use constant gray
+                eprintln!(
+                    "DEBUG extract_per_layer_color_info: Layer {} has no colors object, using gray",
+                    layer_idx
+                );
+                layer_configs.push(LayerColorConfig::Constant {
+                    color: [128, 128, 128],
+                });
+                continue;
+            }
+        };
+
+        // Check if this layer has color factors
+        if colors.factors.is_empty() {
+            // No color factors - extract palette name and compute constant color
+            let palette_name = colors
+                .palette
+                .as_ref()
+                .and_then(extract_palette_name_from_epalette);
+
+            eprintln!(
+                "DEBUG extract_per_layer_color_info: Layer {} has no color factors, palette='{}', using constant color",
+                layer_idx,
+                palette_name.as_deref().unwrap_or("(none)")
+            );
+
+            let color = get_constant_color_for_layer(layer_idx, palette_name.as_deref());
+            layer_configs.push(LayerColorConfig::Constant { color });
+            continue;
+        }
+
+        // Layer has color factors - extract mapping
+        eprintln!(
+            "DEBUG extract_per_layer_color_info: Layer {} has {} color factors",
+            layer_idx,
+            colors.factors.len()
+        );
+
+        // For now, only use the first color factor per layer
+        let factor = &colors.factors[0];
+        eprintln!(
+            "DEBUG extract_per_layer_color_info: Layer {} factor: name='{}', type='{}'",
+            layer_idx, factor.name, factor.r#type
+        );
+
+        // Parse the palette/mapping
+        let mapping = match &colors.palette {
+            Some(p) => parse_palette(p)?,
+            None => {
+                // Has factors but no palette - use constant color as fallback
+                eprintln!(
+                    "DEBUG extract_per_layer_color_info: Layer {} has factors but no palette, using constant color",
+                    layer_idx
+                );
+                let color = get_constant_color_for_layer(layer_idx, None);
+                layer_configs.push(LayerColorConfig::Constant { color });
+                continue;
+            }
+        };
+
+        // Get the color table ID for this factor (if available)
+        let color_table_id = color_table_ids.first().and_then(|opt| opt.clone());
+
+        // Create appropriate LayerColorConfig based on mapping type
+        let config = match mapping {
+            ColorMapping::Continuous(palette) => {
+                eprintln!(
+                    "DEBUG extract_per_layer_color_info: Layer {} has continuous palette with {} stops",
+                    layer_idx,
+                    palette.stops.len()
+                );
+                LayerColorConfig::Continuous {
+                    palette,
+                    factor_name: factor.name.clone(),
+                    quartiles: None,
+                    color_table_id,
+                }
+            }
+            ColorMapping::Categorical(color_map) => {
+                eprintln!(
+                    "DEBUG extract_per_layer_color_info: Layer {} has categorical palette with {} categories",
+                    layer_idx,
+                    color_map.mappings.len()
+                );
+                LayerColorConfig::Categorical {
+                    color_map,
+                    factor_name: factor.name.clone(),
+                    color_table_id,
+                }
+            }
+        };
+
+        layer_configs.push(config);
+    }
+
+    let config = PerLayerColorConfig {
+        layer_configs,
+        n_layers,
+    };
+
+    eprintln!(
+        "DEBUG extract_per_layer_color_info: Config - has_explicit={}, has_constant={}, is_mixed={}",
+        config.has_explicit_colors(),
+        config.has_constant_colors(),
+        config.is_mixed()
+    );
+
+    Ok(config)
+}
+
+/// Extract the crosstab palette name for layer coloring
+///
+/// Returns the palette name from the crosstab's color configuration, even when
+/// there are no color factors. This is used for layer-based coloring.
+///
+/// The palette name is extracted from:
+/// - CategoryPalette.colorList.name
+/// - RampPalette properties (name="name")
+/// - JetPalette defaults to "Jet"
+///
+/// Returns None if no palette is configured.
+pub fn extract_crosstab_palette_name(workflow: &proto::Workflow, step_id: &str) -> Option<String> {
+    use proto::e_palette::Object as PaletteObject;
+    use proto::e_step::Object as StepObject;
+
+    // Find the step
+    let step = workflow.steps.iter().find_map(|e_step| {
+        if let Some(StepObject::Datastep(ds)) = &e_step.object {
+            if ds.id == step_id {
+                return Some(ds);
+            }
+        }
+        None
+    })?;
+
+    // Navigate to xyAxis.colors.palette
+    let model = step.model.as_ref()?;
+    let axis = model.axis.as_ref()?;
+    let xy_axis = axis.xy_axis.first()?;
+    let colors = xy_axis.colors.as_ref()?;
+    let palette = colors.palette.as_ref()?;
+    let palette_obj = palette.object.as_ref()?;
+
+    // Extract palette name based on type
+    // Priority: colorList.name, then properties["name"]
+    let name = match palette_obj {
+        PaletteObject::Categorypalette(cat) => {
+            // First try colorList.name
+            let cl_name = cat.color_list.as_ref().and_then(|cl| {
+                if !cl.name.is_empty() {
+                    Some(cl.name.clone())
+                } else {
+                    None
+                }
+            });
+            // Fallback to properties["name"]
+            cl_name.or_else(|| {
+                cat.properties
+                    .iter()
+                    .find(|p| p.name == "name")
+                    .map(|p| p.value.clone())
+            })
+        }
+        PaletteObject::Ramppalette(ramp) => ramp
+            .properties
+            .iter()
+            .find(|p| p.name == "name")
+            .map(|p| p.value.clone()),
+        PaletteObject::Jetpalette(_) => Some("Jet".to_string()),
+        PaletteObject::Palette(_) => None,
+    };
+
+    // Debug: Print available properties for CategoryPalette
+    if let PaletteObject::Categorypalette(cat) = palette_obj {
+        eprintln!(
+            "DEBUG extract_crosstab_palette_name: CategoryPalette properties: {:?}",
+            cat.properties
+                .iter()
+                .map(|p| format!("{}={}", p.name, p.value))
+                .collect::<Vec<_>>()
+        );
+        if let Some(cl) = &cat.color_list {
+            eprintln!(
+                "DEBUG extract_crosstab_palette_name: colorList.name='{}'",
+                cl.name
+            );
+        }
+    }
+
+    eprintln!(
+        "DEBUG extract_crosstab_palette_name: palette type={}, name={:?}",
+        match palette_obj {
+            PaletteObject::Categorypalette(_) => "Category",
+            PaletteObject::Ramppalette(_) => "Ramp",
+            PaletteObject::Jetpalette(_) => "Jet",
+            PaletteObject::Palette(_) => "Base",
+        },
+        name
+    );
+
+    name
+}
+
 /// Interpolate a color value using the palette
 ///
 /// Uses linear interpolation between the surrounding color stops.

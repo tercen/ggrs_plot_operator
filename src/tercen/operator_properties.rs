@@ -312,6 +312,49 @@ impl OperatorPropertyReader {
 
         Some((x, y))
     }
+
+    /// Parse semicolon-separated list of shape codes
+    ///
+    /// Format: "19;15;17" -> vec![19, 15, 17]
+    /// Invalid entries are skipped with a warning.
+    /// Returns default [19] (filled circle) if empty or all invalid.
+    pub fn get_shape_list(&self, name: &str) -> Vec<i32> {
+        let value = self.get_string(name);
+        if value.is_empty() {
+            return vec![19]; // Default: filled circle
+        }
+
+        let shapes: Vec<i32> = value
+            .split(';')
+            .filter_map(|s| {
+                let trimmed = s.trim();
+                if trimmed.is_empty() {
+                    return None;
+                }
+                match trimmed.parse::<i32>() {
+                    Ok(n) if (0..=25).contains(&n) => Some(n),
+                    Ok(n) => {
+                        eprintln!("Invalid shape {} in '{}' (must be 0-25), skipping", n, name);
+                        None
+                    }
+                    Err(_) => {
+                        eprintln!("Invalid shape '{}' in '{}', skipping", trimmed, name);
+                        None
+                    }
+                }
+            })
+            .collect();
+
+        if shapes.is_empty() {
+            eprintln!(
+                "No valid shapes in '{}', using default (19=filled circle)",
+                name
+            );
+            vec![19]
+        } else {
+            shapes
+        }
+    }
 }
 
 #[cfg(test)]
@@ -349,5 +392,12 @@ mod tests {
         assert_eq!(reader.get_enum("backend"), "cpu");
         assert_eq!(reader.get_enum("legend.position"), "right");
         assert_eq!(reader.get_f64("point.size.multiplier"), 1.0);
+    }
+
+    #[test]
+    fn test_shape_list_default() {
+        let reader = OperatorPropertyReader::new(None);
+        let shapes = reader.get_shape_list("point.shapes");
+        assert_eq!(shapes, vec![19]); // Default from operator.json
     }
 }

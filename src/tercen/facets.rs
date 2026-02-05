@@ -254,14 +254,11 @@ impl FacetInfo {
             FacetMetadata::load(client, row_table_id)
         );
 
-        let mut row_facets = row_result?;
+        let row_facets = row_result?;
 
-        // Reverse row facets to match ggplot2 convention (first level at top)
-        // GGRS renders row_idx 0 at the bottom, so we reverse to compensate
-        row_facets.groups.reverse();
-        for (new_idx, group) in row_facets.groups.iter_mut().enumerate() {
-            group.index = new_idx;
-        }
+        // Follow Tercen's natural ordering (smallest → largest, top to bottom)
+        // No reversal - preserve the table order for correct axis range mapping
+        // Reversal was previously done to match ggplot2 convention but broke axis range lookups
 
         Ok(FacetInfo {
             col_facets: col_result?,
@@ -287,14 +284,10 @@ impl FacetInfo {
             FacetMetadata::load_with_filter(client, row_table_id, row_filter)
         );
 
-        let mut row_facets = row_result?;
+        let row_facets = row_result?;
 
-        // Reverse row facets to match ggplot2 convention (first level at top)
-        // GGRS renders row_idx 0 at the bottom, so we reverse to compensate
-        row_facets.groups.reverse();
-        for (new_idx, group) in row_facets.groups.iter_mut().enumerate() {
-            group.index = new_idx;
-        }
+        // Follow Tercen's natural ordering (smallest → largest, top to bottom)
+        // No reversal - preserve the table order for correct axis range mapping
 
         Ok(FacetInfo {
             col_facets: col_result?,

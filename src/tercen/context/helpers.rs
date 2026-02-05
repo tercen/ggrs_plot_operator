@@ -131,10 +131,128 @@ pub async fn find_color_tables(
     Ok((color_table_ids, color_table_schemas))
 }
 
+/// Extract per-layer color information from workflow
+///
+/// This is the new per-layer implementation that handles mixed scenarios where
+/// some layers have colors and some don't.
+pub async fn extract_per_layer_color_info_from_workflow(
+    client: &TercenClient,
+    schema_ids: &[String],
+    workflow: &Workflow,
+    step_id: &str,
+    context_name: &str,
+) -> Result<crate::tercen::PerLayerColorConfig, Box<dyn std::error::Error>> {
+    use crate::tercen::client::proto::e_column_schema;
+    use crate::tercen::LayerColorConfig;
+
+    if schema_ids.is_empty() {
+        println!(
+            "[{}] No schema_ids available - returning empty per-layer color config",
+            context_name
+        );
+        return Ok(crate::tercen::PerLayerColorConfig::default());
+    }
+
+    // Find color tables and cache their schemas
+    let (color_table_ids, color_table_schemas) = find_color_tables(client, schema_ids).await?;
+
+    for (idx, table_id) in color_table_ids.iter().enumerate() {
+        if let Some(id) = table_id {
+            println!("[{}] Found color table {}: {}", context_name, idx, id);
+        }
+    }
+
+    // Extract per-layer color info from step
+    let mut per_layer_config =
+        crate::tercen::extract_per_layer_color_info(workflow, step_id, &color_table_ids)?;
+
+    eprintln!(
+        "[{}] Per-layer color config: n_layers={}, has_explicit={}, is_mixed={}",
+        context_name,
+        per_layer_config.n_layers,
+        per_layer_config.has_explicit_colors(),
+        per_layer_config.is_mixed()
+    );
+
+    // Assign shared color table ID to layers that need it and fetch quartiles
+    let shared_color_table_id = color_table_ids.first().and_then(|opt| opt.clone());
+
+    for config in per_layer_config.layer_configs.iter_mut() {
+        match config {
+            LayerColorConfig::Continuous {
+                palette,
+                factor_name,
+                quartiles,
+                color_table_id,
+            } => {
+                // Assign shared color table ID if not set
+                if color_table_id.is_none() {
+                    if let Some(ref table_id) = shared_color_table_id {
+                        eprintln!(
+                            "DEBUG extract_per_layer_color_info: assigning shared color table {} to factor '{}'",
+                            table_id, factor_name
+                        );
+                        *color_table_id = Some(table_id.clone());
+                    }
+                }
+
+                // Fetch quartiles for non-user-defined palettes
+                if !palette.is_user_defined && quartiles.is_none() {
+                    if let Some(ref table_id) = color_table_id {
+                        if let Some(cqts) = color_table_schemas.get(table_id) {
+                            for col_schema in &cqts.columns {
+                                if let Some(e_column_schema::Object::Columnschema(cs)) =
+                                    &col_schema.object
+                                {
+                                    if cs.name == *factor_name {
+                                        if let Some(ref meta) = cs.meta_data {
+                                            if !meta.quartiles.is_empty() {
+                                                eprintln!(
+                                                    "DEBUG extract_per_layer_color_info: Found quartiles for '{}': {:?}",
+                                                    factor_name, meta.quartiles
+                                                );
+                                                *quartiles = Some(meta.quartiles.clone());
+                                            }
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            LayerColorConfig::Categorical {
+                color_table_id,
+                factor_name,
+                ..
+            } => {
+                // Assign shared color table ID if not set
+                if color_table_id.is_none() {
+                    if let Some(ref table_id) = shared_color_table_id {
+                        eprintln!(
+                            "DEBUG extract_per_layer_color_info: assigning shared color table {} to categorical factor '{}'",
+                            table_id, factor_name
+                        );
+                        *color_table_id = Some(table_id.clone());
+                    }
+                }
+            }
+            LayerColorConfig::Constant { .. } => {
+                // Constant colors don't need color table IDs or quartiles
+            }
+        }
+    }
+
+    Ok(per_layer_config)
+}
+
 /// Extract color information from workflow (core implementation)
 ///
 /// This is the shared implementation used by both ProductionContext and DevContext.
 /// The workflow must already be fetched.
+///
+/// DEPRECATED: Use extract_per_layer_color_info_from_workflow for mixed-layer scenarios.
 pub async fn extract_color_info_from_workflow(
     client: &TercenClient,
     schema_ids: &[String],
@@ -616,4 +734,192 @@ pub async fn fetch_workflow(
     };
 
     Ok(workflow)
+}
+
+/// Extract the layer palette name from GlTask
+///
+/// The layer palette is stored in GlTask.palettes[0]. This is the palette used to
+/// color layers that don't have their own explicit color factors.
+///
+/// Path: step.model.taskId → GlTask.palettes[0].colorList.name (for CategoryPalette)
+pub async fn extract_layer_palette_from_gltask(
+    client: &TercenClient,
+    workflow: &Workflow,
+    step_id: &str,
+) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    use crate::tercen::client::proto::{e_palette, e_step, e_task, GetRequest};
+
+    // Find the step by ID
+    let step = workflow.steps.iter().find(|s| match &s.object {
+        Some(e_step::Object::Datastep(ds)) => ds.id == step_id,
+        Some(e_step::Object::Crosstabstep(cs)) => cs.id == step_id,
+        _ => false,
+    });
+
+    // Get the task ID from step.model
+    let task_id = match step.and_then(|s| match &s.object {
+        Some(e_step::Object::Datastep(ds)) => ds.model.as_ref().map(|m| &m.task_id),
+        Some(e_step::Object::Crosstabstep(cs)) => cs.model.as_ref().map(|m| &m.task_id),
+        _ => None,
+    }) {
+        Some(id) if !id.is_empty() => id.clone(),
+        _ => {
+            eprintln!("DEBUG extract_layer_palette_from_gltask: No model.taskId found in step");
+            return Ok(None);
+        }
+    };
+
+    eprintln!(
+        "DEBUG extract_layer_palette_from_gltask: Fetching task {} to check for GlTask palettes",
+        task_id
+    );
+
+    // Fetch the task
+    let mut task_service = client.task_service()?;
+    let request = tonic::Request::new(GetRequest {
+        id: task_id.clone(),
+        ..Default::default()
+    });
+    let response = task_service.get(request).await?;
+    let task = response.into_inner();
+
+    // Check if it's a GlTask and extract palettes
+    let gltask = match task.object {
+        Some(e_task::Object::Gltask(gt)) => gt,
+        _ => {
+            eprintln!(
+                "DEBUG extract_layer_palette_from_gltask: Task {} is not a GlTask",
+                task_id
+            );
+            return Ok(None);
+        }
+    };
+
+    eprintln!(
+        "DEBUG extract_layer_palette_from_gltask: GlTask has {} palettes",
+        gltask.palettes.len()
+    );
+
+    // Get the first palette (layer palette)
+    let first_palette = match gltask.palettes.first() {
+        Some(p) => p,
+        None => {
+            eprintln!("DEBUG extract_layer_palette_from_gltask: GlTask has no palettes");
+            return Ok(None);
+        }
+    };
+
+    // Extract the palette name based on type
+    let palette_name = match &first_palette.object {
+        Some(e_palette::Object::Categorypalette(cat)) => {
+            // For CategoryPalette, try colorList.name first
+            let name = cat.color_list.as_ref().and_then(|cl| {
+                if !cl.name.is_empty() {
+                    Some(cl.name.clone())
+                } else {
+                    None
+                }
+            });
+            // Fallback to properties["name"]
+            name.or_else(|| {
+                cat.properties
+                    .iter()
+                    .find(|p| p.name == "name")
+                    .map(|p| p.value.clone())
+            })
+        }
+        Some(e_palette::Object::Ramppalette(ramp)) => ramp
+            .properties
+            .iter()
+            .find(|p| p.name == "name")
+            .map(|p| p.value.clone()),
+        Some(e_palette::Object::Jetpalette(_)) => Some("Jet".to_string()),
+        Some(e_palette::Object::Palette(p)) => p
+            .properties
+            .iter()
+            .find(|p| p.name == "name")
+            .map(|p| p.value.clone()),
+        None => None,
+    };
+
+    if let Some(ref name) = palette_name {
+        eprintln!(
+            "DEBUG extract_layer_palette_from_gltask: Found layer palette name: '{}'",
+            name
+        );
+    }
+
+    Ok(palette_name)
+}
+
+/// Extract Y-axis factor names per layer from workflow step model
+///
+/// Each layer (xyAxis entry) has a yAxis.graphical_factor.factor.name
+/// that identifies what data is being plotted. These names are used
+/// in legends for layers without explicit color factors.
+pub fn extract_layer_y_factor_names(workflow: &Workflow, step_id: &str) -> Vec<String> {
+    use crate::tercen::client::proto::e_step;
+
+    // Find the step by ID
+    let step = workflow.steps.iter().find(|s| {
+        if let Some(e_step::Object::Datastep(ds)) = &s.object {
+            ds.id == step_id
+        } else {
+            false
+        }
+    });
+
+    let data_step = match step.and_then(|s| match &s.object {
+        Some(e_step::Object::Datastep(ds)) => Some(ds),
+        _ => None,
+    }) {
+        Some(ds) => ds,
+        None => {
+            eprintln!("DEBUG extract_layer_y_factor_names: Step not found or not a DataStep");
+            return Vec::new();
+        }
+    };
+
+    // Navigate to model.axis.xyAxis
+    let xy_axis_list = match data_step
+        .model
+        .as_ref()
+        .and_then(|m| m.axis.as_ref())
+        .map(|a| &a.xy_axis)
+    {
+        Some(list) => list,
+        None => {
+            eprintln!("DEBUG extract_layer_y_factor_names: No model.axis.xyAxis found");
+            return Vec::new();
+        }
+    };
+
+    let names: Vec<String> = xy_axis_list
+        .iter()
+        .enumerate()
+        .map(|(i, xy)| {
+            // Navigate to y_axis.graphical_factor.factor.name
+            let name = xy
+                .y_axis
+                .as_ref()
+                .and_then(|axis| axis.graphical_factor.as_ref())
+                .and_then(|gf| gf.factor.as_ref())
+                .map(|f| f.name.clone())
+                .unwrap_or_else(|| format!("Layer {}", i + 1));
+
+            eprintln!(
+                "DEBUG extract_layer_y_factor_names: Layer {} Y-factor name = '{}'",
+                i, name
+            );
+            name
+        })
+        .collect();
+
+    eprintln!(
+        "DEBUG extract_layer_y_factor_names: Extracted {} names: {:?}",
+        names.len(),
+        names
+    );
+
+    names
 }

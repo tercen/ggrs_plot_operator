@@ -43,6 +43,10 @@ pub struct OperatorConfig {
     /// Number of rows per chunk (default: 10000, not in operator.json)
     pub chunk_size: usize,
 
+    /// Theme name: "gray", "bw", "minimal"
+    /// Matches ggplot2's theme_gray(), theme_bw(), theme_minimal()
+    pub theme: String,
+
     /// Plot width (pixels or Auto)
     pub plot_width: PlotDimension,
 
@@ -116,6 +120,11 @@ pub struct OperatorConfig {
 
     /// How to aggregate multiple data points in the same heatmap cell
     pub heatmap_cell_aggregation: HeatmapCellAggregation,
+
+    /// Point shapes per layer (ggplot2 pch values 0-25)
+    /// Cycles through layers based on .axisIndex.
+    /// Common shapes: 19=filled circle, 15=filled square, 17=filled triangle
+    pub layer_shapes: Vec<i32>,
 }
 
 impl OperatorConfig {
@@ -132,6 +141,9 @@ impl OperatorConfig {
         ui_point_size: Option<i32>,
     ) -> Self {
         let props = OperatorPropertyReader::new(operator_settings);
+
+        // Theme: validated enum (gray, bw, minimal)
+        let theme = props.get_enum("theme");
 
         // Parse plot dimensions with "auto" support
         // Empty string or "auto" → Auto (derive from facet count)
@@ -181,6 +193,9 @@ impl OperatorConfig {
         let heatmap_cell_aggregation =
             HeatmapCellAggregation::parse(&props.get_enum("heatmap.cell.aggregation"));
 
+        // Point shapes per layer
+        let layer_shapes = props.get_shape_list("point.shapes");
+
         // Point size: UI value (1-10) * multiplier
         // Default UI value is 4 (from crosstab model, not operator.json)
         let point_size_multiplier = props.get_f64_in_range("point.size.multiplier", 0.01, 100.0);
@@ -189,6 +204,7 @@ impl OperatorConfig {
 
         Self {
             chunk_size,
+            theme,
             plot_width,
             plot_height,
             backend,
@@ -205,6 +221,7 @@ impl OperatorConfig {
             x_tick_rotation,
             y_tick_rotation,
             heatmap_cell_aggregation,
+            layer_shapes,
         }
     }
 
@@ -300,6 +317,32 @@ impl OperatorConfig {
             }
             "none" => LegendPosition::None,
             _ => LegendPosition::Right, // Should not happen due to enum validation
+        }
+    }
+
+    /// Convert theme config to GGRS Theme
+    ///
+    /// Matches ggplot2 theme functions exactly:
+    /// - gray: Default ggplot2 theme with gray panel background and white grid
+    /// - bw: Black and white theme with white background and gray grid
+    /// - linedraw: Black lines on white backgrounds
+    /// - light: Light grey lines and axes on white
+    /// - dark: Dark background (inverse of light)
+    /// - minimal: No background, border, or ticks
+    /// - classic: Axis lines, no grid (traditional look)
+    /// - void: Completely empty (just data)
+    pub fn to_theme(&self) -> ggrs_core::theme::Theme {
+        use ggrs_core::theme::Theme;
+
+        match self.theme.to_lowercase().as_str() {
+            "bw" => Theme::bw(),
+            "linedraw" => Theme::linedraw(),
+            "light" => Theme::light(),
+            "dark" => Theme::dark(),
+            "minimal" => Theme::minimal(),
+            "classic" => Theme::classic(),
+            "void" => Theme::void(),
+            _ => Theme::gray(), // "gray" or any other value
         }
     }
 }

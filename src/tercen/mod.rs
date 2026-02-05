@@ -46,11 +46,12 @@ pub mod context;
 
 // Re-exports for convenience
 pub use client::TercenClient;
-pub use color_processor::add_color_columns;
+pub use color_processor::{add_color_columns, add_layer_colors, add_mixed_layer_colors};
 pub use colors::{
-    extract_chart_kind_from_step, extract_color_info_from_step, extract_point_size_from_step,
-    interpolate_color, parse_palette, CategoryColorMap, ChartKind, ColorInfo, ColorMapping,
-    ColorPalette, ColorStop,
+    extract_chart_kind_from_step, extract_color_info_from_step, extract_crosstab_palette_name,
+    extract_per_layer_color_info, extract_point_size_from_step, interpolate_color, parse_palette,
+    CategoryColorMap, ChartKind, ColorInfo, ColorMapping, ColorPalette, ColorStop,
+    LayerColorConfig, PerLayerColorConfig,
 };
 pub use context::{DevContext, ProductionContext, TercenContext};
 #[allow(unused_imports)]
@@ -60,7 +61,9 @@ pub use facets::{FacetGroup, FacetInfo, FacetMetadata};
 pub use logger::TercenLogger;
 pub use operator_properties::{OperatorPropertyReader, PropertyRegistry};
 pub use pages::{extract_page_factors, extract_page_values, PageValue};
-pub use palettes::{categorical_color_from_level, PaletteRegistry, PALETTE_REGISTRY};
+pub use palettes::{
+    categorical_color_from_level, get_palette_colors, PaletteRegistry, PALETTE_REGISTRY,
+};
 pub use properties::{PlotDimension, PropertyReader};
 pub use result::PlotResult;
 #[allow(unused_imports)]

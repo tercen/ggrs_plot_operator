@@ -98,6 +98,13 @@
   },
   "properties": [
     {
+      "kind": "EnumeratedProperty",
+      "name": "theme",
+      "defaultValue": "gray",
+      "description": "Plot theme matching ggplot2: 'gray' (default with gray background), 'bw' (black and white), 'linedraw' (black lines on white), 'light' (light grey lines), 'dark' (dark background), 'minimal' (no decorations), 'classic' (axis lines, no grid), 'void' (completely empty).",
+      "values": ["gray", "bw", "linedraw", "light", "dark", "minimal", "classic", "void"]
+    },
+    {
       "kind": "StringProperty",
       "name": "plot.width",
       "defaultValue": "",
@@ -197,6 +204,12 @@
       "defaultValue": "last",
       "description": "How to aggregate multiple data points in the same heatmap cell. 'last' matches Tercen's default behavior (last point wins). 'first' uses the first point. 'mean' computes the average. 'median' computes the median.",
       "values": ["last", "first", "mean", "median"]
+    },
+    {
+      "kind": "StringProperty",
+      "name": "point.shapes",
+      "defaultValue": "19",
+      "description": "Point shapes per layer, semicolon-separated (e.g., '19;15;17'). Cycles if fewer shapes than layers. Common shapes: 19=filled circle (default), 15=filled square, 17=filled triangle, 18=filled diamond, 3=plus, 4=cross. Search 'ggplot2 pch' for all 26 shapes (0-25)."
     }
   ]
 }

@@ -8,7 +8,7 @@ use crate::tercen::{tson_to_dataframe, FacetInfo, SchemaCache, TableStreamer, Te
 use ggrs_core::{
     aes::Aes,
     data::DataFrame,
-    legend::{ColorStop as LegendColorStop, LegendScale},
+    legend::{ColorStop as LegendColorStop, LegendScale, LegendSection},
     stream::{
         AxisData, CategoricalAxisData, FacetSpec, NumericAxisData, Range, StreamGenerator,
         Transform,
@@ -40,8 +40,10 @@ pub struct TercenStreamConfig {
     pub x_axis_table_id: Option<String>,
     /// Chunk size for streaming data
     pub chunk_size: usize,
-    /// Color factor configurations
+    /// Color factor configurations (legacy - used when all layers share same colors)
     pub color_infos: Vec<crate::tercen::ColorInfo>,
+    /// Per-layer color configuration (for mixed-layer scenarios)
+    pub per_layer_colors: Option<crate::tercen::PerLayerColorConfig>,
     /// Page factor names for pagination
     pub page_factors: Vec<String>,
     /// Optional schema cache for multi-page plots
@@ -53,6 +55,13 @@ pub struct TercenStreamConfig {
     pub y_transform: Option<String>,
     /// X-axis transform type
     pub x_transform: Option<String>,
+    /// Number of layers (axis_queries) - used for layer-based coloring
+    pub n_layers: usize,
+    /// Palette name for layer-based coloring (from crosstab)
+    pub layer_palette_name: Option<String>,
+    /// Y-axis factor names per layer (from axis_queries[i].yAxis.name)
+    /// Used for legend entries when layers don't have explicit color factors
+    pub layer_y_factor_names: Vec<String>,
 }
 
 impl TercenStreamConfig {
@@ -71,11 +80,15 @@ impl TercenStreamConfig {
             x_axis_table_id: None,
             chunk_size,
             color_infos: Vec::new(),
+            per_layer_colors: None,
             page_factors: Vec::new(),
             schema_cache: None,
             heatmap_cell_aggregation: HeatmapCellAggregation::Last,
             y_transform: None,
             x_transform: None,
+            n_layers: 1,
+            layer_palette_name: None,
+            layer_y_factor_names: Vec::new(),
         }
     }
 
@@ -91,9 +104,15 @@ impl TercenStreamConfig {
         self
     }
 
-    /// Set color information
+    /// Set color information (legacy - use per_layer_colors for mixed scenarios)
     pub fn colors(mut self, color_infos: Vec<crate::tercen::ColorInfo>) -> Self {
         self.color_infos = color_infos;
+        self
+    }
+
+    /// Set per-layer color configuration (for mixed-layer scenarios)
+    pub fn per_layer_colors(mut self, config: Option<crate::tercen::PerLayerColorConfig>) -> Self {
+        self.per_layer_colors = config;
         self
     }
 
@@ -127,6 +146,24 @@ impl TercenStreamConfig {
     /// Set X-axis transform type
     pub fn x_transform(mut self, transform: Option<String>) -> Self {
         self.x_transform = transform;
+        self
+    }
+
+    /// Set number of layers (for layer-based coloring)
+    pub fn n_layers(mut self, n: usize) -> Self {
+        self.n_layers = n;
+        self
+    }
+
+    /// Set palette name for layer-based coloring
+    pub fn layer_palette_name(mut self, name: Option<String>) -> Self {
+        self.layer_palette_name = name;
+        self
+    }
+
+    /// Set Y-axis factor names per layer (for legend entries)
+    pub fn layer_y_factor_names(mut self, names: Vec<String>) -> Self {
+        self.layer_y_factor_names = names;
         self
     }
 }
@@ -203,8 +240,11 @@ pub struct TercenStreamGenerator {
     /// Chunk size for streaming
     chunk_size: usize,
 
-    /// Color information (factors and palettes)
+    /// Color information (factors and palettes) - legacy field
     color_infos: Vec<crate::tercen::ColorInfo>,
+
+    /// Per-layer color configuration (for mixed-layer scenarios)
+    per_layer_colors: Option<crate::tercen::PerLayerColorConfig>,
 
     /// Cached legend scale (loaded during initialization)
     cached_legend_scale: LegendScale,
@@ -239,6 +279,19 @@ pub struct TercenStreamGenerator {
     /// X-axis transform type
     #[allow(dead_code)]
     x_transform: Option<Transform>,
+
+    /// Number of layers (axis_queries) - used for layer-based coloring
+    /// When > 1 and color_infos is empty, we color points by their .axisIndex
+    n_layers: usize,
+
+    /// Palette name for layer-based coloring (from crosstab)
+    layer_palette_name: Option<String>,
+
+    /// Y-axis factor names per layer (from axis_queries[i].yAxis.name)
+    /// Used for legend entries when layers don't have explicit color factors
+    /// Note: Used at initialization in load_legend_scale(), not read later
+    #[allow(dead_code)]
+    layer_y_factor_names: Vec<String>,
 }
 
 impl TercenStreamGenerator {
@@ -267,11 +320,15 @@ impl TercenStreamGenerator {
             x_axis_table_id,
             chunk_size,
             color_infos,
+            per_layer_colors,
             page_factors,
             schema_cache,
             heatmap_cell_aggregation,
             y_transform,
             x_transform,
+            n_layers,
+            layer_palette_name,
+            layer_y_factor_names,
         } = config;
 
         // Convert transform strings to Transform structs
@@ -390,42 +447,68 @@ impl TercenStreamGenerator {
 
         // Load legend scale data
         // Load legend scale from color info (n_levels from schema)
+        // For mixed scenarios, combine sections from layers with colors and layers without
         println!("Loading legend scale data...");
-        let cached_legend_scale = Self::load_legend_scale(&color_infos)?;
+        let cached_legend_scale = Self::load_legend_scale(
+            &color_infos,
+            per_layer_colors.as_ref(),
+            &layer_y_factor_names,
+        )?;
         eprintln!("DEBUG: Cached legend scale: {:?}", cached_legend_scale);
 
         // Create default aesthetics
         // Dequantization happens in GGRS render.rs using axis ranges
         // After dequantization, columns are .x and .y (actual data values)
-        // Add color aesthetic if colors are defined
+        // Add color aesthetic if colors are defined (either legacy or per-layer)
         let mut aes = Aes::new().x(".x").y(".y");
+
+        // Determine if we have any colors to display
+        // With the new LayerColorConfig, every layer has a config (explicit or constant)
+        let has_colors = if let Some(ref plc) = per_layer_colors {
+            plc.has_explicit_colors() || plc.has_constant_colors()
+        } else {
+            !color_infos.is_empty()
+        };
+
         eprintln!("DEBUG: color_infos.len() = {}", color_infos.len());
-        if !color_infos.is_empty() {
+        eprintln!(
+            "DEBUG: per_layer_colors = {:?}",
+            per_layer_colors.as_ref().map(|p| format!(
+                "n_layers={}, has_explicit={}, is_mixed={}",
+                p.n_layers,
+                p.has_explicit_colors(),
+                p.is_mixed()
+            ))
+        );
+
+        if has_colors {
             eprintln!("DEBUG: Adding .color aesthetic to Aes");
-            eprintln!("DEBUG: Color factor: '{}'", color_infos[0].factor_name);
-            match &color_infos[0].mapping {
-                crate::tercen::ColorMapping::Continuous(palette) => {
-                    eprintln!(
-                        "DEBUG: Continuous palette with {} color stops",
-                        palette.stops.len()
-                    );
-                    for (i, stop) in palette.stops.iter().enumerate() {
+            if !color_infos.is_empty() {
+                eprintln!("DEBUG: Color factor: '{}'", color_infos[0].factor_name);
+                match &color_infos[0].mapping {
+                    crate::tercen::ColorMapping::Continuous(palette) => {
                         eprintln!(
-                            "  Stop {}: value={:.2}, color=RGB({}, {}, {})",
-                            i, stop.value, stop.color[0], stop.color[1], stop.color[2]
+                            "DEBUG: Continuous palette with {} color stops",
+                            palette.stops.len()
+                        );
+                        for (i, stop) in palette.stops.iter().enumerate() {
+                            eprintln!(
+                                "  Stop {}: value={:.2}, color=RGB({}, {}, {})",
+                                i, stop.value, stop.color[0], stop.color[1], stop.color[2]
+                            );
+                        }
+                    }
+                    crate::tercen::ColorMapping::Categorical(color_map) => {
+                        eprintln!(
+                            "DEBUG: Categorical palette with {} categories",
+                            color_map.mappings.len()
                         );
                     }
-                }
-                crate::tercen::ColorMapping::Categorical(color_map) => {
-                    eprintln!(
-                        "DEBUG: Categorical palette with {} categories",
-                        color_map.mappings.len()
-                    );
                 }
             }
             aes = aes.color(".color");
         } else {
-            eprintln!("DEBUG: No color_infos, NOT adding .color aesthetic");
+            eprintln!("DEBUG: No colors configured, NOT adding .color aesthetic");
         }
 
         // Create facet spec based on facet metadata
@@ -489,6 +572,7 @@ impl TercenStreamGenerator {
             facet_spec,
             chunk_size,
             color_infos,
+            per_layer_colors,
             cached_legend_scale,
             page_factors,
             heatmap_mode: None,
@@ -497,6 +581,9 @@ impl TercenStreamGenerator {
             heatmap_cell_aggregation,
             y_transform,
             x_transform,
+            n_layers,
+            layer_palette_name,
+            layer_y_factor_names,
         })
     }
 
@@ -564,6 +651,7 @@ impl TercenStreamGenerator {
             facet_spec,
             chunk_size,
             color_infos,
+            per_layer_colors: None, // Sync constructor doesn't support per-layer colors
             cached_legend_scale: LegendScale::None, // TODO: Load async if needed
             page_factors,
             heatmap_mode: None,
@@ -572,6 +660,9 @@ impl TercenStreamGenerator {
             heatmap_cell_aggregation: HeatmapCellAggregation::Last, // Default for sync constructor
             y_transform: None, // Sync constructor doesn't support transforms
             x_transform: None,
+            n_layers: 1, // Sync constructor defaults to single layer
+            layer_palette_name: None,
+            layer_y_factor_names: Vec::new(), // Sync constructor defaults to empty
         }
     }
 
@@ -913,6 +1004,8 @@ impl TercenStreamGenerator {
         // Get total row count from main table schema
         println!("  Getting main table row count...");
         let main_schema = streamer.get_schema(main_table_id).await?;
+        let main_columns = extract_column_names_from_schema(&main_schema)?;
+        eprintln!("DEBUG: Main data table columns: {:?}", main_columns);
         let total_rows = extract_row_count_from_schema(&main_schema)? as usize;
         println!("  Total rows: {}", total_rows);
 
@@ -1228,9 +1321,29 @@ impl TercenStreamGenerator {
     ///
     /// For categorical colors, uses n_levels from color table schema.
     /// For continuous colors, extracts the min/max from the palette.
+    /// For mixed-layer scenarios (some layers with colors, some without),
+    /// creates a combined legend with sections for each type.
     fn load_legend_scale(
         color_infos: &[crate::tercen::ColorInfo],
+        per_layer_colors: Option<&crate::tercen::PerLayerColorConfig>,
+        layer_y_factor_names: &[String],
     ) -> Result<LegendScale, Box<dyn std::error::Error>> {
+        // Handle mixed-layer scenarios
+        if let Some(plc) = per_layer_colors {
+            if plc.is_mixed() {
+                // Mixed scenario: some layers have colors, some don't
+                eprintln!("DEBUG: Building combined legend for mixed-layer scenario");
+                return Self::build_combined_legend(plc, layer_y_factor_names);
+            }
+
+            // Not mixed - if all layers have constant colors, create a discrete legend
+            if plc.has_constant_colors() && !plc.has_explicit_colors() {
+                eprintln!("DEBUG: Building discrete legend for layer-based colors");
+                return Self::build_layer_based_legend(plc, layer_y_factor_names);
+            }
+        }
+
+        // Standard case: use legacy color_infos
         if color_infos.is_empty() {
             return Ok(LegendScale::None);
         }
@@ -1341,6 +1454,155 @@ impl TercenStreamGenerator {
         }
     }
 
+    /// Build a combined legend for mixed-layer scenarios
+    ///
+    /// Creates legend sections for:
+    /// - Layers with explicit color factors (continuous or discrete)
+    /// - Layers without color factors (discrete with Y-factor name and pre-computed layer color)
+    fn build_combined_legend(
+        per_layer_colors: &crate::tercen::PerLayerColorConfig,
+        layer_y_factor_names: &[String],
+    ) -> Result<LegendScale, Box<dyn std::error::Error>> {
+        use crate::tercen::LayerColorConfig;
+
+        let mut sections: Vec<LegendSection> = Vec::new();
+
+        for (layer_idx, config) in per_layer_colors.layer_configs.iter().enumerate() {
+            match config {
+                LayerColorConfig::Continuous {
+                    palette,
+                    factor_name,
+                    ..
+                } => {
+                    // Layer has continuous colors
+                    if let Some((min_val, max_val)) = palette.range() {
+                        let color_stops: Vec<LegendColorStop> = palette
+                            .stops
+                            .iter()
+                            .map(|stop| LegendColorStop::new(stop.value, stop.color))
+                            .collect();
+                        sections.push(LegendSection::Continuous {
+                            min: min_val,
+                            max: max_val,
+                            title: factor_name.clone(),
+                            color_stops,
+                        });
+                        eprintln!(
+                            "DEBUG: Added continuous section for layer {} ('{}')",
+                            layer_idx, factor_name
+                        );
+                    }
+                }
+                LayerColorConfig::Categorical {
+                    color_map,
+                    factor_name,
+                    ..
+                } => {
+                    // Layer has categorical colors
+                    let entries: Vec<(String, [u8; 3])> = if !color_map.mappings.is_empty() {
+                        color_map
+                            .mappings
+                            .iter()
+                            .map(|(label, color)| (label.clone(), *color))
+                            .collect()
+                    } else {
+                        // Fallback: generate from levels
+                        Vec::new()
+                    };
+
+                    if !entries.is_empty() {
+                        sections.push(LegendSection::Discrete {
+                            entries,
+                            title: factor_name.clone(),
+                        });
+                        eprintln!(
+                            "DEBUG: Added discrete section for layer {} ('{}')",
+                            layer_idx, factor_name
+                        );
+                    }
+                }
+                LayerColorConfig::Constant { color } => {
+                    // Layer has no color factor - use Y-factor name and pre-computed color
+                    let y_factor_name = layer_y_factor_names
+                        .get(layer_idx)
+                        .cloned()
+                        .unwrap_or_else(|| format!("Layer {}", layer_idx + 1));
+
+                    // Create a single-entry discrete section
+                    sections.push(LegendSection::Discrete {
+                        entries: vec![(y_factor_name.clone(), *color)],
+                        title: String::new(), // No separate title, the entry IS the label
+                    });
+                    eprintln!(
+                        "DEBUG: Added layer-based entry for layer {} (Y-factor: '{}', color: {:?})",
+                        layer_idx, y_factor_name, color
+                    );
+                }
+            }
+        }
+
+        if sections.is_empty() {
+            Ok(LegendScale::None)
+        } else if sections.len() == 1 {
+            // Single section - convert to non-combined form
+            let section = sections.into_iter().next().unwrap();
+            match section {
+                LegendSection::Continuous {
+                    min,
+                    max,
+                    title,
+                    color_stops,
+                } => Ok(LegendScale::Continuous {
+                    min,
+                    max,
+                    aesthetic_name: title,
+                    color_stops,
+                }),
+                LegendSection::Discrete { entries, title } => Ok(LegendScale::Discrete {
+                    entries,
+                    aesthetic_name: title,
+                }),
+            }
+        } else {
+            Ok(LegendScale::Combined { sections })
+        }
+    }
+
+    /// Build a discrete legend for layer-based colors (all layers with constant colors)
+    fn build_layer_based_legend(
+        per_layer_colors: &crate::tercen::PerLayerColorConfig,
+        layer_y_factor_names: &[String],
+    ) -> Result<LegendScale, Box<dyn std::error::Error>> {
+        use crate::tercen::LayerColorConfig;
+
+        let entries: Vec<(String, [u8; 3])> = per_layer_colors
+            .layer_configs
+            .iter()
+            .enumerate()
+            .filter_map(|(layer_idx, config)| {
+                if let LayerColorConfig::Constant { color } = config {
+                    let y_factor_name = layer_y_factor_names
+                        .get(layer_idx)
+                        .cloned()
+                        .unwrap_or_else(|| format!("Layer {}", layer_idx + 1));
+                    Some((y_factor_name, *color))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        eprintln!(
+            "DEBUG: Built layer-based legend with {} entries",
+            entries.len()
+        );
+
+        Ok(LegendScale::Discrete {
+            entries,
+            aesthetic_name: String::new(), // No title for layer-based legend
+        })
+    }
+
     // Stream data for a specific facet cell in chunks
     // NOTE: Per-facet streaming not used - commented out since GGRS uses bulk mode
     /// Stream data in bulk across ALL facets (includes .ci and .ri columns)
@@ -1374,20 +1636,86 @@ impl TercenStreamGenerator {
         // Page factors exist in facet tables, not the main data table.
         // We've already filtered facets by page, so data filtering is via .ri matching.
 
-        // Add color columns
-        // For categorical colors, we need .colorLevels (int32) not the factor column
-        // For continuous colors, we need the factor column (f64)
-        for color_info in &self.color_infos {
-            match &color_info.mapping {
-                crate::tercen::ColorMapping::Categorical(_) => {
-                    // Add .colorLevels for categorical colors
-                    if !columns.contains(&".colorLevels".to_string()) {
-                        columns.push(".colorLevels".to_string());
+        // Add color columns based on configuration
+        // Determine which color handling mode we're in:
+        // 1. Mixed-layer: some layers have colors, some don't (use per_layer_colors)
+        // 2. Pure layer-based: no colors on any layer (use layer palette)
+        // 3. Uniform colors: all layers share the same color config (legacy color_infos)
+
+        let is_mixed_layer = self
+            .per_layer_colors
+            .as_ref()
+            .map(|plc| plc.is_mixed())
+            .unwrap_or(false);
+        let use_layer_colors = self.color_infos.is_empty() && self.n_layers > 1 && !is_mixed_layer;
+
+        // Always fetch .axisIndex when multiple layers exist (for shape cycling and color handling)
+        if self.n_layers > 1 && !columns.contains(&".axisIndex".to_string()) {
+            columns.push(".axisIndex".to_string());
+            eprintln!(
+                "DEBUG: Multi-layer ({} layers) - fetching .axisIndex for shape/color cycling",
+                self.n_layers
+            );
+        }
+
+        if is_mixed_layer {
+            // Mixed-layer scenario: always need .axisIndex to determine which coloring to use
+            columns.push(".axisIndex".to_string());
+            eprintln!(
+                "DEBUG: Mixed-layer coloring ({} layers) - fetching .axisIndex",
+                self.n_layers
+            );
+
+            // Fetch color columns for layers that have explicit colors
+            if let Some(ref plc) = self.per_layer_colors {
+                use crate::tercen::LayerColorConfig;
+                for (layer_idx, config) in plc.layer_configs.iter().enumerate() {
+                    match config {
+                        LayerColorConfig::Categorical { .. } => {
+                            if !columns.contains(&".colorLevels".to_string()) {
+                                columns.push(".colorLevels".to_string());
+                                eprintln!(
+                                    "DEBUG: Layer {} has categorical colors - fetching .colorLevels",
+                                    layer_idx
+                                );
+                            }
+                        }
+                        LayerColorConfig::Continuous { factor_name, .. } => {
+                            if !columns.contains(factor_name) {
+                                columns.push(factor_name.clone());
+                                eprintln!(
+                                    "DEBUG: Layer {} has continuous colors - fetching '{}'",
+                                    layer_idx, factor_name
+                                );
+                            }
+                        }
+                        LayerColorConfig::Constant { color } => {
+                            eprintln!("DEBUG: Layer {} has constant color {:?}", layer_idx, color);
+                        }
                     }
                 }
-                crate::tercen::ColorMapping::Continuous(_) => {
-                    // Add the factor column for continuous colors
-                    columns.push(color_info.factor_name.clone());
+            }
+        } else if use_layer_colors {
+            // Pure layer-based coloring: fetch .axisIndex
+            columns.push(".axisIndex".to_string());
+            eprintln!(
+                "DEBUG: Multi-layer ({} layers) with no colors - will use layer-based coloring",
+                self.n_layers
+            );
+        } else {
+            // Legacy uniform colors: all layers share the same color config
+            for color_info in &self.color_infos {
+                match &color_info.mapping {
+                    crate::tercen::ColorMapping::Categorical(_) => {
+                        // Add .colorLevels for categorical colors
+                        if !columns.contains(&".colorLevels".to_string()) {
+                            columns.push(".colorLevels".to_string());
+                        }
+                    }
+                    crate::tercen::ColorMapping::Continuous(_) => {
+                        // Add the factor column for continuous colors
+                        columns.push(color_info.factor_name.clone());
+                    }
                 }
             }
         }
@@ -1455,14 +1783,37 @@ impl TercenStreamGenerator {
         // NO FILTERING! Operator is dumb - just streams raw data.
         // GGRS handles all filtering using original_index mapping.
 
-        // Map color values to RGB if color factors are defined
-        if !self.color_infos.is_empty() {
+        // Map color values to RGB based on the coloring mode
+        if is_mixed_layer {
+            // Mixed-layer: different coloring per layer
+            // Constant colors are pre-computed in LayerColorConfig during extraction
+            eprintln!(
+                "DEBUG: Adding mixed-layer colors for {} layers",
+                self.n_layers
+            );
+            if let Some(ref plc) = self.per_layer_colors {
+                df = crate::tercen::color_processor::add_mixed_layer_colors(df, plc)?;
+                eprintln!("DEBUG: Mixed-layer colors added successfully");
+            }
+        } else if !self.color_infos.is_empty() {
+            // Legacy uniform colors
             eprintln!(
                 "DEBUG: Adding color columns for {} color factors",
                 self.color_infos.len()
             );
             df = crate::tercen::color_processor::add_color_columns(df, &self.color_infos)?;
             eprintln!("DEBUG: Color columns added successfully");
+        } else if use_layer_colors {
+            // Pure layer-based coloring
+            eprintln!(
+                "DEBUG: Adding layer-based colors for {} layers using palette {:?}",
+                self.n_layers, self.layer_palette_name
+            );
+            df = crate::tercen::color_processor::add_layer_colors(
+                df,
+                self.layer_palette_name.as_deref(),
+            )?;
+            eprintln!("DEBUG: Layer colors added successfully");
         }
 
         Ok(df)
@@ -1688,16 +2039,25 @@ impl StreamGenerator for TercenStreamGenerator {
     }
 
     fn query_color_metadata(&self) -> ggrs_core::stream::ColorMetadata {
-        // Tercen pre-computes colors in add_color_columns()
-        // The .color column contains ready-to-use hex strings (e.g., "#FF0000")
+        // Tercen pre-computes colors in add_color_columns(), add_layer_colors(), or add_mixed_layer_colors()
+        // The .color column contains ready-to-use packed RGB values
         // Legend metadata is provided via query_legend_scale()
         // No scale training needed - colors are ready to use
-        if self.color_infos.is_empty() {
-            // No color aesthetic configured
-            ggrs_core::stream::ColorMetadata::Unknown
-        } else {
-            // Colors are pre-computed by Tercen
+
+        let has_mixed_layer_colors = self
+            .per_layer_colors
+            .as_ref()
+            .map(|plc| plc.is_mixed() || plc.has_explicit_colors())
+            .unwrap_or(false);
+        let has_explicit_colors = !self.color_infos.is_empty();
+        let has_layer_colors = self.color_infos.is_empty() && self.n_layers > 1;
+
+        if has_mixed_layer_colors || has_explicit_colors || has_layer_colors {
+            // Colors are pre-computed by Tercen (either from color factors, layers, or mixed)
             ggrs_core::stream::ColorMetadata::Precomputed
+        } else {
+            // No color aesthetic configured (single layer, no colors)
+            ggrs_core::stream::ColorMetadata::Unknown
         }
     }
 

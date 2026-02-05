@@ -4,7 +4,7 @@
 //! The specific contexts wrap this struct and provide different constructors.
 
 use crate::tercen::client::proto::{CubeQuery, ETask, OperatorSettings};
-use crate::tercen::colors::{ChartKind, ColorInfo};
+use crate::tercen::colors::{ChartKind, ColorInfo, PerLayerColorConfig};
 use crate::tercen::result::PlotResult;
 use crate::tercen::table::{SchemaCache, TableStreamer};
 use crate::tercen::TercenClient;
@@ -44,6 +44,16 @@ pub struct ContextBase {
     // Transforms
     pub(super) y_transform: Option<String>,
     pub(super) x_transform: Option<String>,
+
+    // Layer coloring
+    /// Palette name from crosstab for layer-based coloring (when no color factors)
+    pub(super) layer_palette_name: Option<String>,
+
+    /// Per-layer color configuration (for mixed-layer scenarios)
+    pub(super) per_layer_colors: Option<PerLayerColorConfig>,
+
+    /// Y-axis factor names per layer (for legend entries)
+    pub(super) layer_y_factor_names: Vec<String>,
 }
 
 impl ContextBase {
@@ -111,6 +121,18 @@ impl ContextBase {
 
     pub fn x_transform(&self) -> Option<&str> {
         self.x_transform.as_deref()
+    }
+
+    pub fn layer_palette_name(&self) -> Option<&str> {
+        self.layer_palette_name.as_deref()
+    }
+
+    pub fn per_layer_colors(&self) -> Option<&PerLayerColorConfig> {
+        self.per_layer_colors.as_ref()
+    }
+
+    pub fn layer_y_factor_names(&self) -> &[String] {
+        &self.layer_y_factor_names
     }
 
     pub fn client(&self) -> &Arc<TercenClient> {
@@ -335,6 +357,9 @@ pub struct ContextBaseBuilder {
     crosstab_dimensions: Option<(i32, i32)>,
     y_transform: Option<String>,
     x_transform: Option<String>,
+    layer_palette_name: Option<String>,
+    per_layer_colors: Option<PerLayerColorConfig>,
+    layer_y_factor_names: Vec<String>,
 }
 
 impl Default for ContextBaseBuilder {
@@ -363,6 +388,9 @@ impl ContextBaseBuilder {
             crosstab_dimensions: None,
             y_transform: None,
             x_transform: None,
+            layer_palette_name: None,
+            per_layer_colors: None,
+            layer_y_factor_names: Vec::new(),
         }
     }
 
@@ -451,6 +479,21 @@ impl ContextBaseBuilder {
         self
     }
 
+    pub fn layer_palette_name(mut self, layer_palette_name: Option<String>) -> Self {
+        self.layer_palette_name = layer_palette_name;
+        self
+    }
+
+    pub fn per_layer_colors(mut self, per_layer_colors: Option<PerLayerColorConfig>) -> Self {
+        self.per_layer_colors = per_layer_colors;
+        self
+    }
+
+    pub fn layer_y_factor_names(mut self, names: Vec<String>) -> Self {
+        self.layer_y_factor_names = names;
+        self
+    }
+
     /// Build the ContextBase, returning an error if required fields are missing
     pub fn build(self) -> Result<ContextBase, Box<dyn std::error::Error>> {
         let client = self
@@ -478,6 +521,9 @@ impl ContextBaseBuilder {
             crosstab_dimensions: self.crosstab_dimensions,
             y_transform: self.y_transform,
             x_transform: self.x_transform,
+            layer_palette_name: self.layer_palette_name,
+            per_layer_colors: self.per_layer_colors,
+            layer_y_factor_names: self.layer_y_factor_names,
         })
     }
 }

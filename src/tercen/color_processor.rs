@@ -294,3 +294,235 @@ fn add_categorical_colors_from_mappings(
 
     Ok(())
 }
+
+/// Add mixed-layer colors using the unified LayerColorConfig
+///
+/// Each layer has a LayerColorConfig that determines how its points are colored:
+/// - Continuous: interpolate values using the layer's palette
+/// - Categorical: map levels to colors
+/// - Constant: all points get the pre-computed constant color
+///
+/// # Arguments
+/// * `df` - DataFrame with `.axisIndex` column and color factor columns
+/// * `per_layer_config` - Per-layer color configuration (every layer has a config)
+///
+/// # Returns
+/// DataFrame with `.color` column added (packed RGB as i64)
+pub fn add_mixed_layer_colors(
+    mut df: DataFrame,
+    per_layer_config: &crate::tercen::PerLayerColorConfig,
+) -> Result<DataFrame, Box<dyn std::error::Error>> {
+    use crate::tercen::LayerColorConfig;
+    use std::borrow::Cow;
+
+    let polars_df = df.inner_mut();
+    let nrows = polars_df.height();
+
+    eprintln!(
+        "DEBUG add_mixed_layer_colors: Processing {} rows with {} layers",
+        nrows, per_layer_config.n_layers
+    );
+
+    // Get .axisIndex column
+    let axis_index_series = polars_df.column(".axisIndex").map_err(|e| {
+        format!(
+            ".axisIndex column not found for mixed-layer coloring: {}",
+            e
+        )
+    })?;
+
+    let axis_indices = axis_index_series
+        .i64()
+        .map_err(|e| format!(".axisIndex column is not i64: {}", e))?;
+
+    // Pre-extract and rescale palettes for continuous layers
+    let mut continuous_data: std::collections::HashMap<
+        usize,
+        (Cow<'_, crate::tercen::ColorPalette>, Vec<f64>),
+    > = std::collections::HashMap::new();
+
+    for (layer_idx, config) in per_layer_config.layer_configs.iter().enumerate() {
+        if let LayerColorConfig::Continuous {
+            palette,
+            factor_name,
+            quartiles,
+            ..
+        } = config
+        {
+            // Get the factor column for this layer
+            if let Ok(col) = polars_df.column(factor_name) {
+                if let Ok(f64_col) = col.f64() {
+                    let values: Vec<f64> = f64_col.iter().map(|v| v.unwrap_or(0.0)).collect();
+
+                    // Rescale palette if quartiles available
+                    let effective_palette: Cow<'_, crate::tercen::ColorPalette> = if !palette
+                        .is_user_defined
+                    {
+                        if let Some(q) = quartiles {
+                            eprintln!(
+                                    "DEBUG add_mixed_layer_colors: Rescaling palette for layer {} using quartiles",
+                                    layer_idx
+                                );
+                            Cow::Owned(palette.rescale_from_quartiles(q))
+                        } else {
+                            Cow::Borrowed(palette)
+                        }
+                    } else {
+                        Cow::Borrowed(palette)
+                    };
+
+                    eprintln!(
+                        "DEBUG add_mixed_layer_colors: Layer {} uses continuous factor '{}' ({} values)",
+                        layer_idx, factor_name, values.len()
+                    );
+                    continuous_data.insert(layer_idx, (effective_palette, values));
+                }
+            }
+        }
+    }
+
+    // Check if we need .colorLevels for any categorical layers
+    let needs_color_levels = per_layer_config.has_categorical();
+
+    let color_levels_column: Option<Vec<i64>> = if needs_color_levels {
+        polars_df
+            .column(".colorLevels")
+            .ok()
+            .and_then(|col| col.i64().ok())
+            .map(|i64_col| i64_col.iter().map(|v| v.unwrap_or(0)).collect())
+    } else {
+        None
+    };
+
+    // Build packed color values row by row
+    let mut packed_colors: Vec<i64> = Vec::with_capacity(nrows);
+
+    for row_idx in 0..nrows {
+        let layer_idx = axis_indices.get(row_idx).unwrap_or(0) as usize;
+
+        let rgb = match per_layer_config.get(layer_idx) {
+            Some(LayerColorConfig::Continuous { .. }) => {
+                // Use pre-extracted continuous data
+                if let Some((palette, values)) = continuous_data.get(&layer_idx) {
+                    let value = values.get(row_idx).copied().unwrap_or(0.0);
+                    interpolate_color(value, palette)
+                } else {
+                    [128, 128, 128] // Fallback gray
+                }
+            }
+            Some(LayerColorConfig::Categorical { .. }) => {
+                // Use .colorLevels
+                if let Some(ref levels) = color_levels_column {
+                    let level = levels.get(row_idx).copied().unwrap_or(0) as i32;
+                    categorical_color_from_level(level)
+                } else {
+                    [128, 128, 128] // Fallback gray
+                }
+            }
+            Some(LayerColorConfig::Constant { color }) => {
+                // Use pre-computed constant color
+                *color
+            }
+            None => {
+                // No config for this layer (shouldn't happen) - use gray
+                [128, 128, 128]
+            }
+        };
+
+        packed_colors.push(ggrs_core::PackedRgba::rgb(rgb[0], rgb[1], rgb[2]).to_u32() as i64);
+    }
+
+    // Debug: Show color distribution by layer
+    let mut layer_color_counts: std::collections::HashMap<usize, usize> =
+        std::collections::HashMap::new();
+    for opt_idx in axis_indices.iter().flatten() {
+        *layer_color_counts.entry(opt_idx as usize).or_insert(0) += 1;
+    }
+    for (layer_idx, count) in layer_color_counts.iter() {
+        let config_type = per_layer_config
+            .get(*layer_idx)
+            .map(|c| match c {
+                LayerColorConfig::Continuous { .. } => "continuous",
+                LayerColorConfig::Categorical { .. } => "categorical",
+                LayerColorConfig::Constant { .. } => "constant",
+            })
+            .unwrap_or("none");
+        eprintln!(
+            "DEBUG add_mixed_layer_colors: Layer {} has {} points, config={}",
+            layer_idx, count, config_type
+        );
+    }
+
+    polars_df.with_column(Series::new(".color".into(), packed_colors))?;
+
+    Ok(df)
+}
+
+/// Add layer-based colors when no color factor is specified
+///
+/// When multiple layers exist (axis_queries > 1) and no colors are explicitly mapped,
+/// this function colors points by their layer index using the specified palette.
+///
+/// # Arguments
+/// * `df` - DataFrame with `.axisIndex` column
+/// * `palette_name` - Optional palette name (defaults to Palette-1 if None)
+///
+/// # Returns
+/// DataFrame with `.color` column added (packed RGB as i64)
+pub fn add_layer_colors(
+    mut df: DataFrame,
+    palette_name: Option<&str>,
+) -> Result<DataFrame, Box<dyn std::error::Error>> {
+    use crate::tercen::palettes::{DEFAULT_CATEGORICAL_PALETTE, PALETTE_REGISTRY};
+
+    let polars_df = df.inner_mut();
+    let nrows = polars_df.height();
+
+    // Get .axisIndex column
+    let axis_index_series = polars_df
+        .column(".axisIndex")
+        .map_err(|e| format!(".axisIndex column not found: {}", e))?;
+
+    let axis_indices = axis_index_series
+        .i64()
+        .map_err(|e| format!(".axisIndex column is not i64: {}", e))?;
+
+    // Use specified palette or fallback to default categorical palette
+    let effective_palette_name = palette_name.unwrap_or(DEFAULT_CATEGORICAL_PALETTE);
+    let palette = PALETTE_REGISTRY
+        .get(effective_palette_name)
+        .ok_or_else(|| format!("Palette '{}' not found", effective_palette_name))?;
+
+    eprintln!(
+        "DEBUG add_layer_colors: Coloring {} points by layer using '{}' palette ({} colors)",
+        nrows,
+        effective_palette_name,
+        palette.len()
+    );
+
+    // Map each axis index to a color from Palette-1
+    let packed_colors: Vec<i64> = axis_indices
+        .iter()
+        .map(|opt_idx| {
+            let idx = opt_idx.unwrap_or(0) as usize;
+            let rgb = palette.get_color(idx);
+            ggrs_core::PackedRgba::rgb(rgb[0], rgb[1], rgb[2]).to_u32() as i64
+        })
+        .collect();
+
+    // Debug: Show which colors are used for which layers
+    let mut seen_layers: std::collections::HashSet<i64> = std::collections::HashSet::new();
+    for idx in axis_indices.iter().flatten() {
+        if seen_layers.insert(idx) {
+            let rgb = palette.get_color(idx as usize);
+            eprintln!(
+                "DEBUG add_layer_colors: Layer {} -> RGB({},{},{})",
+                idx, rgb[0], rgb[1], rgb[2]
+            );
+        }
+    }
+
+    polars_df.with_column(Series::new(".color".into(), packed_colors))?;
+
+    Ok(df)
+}
