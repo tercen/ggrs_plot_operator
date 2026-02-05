@@ -323,17 +323,17 @@ pub fn add_mixed_layer_colors(
         nrows, per_layer_config.n_layers
     );
 
-    // Get .axisIndex column
-    let axis_index_series = polars_df.column(".axisIndex").map_err(|e| {
-        format!(
-            ".axisIndex column not found for mixed-layer coloring: {}",
-            e
-        )
-    })?;
+    // Get .axisIndex column (optional for single-layer case)
+    // When there's only 1 layer, all rows belong to layer 0 by definition
+    let axis_indices_opt = polars_df
+        .column(".axisIndex")
+        .ok()
+        .and_then(|col| col.i64().ok());
 
-    let axis_indices = axis_index_series
-        .i64()
-        .map_err(|e| format!(".axisIndex column is not i64: {}", e))?;
+    // For logging
+    if axis_indices_opt.is_none() && per_layer_config.n_layers == 1 {
+        eprintln!("DEBUG add_mixed_layer_colors: Single layer, no .axisIndex column - all rows belong to layer 0");
+    }
 
     // Pre-extract and rescale palettes for continuous layers
     let mut continuous_data: std::collections::HashMap<
@@ -398,7 +398,11 @@ pub fn add_mixed_layer_colors(
     let mut packed_colors: Vec<i64> = Vec::with_capacity(nrows);
 
     for row_idx in 0..nrows {
-        let layer_idx = axis_indices.get(row_idx).unwrap_or(0) as usize;
+        // Get layer index: from .axisIndex if available, otherwise 0 (single layer)
+        let layer_idx = axis_indices_opt
+            .as_ref()
+            .map(|indices| indices.get(row_idx).unwrap_or(0) as usize)
+            .unwrap_or(0);
 
         let rgb = match per_layer_config.get(layer_idx) {
             Some(LayerColorConfig::Continuous { .. }) => {
@@ -435,8 +439,13 @@ pub fn add_mixed_layer_colors(
     // Debug: Show color distribution by layer
     let mut layer_color_counts: std::collections::HashMap<usize, usize> =
         std::collections::HashMap::new();
-    for opt_idx in axis_indices.iter().flatten() {
-        *layer_color_counts.entry(opt_idx as usize).or_insert(0) += 1;
+    if let Some(indices) = &axis_indices_opt {
+        for opt_idx in indices.iter().flatten() {
+            *layer_color_counts.entry(opt_idx as usize).or_insert(0) += 1;
+        }
+    } else {
+        // Single layer case - all rows belong to layer 0
+        layer_color_counts.insert(0, nrows);
     }
     for (layer_idx, count) in layer_color_counts.iter() {
         let config_type = per_layer_config

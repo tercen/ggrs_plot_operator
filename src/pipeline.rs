@@ -132,7 +132,8 @@ pub async fn generate_plots<C: TercenContext>(
         .x_transform(ctx.x_transform().map(|s| s.to_string()))
         .n_layers(ctx.n_layers())
         .layer_palette_name(ctx.layer_palette_name().map(|s| s.to_string()))
-        .layer_y_factor_names(ctx.layer_y_factor_names().to_vec());
+        .layer_y_factor_names(ctx.layer_y_factor_names().to_vec())
+        .chart_kind(ctx.chart_kind());
 
         let mut stream_gen =
             TercenStreamGenerator::new(client_arc.clone(), stream_config, page_filter).await?;
@@ -247,7 +248,11 @@ fn render_page<C: TercenContext>(
             println!("  Chart kind: Heatmap (using Geom::tile())");
             Geom::tile()
         }
-        ChartKind::Point | ChartKind::Line | ChartKind::Bar => {
+        ChartKind::Bar => {
+            println!("  Chart kind: Bar (using Geom::bar())");
+            Geom::bar()
+        }
+        ChartKind::Point | ChartKind::Line => {
             println!(
                 "  Chart kind: {:?} (using Geom::point_sized({}))",
                 ctx.chart_kind(),

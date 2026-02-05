@@ -4,7 +4,9 @@
 //! enabling lazy loading of data directly from Tercen's gRPC API.
 
 use crate::config::HeatmapCellAggregation;
-use crate::tercen::{tson_to_dataframe, FacetInfo, SchemaCache, TableStreamer, TercenClient};
+use crate::tercen::{
+    tson_to_dataframe, ChartKind, FacetInfo, SchemaCache, TableStreamer, TercenClient,
+};
 use ggrs_core::{
     aes::Aes,
     data::DataFrame,
@@ -62,6 +64,8 @@ pub struct TercenStreamConfig {
     /// Y-axis factor names per layer (from axis_queries[i].yAxis.name)
     /// Used for legend entries when layers don't have explicit color factors
     pub layer_y_factor_names: Vec<String>,
+    /// Chart kind - determines data columns needed (e.g., bar charts need .y0s baseline)
+    pub chart_kind: ChartKind,
 }
 
 impl TercenStreamConfig {
@@ -89,7 +93,14 @@ impl TercenStreamConfig {
             n_layers: 1,
             layer_palette_name: None,
             layer_y_factor_names: Vec::new(),
+            chart_kind: ChartKind::Point,
         }
+    }
+
+    /// Set chart kind (determines which data columns to fetch)
+    pub fn chart_kind(mut self, chart_kind: ChartKind) -> Self {
+        self.chart_kind = chart_kind;
+        self
     }
 
     /// Set Y-axis table ID
@@ -292,6 +303,9 @@ pub struct TercenStreamGenerator {
     /// Note: Used at initialization in load_legend_scale(), not read later
     #[allow(dead_code)]
     layer_y_factor_names: Vec<String>,
+
+    /// Chart kind - determines data columns needed (e.g., bar charts need .y0s baseline)
+    chart_kind: ChartKind,
 }
 
 impl TercenStreamGenerator {
@@ -329,6 +343,7 @@ impl TercenStreamGenerator {
             n_layers,
             layer_palette_name,
             layer_y_factor_names,
+            chart_kind,
         } = config;
 
         // Convert transform strings to Transform structs
@@ -584,6 +599,7 @@ impl TercenStreamGenerator {
             n_layers,
             layer_palette_name,
             layer_y_factor_names,
+            chart_kind,
         })
     }
 
@@ -663,6 +679,7 @@ impl TercenStreamGenerator {
             n_layers: 1, // Sync constructor defaults to single layer
             layer_palette_name: None,
             layer_y_factor_names: Vec::new(), // Sync constructor defaults to empty
+            chart_kind: ChartKind::Point,     // Sync constructor defaults to Point
         }
     }
 
@@ -1632,6 +1649,22 @@ impl TercenStreamGenerator {
             ".ys".to_string(),
         ];
 
+        // Add chart-type specific columns
+        match self.chart_kind {
+            ChartKind::Bar => {
+                // Bar charts need .y0s (baseline) for stacked bars
+                columns.push(".y0s".to_string());
+                eprintln!("DEBUG: Bar chart - fetching .y0s baseline column");
+            }
+            ChartKind::Line => {
+                // Line charts may need ordering/grouping columns in the future
+                eprintln!("DEBUG: Line chart - no extra columns needed yet");
+            }
+            ChartKind::Heatmap | ChartKind::Point => {
+                // Standard columns are sufficient
+            }
+        }
+
         // NOTE: Don't add page_factors to columns!
         // Page factors exist in facet tables, not the main data table.
         // We've already filtered facets by page, so data filtering is via .ri matching.
@@ -1784,25 +1817,52 @@ impl TercenStreamGenerator {
         // GGRS handles all filtering using original_index mapping.
 
         // Map color values to RGB based on the coloring mode
-        if is_mixed_layer {
-            // Mixed-layer: different coloring per layer
-            // Constant colors are pre-computed in LayerColorConfig during extraction
+        // Priority order:
+        // 1. Legacy color_infos (explicit color factors from step)
+        // 2. Per-layer explicit colors (from per_layer_colors)
+        // 3. Per-layer constant colors (fallback when no color factor)
+        // 4. Layer-based coloring (multiple layers, no explicit colors)
+
+        let has_explicit_per_layer = self
+            .per_layer_colors
+            .as_ref()
+            .map(|plc| plc.has_explicit_colors())
+            .unwrap_or(false);
+
+        let has_constant_per_layer = self
+            .per_layer_colors
+            .as_ref()
+            .map(|plc| plc.has_constant_colors() && !plc.has_explicit_colors())
+            .unwrap_or(false);
+
+        if !self.color_infos.is_empty() {
+            // Priority 1: Legacy uniform colors (explicit color factors)
             eprintln!(
-                "DEBUG: Adding mixed-layer colors for {} layers",
-                self.n_layers
-            );
-            if let Some(ref plc) = self.per_layer_colors {
-                df = crate::tercen::color_processor::add_mixed_layer_colors(df, plc)?;
-                eprintln!("DEBUG: Mixed-layer colors added successfully");
-            }
-        } else if !self.color_infos.is_empty() {
-            // Legacy uniform colors
-            eprintln!(
-                "DEBUG: Adding color columns for {} color factors",
+                "DEBUG: Adding color columns for {} color factors (legacy path)",
                 self.color_infos.len()
             );
             df = crate::tercen::color_processor::add_color_columns(df, &self.color_infos)?;
             eprintln!("DEBUG: Color columns added successfully");
+        } else if has_explicit_per_layer || is_mixed_layer {
+            // Priority 2: Per-layer with explicit colors or mixed scenario
+            eprintln!(
+                "DEBUG: Adding per-layer colors for {} layers (explicit={}, mixed={})",
+                self.n_layers, has_explicit_per_layer, is_mixed_layer
+            );
+            if let Some(ref plc) = self.per_layer_colors {
+                df = crate::tercen::color_processor::add_mixed_layer_colors(df, plc)?;
+                eprintln!("DEBUG: Per-layer colors added successfully");
+            }
+        } else if has_constant_per_layer {
+            // Priority 3: Per-layer constant colors (no explicit color factor)
+            eprintln!(
+                "DEBUG: Adding per-layer constant colors for {} layers",
+                self.n_layers
+            );
+            if let Some(ref plc) = self.per_layer_colors {
+                df = crate::tercen::color_processor::add_mixed_layer_colors(df, plc)?;
+                eprintln!("DEBUG: Per-layer constant colors added successfully");
+            }
         } else if use_layer_colors {
             // Pure layer-based coloring
             eprintln!(

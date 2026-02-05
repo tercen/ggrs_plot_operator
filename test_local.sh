@@ -67,8 +67,14 @@ export TERCEN_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vMT
 #EXAMPLE6
 # Multiple layers
 #http://127.0.0.1:5400/test/w/28e3c9888e9935f667aed6f07c007c7c/ds/a7a3aaea-33b9-4dfd-81f9-d86de12d6dcc
+#export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
+#export STEP_ID="a7a3aaea-33b9-4dfd-81f9-d86de12d6dcc"
+
+#EXAMPLE5
+#Bar plots
+#http://127.0.0.1:5400/test/w/28e3c9888e9935f667aed6f07c007c7c/ds/63235187-2f58-48c5-a60c-9ecfc718e9f4
 export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
-export STEP_ID="a7a3aaea-33b9-4dfd-81f9-d86de12d6dcc"
+export STEP_ID="63235187-2f58-48c5-a60c-9ecfc718e9f4"
 
 # Memory tracker path
 MEMORY_TRACKER="/home/thiago/workspaces/tercen/main/memory_tracker/target/release/memory_tracker"
