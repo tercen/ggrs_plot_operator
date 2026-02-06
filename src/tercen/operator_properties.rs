@@ -161,29 +161,29 @@ impl OperatorPropertyReader {
 
     /// Get enumerated property with validation
     ///
-    /// Returns the user-set value if valid, otherwise returns the default.
-    /// Logs a warning if the user value is invalid.
-    pub fn get_enum(&self, name: &str) -> String {
+    /// Returns the user-set value if valid. Errors if user value is invalid.
+    /// Returns the default from operator.json if no user value is set.
+    pub fn get_enum(&self, name: &str) -> Result<String, String> {
         let reg = registry();
         let default = reg.get_default(name).unwrap_or("");
 
         if let Some(value) = self.user_values.get(name) {
             if reg.is_valid_enum_value(name, value) {
-                return value.clone();
+                return Ok(value.clone());
             } else {
                 let valid_values = reg
                     .get_property(name)
                     .and_then(|p| p.valid_values.as_ref())
                     .map(|v| v.join(", "))
                     .unwrap_or_default();
-                eprintln!(
-                    "Invalid value '{}' for property '{}'. Valid values: [{}]. Using default: '{}'",
-                    value, name, valid_values, default
-                );
+                return Err(format!(
+                    "Invalid value '{}' for property '{}'. Valid values: [{}]",
+                    value, name, valid_values
+                ));
             }
         }
 
-        default.to_string()
+        Ok(default.to_string())
     }
 
     /// Get optional string property (None if empty)
@@ -198,161 +198,171 @@ impl OperatorPropertyReader {
 
     /// Get f64 property with validation
     ///
-    /// Parses the string value as f64. If parsing fails or validation fails,
-    /// uses the default from operator.json.
-    pub fn get_f64(&self, name: &str) -> f64 {
+    /// Parses the string value as f64. Errors if the user-provided value
+    /// cannot be parsed as a number.
+    pub fn get_f64(&self, name: &str) -> Result<f64, String> {
         let value = self.get_string(name);
         let default_str = registry().get_default(name).unwrap_or("0");
         let default = default_str.parse::<f64>().unwrap_or(0.0);
 
         if value.is_empty() {
-            return default;
+            return Ok(default);
         }
 
-        match value.parse::<f64>() {
-            Ok(v) => v,
-            Err(_) => {
-                eprintln!(
-                    "Invalid numeric value '{}' for property '{}'. Using default: {}",
-                    value, name, default
-                );
-                default
-            }
-        }
+        value.parse::<f64>().map_err(|_| {
+            format!(
+                "Invalid numeric value '{}' for property '{}'. Expected a number.",
+                value, name
+            )
+        })
     }
 
     /// Get f64 property with range validation
-    pub fn get_f64_in_range(&self, name: &str, min: f64, max: f64) -> f64 {
-        let value = self.get_f64(name);
-        let default_str = registry().get_default(name).unwrap_or("0");
-        let default = default_str.parse::<f64>().unwrap_or(0.0);
+    ///
+    /// Errors if the value cannot be parsed or is outside [min, max].
+    pub fn get_f64_in_range(&self, name: &str, min: f64, max: f64) -> Result<f64, String> {
+        let value = self.get_f64(name)?;
 
         if value >= min && value <= max {
-            value
+            Ok(value)
         } else {
-            eprintln!(
-                "Value {} for property '{}' out of range [{}, {}]. Using default: {}",
-                value, name, min, max, default
-            );
-            default
+            Err(format!(
+                "Value {} for property '{}' out of range [{}, {}].",
+                value, name, min, max
+            ))
         }
     }
 
     /// Get i32 property with validation
-    pub fn get_i32(&self, name: &str) -> i32 {
+    ///
+    /// Errors if the user-provided value cannot be parsed as an integer.
+    pub fn get_i32(&self, name: &str) -> Result<i32, String> {
         let value = self.get_string(name);
         let default_str = registry().get_default(name).unwrap_or("0");
         let default = default_str.parse::<i32>().unwrap_or(0);
 
         if value.is_empty() {
-            return default;
+            return Ok(default);
         }
 
-        match value.parse::<i32>() {
-            Ok(v) => v,
-            Err(_) => {
-                eprintln!(
-                    "Invalid integer value '{}' for property '{}'. Using default: {}",
-                    value, name, default
-                );
-                default
-            }
-        }
+        value.parse::<i32>().map_err(|_| {
+            format!(
+                "Invalid integer value '{}' for property '{}'. Expected an integer.",
+                value, name
+            )
+        })
     }
 
     /// Parse coordinate string "x,y" into (f64, f64)
     ///
     /// Format: "x,y" where x,y ∈ [0,1]
-    /// Returns None if empty or invalid format
-    pub fn get_coords(&self, name: &str) -> Option<(f64, f64)> {
+    /// Returns Ok(None) if empty, Err if format is invalid.
+    pub fn get_coords(&self, name: &str) -> Result<Option<(f64, f64)>, String> {
         let value = self.get_string(name);
         if value.is_empty() {
-            return None;
+            return Ok(None);
         }
 
         let parts: Vec<&str> = value.split(',').collect();
         if parts.len() != 2 {
-            eprintln!(
-                "Invalid coordinate format '{}' for property '{}', expected 'x,y'",
+            return Err(format!(
+                "Invalid coordinate format '{}' for property '{}'. Expected 'x,y'.",
                 value, name
-            );
-            return None;
+            ));
         }
 
-        let x = match parts[0].trim().parse::<f64>() {
-            Ok(v) => v,
-            Err(_) => {
-                eprintln!(
-                    "Invalid x coordinate in '{}' for property '{}'",
-                    value, name
-                );
-                return None;
-            }
-        };
+        let x = parts[0].trim().parse::<f64>().map_err(|_| {
+            format!(
+                "Invalid x coordinate in '{}' for property '{}'.",
+                value, name
+            )
+        })?;
 
-        let y = match parts[1].trim().parse::<f64>() {
-            Ok(v) => v,
-            Err(_) => {
-                eprintln!(
-                    "Invalid y coordinate in '{}' for property '{}'",
-                    value, name
-                );
-                return None;
-            }
-        };
+        let y = parts[1].trim().parse::<f64>().map_err(|_| {
+            format!(
+                "Invalid y coordinate in '{}' for property '{}'.",
+                value, name
+            )
+        })?;
 
-        // Validate range [0, 1]
         if !(0.0..=1.0).contains(&x) || !(0.0..=1.0).contains(&y) {
-            eprintln!(
-                "Coordinates '{}' for property '{}' out of range [0,1]",
+            return Err(format!(
+                "Coordinates '{}' for property '{}' out of range [0,1].",
                 value, name
-            );
-            return None;
+            ));
         }
 
-        Some((x, y))
+        Ok(Some((x, y)))
+    }
+
+    /// Get boolean property with validation
+    ///
+    /// Accepts "true"/"1"/"yes" → true, "false"/"0"/"no"/"" → false.
+    /// Errors if the value is not a recognized boolean.
+    pub fn get_bool(&self, name: &str) -> Result<bool, String> {
+        let value = self.get_string(name);
+        match value.to_lowercase().as_str() {
+            "true" | "1" | "yes" => Ok(true),
+            "false" | "0" | "no" | "" => Ok(false),
+            _ => Err(format!(
+                "Invalid boolean value '{}' for property '{}'. Expected 'true' or 'false'.",
+                value, name
+            )),
+        }
+    }
+
+    /// Get optional f64 property (None if empty)
+    ///
+    /// Returns None if the value is empty, Some(f64) if valid, or Err if invalid.
+    pub fn get_optional_f64(&self, name: &str) -> Result<Option<f64>, String> {
+        let value = self.get_string(name);
+        if value.is_empty() {
+            return Ok(None);
+        }
+        value.parse::<f64>().map(Some).map_err(|_| {
+            format!(
+                "Invalid numeric value '{}' for property '{}'. Expected a number.",
+                value, name
+            )
+        })
     }
 
     /// Parse semicolon-separated list of shape codes
     ///
     /// Format: "19;15;17" -> vec![19, 15, 17]
-    /// Invalid entries are skipped with a warning.
-    /// Returns default [19] (filled circle) if empty or all invalid.
-    pub fn get_shape_list(&self, name: &str) -> Vec<i32> {
+    /// Errors if any entry is invalid or out of range (0-25).
+    /// Returns default [19] (filled circle) if empty.
+    pub fn get_shape_list(&self, name: &str) -> Result<Vec<i32>, String> {
         let value = self.get_string(name);
         if value.is_empty() {
-            return vec![19]; // Default: filled circle
+            return Ok(vec![19]); // Default: filled circle
         }
 
-        let shapes: Vec<i32> = value
-            .split(';')
-            .filter_map(|s| {
-                let trimmed = s.trim();
-                if trimmed.is_empty() {
-                    return None;
-                }
-                match trimmed.parse::<i32>() {
-                    Ok(n) if (0..=25).contains(&n) => Some(n),
-                    Ok(n) => {
-                        eprintln!("Invalid shape {} in '{}' (must be 0-25), skipping", n, name);
-                        None
-                    }
-                    Err(_) => {
-                        eprintln!("Invalid shape '{}' in '{}', skipping", trimmed, name);
-                        None
-                    }
-                }
-            })
-            .collect();
+        let mut shapes = Vec::new();
+        for s in value.split(';') {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let n = trimmed.parse::<i32>().map_err(|_| {
+                format!(
+                    "Invalid shape '{}' in property '{}'. Expected integer 0-25.",
+                    trimmed, name
+                )
+            })?;
+            if !(0..=25).contains(&n) {
+                return Err(format!(
+                    "Shape {} in property '{}' out of range. Must be 0-25.",
+                    n, name
+                ));
+            }
+            shapes.push(n);
+        }
 
         if shapes.is_empty() {
-            eprintln!(
-                "No valid shapes in '{}', using default (19=filled circle)",
-                name
-            );
-            vec![19]
+            Ok(vec![19])
         } else {
-            shapes
+            Ok(shapes)
         }
     }
 }
@@ -389,15 +399,40 @@ mod tests {
     #[test]
     fn test_property_reader_defaults() {
         let reader = OperatorPropertyReader::new(None);
-        assert_eq!(reader.get_enum("backend"), "cpu");
-        assert_eq!(reader.get_enum("legend.position"), "right");
-        assert_eq!(reader.get_f64("point.size.multiplier"), 1.0);
+        assert_eq!(reader.get_enum("backend").unwrap(), "cpu");
+        assert_eq!(reader.get_enum("legend.position").unwrap(), "right");
+        assert_eq!(reader.get_f64("point.size.multiplier").unwrap(), 1.0);
     }
 
     #[test]
     fn test_shape_list_default() {
         let reader = OperatorPropertyReader::new(None);
-        let shapes = reader.get_shape_list("point.shapes");
+        let shapes = reader.get_shape_list("point.shapes").unwrap();
         assert_eq!(shapes, vec![19]); // Default from operator.json
+    }
+
+    #[test]
+    fn test_bool_defaults() {
+        let reader = OperatorPropertyReader::new(None);
+        assert!(!reader.get_bool("grid.major.disable").unwrap());
+        assert!(!reader.get_bool("grid.minor.disable").unwrap());
+    }
+
+    #[test]
+    fn test_optional_f64_defaults() {
+        let reader = OperatorPropertyReader::new(None);
+        assert_eq!(
+            reader.get_optional_f64("plot.title.font.size").unwrap(),
+            None
+        );
+        assert_eq!(
+            reader.get_optional_f64("axis.label.font.size").unwrap(),
+            None
+        );
+        assert_eq!(
+            reader.get_optional_f64("axis.tick.font.size").unwrap(),
+            None
+        );
+        assert_eq!(reader.get_optional_f64("axis.line.width").unwrap(), None);
     }
 }

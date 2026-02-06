@@ -242,6 +242,36 @@ fn render_page<C: TercenContext>(
         println!("  Y-axis tick rotation: {}°", config.y_tick_rotation);
     }
 
+    // Grid disable
+    if config.grid_major_disable {
+        theme.disable_grid_major();
+        println!("  Major grid: disabled");
+    }
+    if config.grid_minor_disable {
+        theme.disable_grid_minor();
+        println!("  Minor grid: disabled");
+    }
+
+    // Font size overrides
+    if let Some(size) = config.title_font_size {
+        theme.set_plot_title_size(size);
+        println!("  Title font size: {}pt", size);
+    }
+    if let Some(size) = config.axis_label_font_size {
+        theme.set_axis_title_size(size);
+        println!("  Axis label font size: {}pt", size);
+    }
+    if let Some(size) = config.tick_label_font_size {
+        theme.set_axis_text_size(size);
+        println!("  Tick label font size: {}pt", size);
+    }
+
+    // Axis line width
+    if let Some(width) = config.axis_line_width {
+        theme.set_panel_border_linewidth(width);
+        println!("  Axis line width: {}pt", width);
+    }
+
     // Select geom based on chart kind
     let geom = match ctx.chart_kind() {
         ChartKind::Heatmap => {
@@ -252,13 +282,19 @@ fn render_page<C: TercenContext>(
             println!("  Chart kind: Bar (using Geom::bar())");
             Geom::bar()
         }
-        ChartKind::Point | ChartKind::Line => {
+        ChartKind::Point => {
             println!(
-                "  Chart kind: {:?} (using Geom::point_sized({}))",
-                ctx.chart_kind(),
+                "  Chart kind: Point (using Geom::point_sized({}))",
                 config.point_size
             );
             Geom::point_sized(config.point_size)
+        }
+        ChartKind::Line => {
+            println!(
+                "  Chart kind: Line (using Geom::line_width({}))",
+                config.point_size
+            );
+            Geom::line_width(config.point_size)
         }
     };
 
@@ -323,6 +359,9 @@ fn render_page<C: TercenContext>(
     // Set point shapes per layer (cycles through layers based on .axisIndex)
     plot_spec = plot_spec.layer_shapes(config.layer_shapes.clone());
 
+    // Set global opacity for data geoms
+    plot_spec = plot_spec.opacity(config.opacity);
+
     // Create PlotGenerator
     let m4 = memprof::checkpoint_return("Before PlotGenerator::new()");
     let t4 = std::time::Instant::now();
@@ -350,27 +389,33 @@ fn render_page<C: TercenContext>(
     };
     renderer.set_png_compression(png_compression);
 
-    println!(
-        "  Rendering plot (backend: {}, PNG compression: {})...",
-        config.backend, config.png_compression
-    );
-
-    let backend = match config.backend.as_str() {
-        "gpu" => BackendChoice::WebGPU,
-        _ => BackendChoice::Cairo,
+    let (backend, output_format) = match config.output_format.as_str() {
+        "svg" => (BackendChoice::Svg, OutputFormat::Svg),
+        "hsvg" => (BackendChoice::HybridSvg, OutputFormat::HybridSvg),
+        _ => match config.backend.as_str() {
+            "gpu" => (BackendChoice::WebGPU, OutputFormat::Png),
+            _ => (BackendChoice::Cairo, OutputFormat::Png),
+        },
     };
+
+    let ext = output_format.extension();
+
+    println!(
+        "  Rendering plot (backend: {}, format: {})...",
+        config.backend, ext
+    );
 
     // Render to temporary file (must use temp dir in production containers)
     let temp_dir = std::env::temp_dir();
     let temp_path = if total_pages > 1 {
-        temp_dir.join(format!("temp_plot_page_{}.png", page_idx))
+        temp_dir.join(format!("temp_plot_page_{}.{}", page_idx, ext))
     } else {
-        temp_dir.join("temp_plot.png")
+        temp_dir.join(format!("temp_plot.{}", ext))
     };
 
     let _ = memprof::delta("Before render_to_file()", m5);
     let t6 = std::time::Instant::now();
-    renderer.render_to_file(&temp_path.to_string_lossy(), backend, OutputFormat::Png)?;
+    renderer.render_to_file(&temp_path.to_string_lossy(), backend, output_format)?;
     let _ = memprof::time_delta("After render_to_file()", t5, t6);
 
     // Read PNG into memory

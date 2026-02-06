@@ -48,16 +48,17 @@ Note: Legend positioning still requires fine-tuning
 
 ### 0.0.5
 
-- [ ] Add themes
-- [ ] Add bar plot
-- [ ] Add line plot
+- [x] Add themes
+- [x] Add bar plot
+- [x] Add line plot
+- [x] SVG Support
+- [x] Opacity support
+- [x] Use factor name for y and x axis labels when parameter is not specified
 - [ ] Tick label rotation (axis.x.tick.rotation, axis.y.tick.rotation)
 
 
 ### Unspecified Version
 - [ ] Switching between GPU / CPU
-- [ ] Further optimize bulk streaming for multi-facet
-- [ ] Use factor name for y and x axis labels when parameter is not specified
 
 
 ## Label Overlap Culling

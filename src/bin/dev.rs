@@ -69,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = memprof::time_delta("After DevContext::from_workflow_step()", t0, t1);
 
     // Load configuration
-    let config = load_dev_config(ctx.point_size());
+    let config = load_dev_config(ctx.point_size())?;
     println!("Configuration loaded:");
     println!("  Chunk size: {}", config.chunk_size);
     println!(
@@ -89,11 +89,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log_phase(start, "PHASE 4: Saving to local files");
     println!("\nSaving {} plot(s) to local files...", plot_results.len());
 
+    let ext = match config.output_format.as_str() {
+        "svg" | "hsvg" => "svg",
+        _ => "png",
+    };
+
     for (i, plot) in plot_results.iter().enumerate() {
         let filename = if plot_results.len() > 1 {
-            format!("plot_{}.png", i + 1)
+            format!("plot_{}.{}", i + 1, ext)
         } else {
-            "plot.png".to_string()
+            format!("plot.{}", ext)
         };
 
         std::fs::write(&filename, &plot.png_buffer)?;
@@ -114,7 +119,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Load configuration from operator_config.json if it exists
-fn load_dev_config(ui_point_size: Option<i32>) -> OperatorConfig {
+fn load_dev_config(
+    ui_point_size: Option<i32>,
+) -> Result<OperatorConfig, Box<dyn std::error::Error>> {
     use ggrs_plot_operator::tercen::client::proto::{OperatorRef, OperatorSettings, PropertyValue};
     use std::fs;
 
@@ -123,18 +130,12 @@ fn load_dev_config(ui_point_size: Option<i32>) -> OperatorConfig {
         Ok(json) => json,
         Err(_) => {
             println!("  No operator_config.json found, using defaults");
-            return OperatorConfig::from_properties(None, ui_point_size);
+            return Ok(OperatorConfig::from_properties(None, ui_point_size)?);
         }
     };
 
-    let config_map: serde_json::Map<String, serde_json::Value> =
-        match serde_json::from_str(&config_json) {
-            Ok(map) => map,
-            Err(e) => {
-                eprintln!("  Failed to parse operator_config.json: {}", e);
-                return OperatorConfig::from_properties(None, ui_point_size);
-            }
-        };
+    let config_map: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&config_json)
+        .map_err(|e| format!("Failed to parse operator_config.json: {}", e))?;
 
     // Convert JSON map to PropertyValue list
     let mut property_values = Vec::new();
@@ -168,5 +169,8 @@ fn load_dev_config(ui_point_size: Option<i32>) -> OperatorConfig {
     };
 
     println!("  Loaded configuration from operator_config.json");
-    OperatorConfig::from_properties(Some(&operator_settings), ui_point_size)
+    Ok(OperatorConfig::from_properties(
+        Some(&operator_settings),
+        ui_point_size,
+    )?)
 }

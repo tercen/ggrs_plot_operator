@@ -83,6 +83,34 @@ ggrs-core = { git = "https://github.com/tercen/ggrs", branch = "main", features 
 
 Switch to path dependency when modifying ggrs-core. Switch back to git before committing.
 
+## PlotSpec Configuration (engine.rs)
+
+`PlotSpec` holds all configuration for a plot. Key fields:
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `layers` | `Vec<Geom>` | Geometry layers (Point, Line, Tile, Bar) |
+| `opacity` | `f64` | Global opacity for data geoms (0.0–1.0, default 1.0) |
+| `layer_shapes` | `Vec<i32>` | Point shapes per layer (pch 0-25) |
+| `theme` | `Theme` | Visual theme |
+| `title`, `x_label`, `y_label` | `Option<String>` | Text labels |
+| `chart_layout` | `Box<dyn ChartLayout>` | Layout strategy (default vs heatmap) |
+
+Builder pattern: `PlotSpec::new().aes(aes).layer(geom).opacity(0.5).theme(theme)`
+
+## BatchRenderer (draw_primitives.rs)
+
+Groups draw calls by color to minimize Cairo state changes:
+
+| Method | Geom | Signature |
+|--------|------|-----------|
+| `flush_points` | Circle | `(ctx, radius, opacity)` |
+| `flush_rects` | Tile/Bar | `(ctx, opacity)` |
+| `flush_shapes` | pch 0-25 | `(ctx, radius, opacity)` |
+| `flush_lines` | Line | `(ctx, width, opacity, &mut prev_points)` |
+
+Lines maintain inter-chunk continuity via `prev_line_points` HashMap.
+
 ## Key GGRS Types
 
 ```rust

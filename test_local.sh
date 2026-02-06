@@ -3,19 +3,15 @@
 # Uses the 'dev' binary which shares the same pipeline as production
 #
 # Usage:
-#   ./test_local.sh [backend] [theme]
+#   ./test_local.sh [backend] [theme] [format]
 #
 # Examples:
-#   ./test_local.sh                    # CPU, gray theme (ggplot2 default)
+#   ./test_local.sh                    # CPU, gray theme, PNG (default)
 #   ./test_local.sh cpu gray           # Gray theme (default ggplot2 style)
 #   ./test_local.sh cpu bw             # Black & white theme
-#   ./test_local.sh cpu linedraw       # Black lines on white
-#   ./test_local.sh cpu light          # Light grey lines on white
-#   ./test_local.sh cpu dark           # Dark background
-#   ./test_local.sh cpu minimal        # Minimal (no decorations)
-#   ./test_local.sh cpu classic        # Classic (axis lines, no grid)
-#   ./test_local.sh cpu void           # Completely empty
-#   ./test_local.sh gpu bw             # GPU backend with bw theme
+#   ./test_local.sh cpu light svg      # Light theme, SVG output
+#   ./test_local.sh gpu bw png         # GPU backend, bw theme, PNG
+#   ./test_local.sh cpu gray svg       # SVG vector output
 #
 # Themes (matches ggplot2 exactly):
 #   - gray:     Default ggplot2 theme with gray panel background and white grid
@@ -64,17 +60,35 @@ export TERCEN_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vMT
 #export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
 #export STEP_ID="102a1b30-ee6d-42ae-9681-607ceb526b5e"
 
+
+
+#EXAMPLE5
+#Bar plots
+#http://127.0.0.1:5400/test/w/28e3c9888e9935f667aed6f07c007c7c/ds/63235187-2f58-48c5-a60c-9ecfc718e9f4
+#export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
+#export STEP_ID="63235187-2f58-48c5-a60c-9ecfc718e9f4"
+
 #EXAMPLE6
 # Multiple layers
 #http://127.0.0.1:5400/test/w/28e3c9888e9935f667aed6f07c007c7c/ds/a7a3aaea-33b9-4dfd-81f9-d86de12d6dcc
 #export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
 #export STEP_ID="a7a3aaea-33b9-4dfd-81f9-d86de12d6dcc"
 
-#EXAMPLE5
-#Bar plots
-#http://127.0.0.1:5400/test/w/28e3c9888e9935f667aed6f07c007c7c/ds/63235187-2f58-48c5-a60c-9ecfc718e9f4
+#EXAMPLE7
+# Line plot
+# http://127.0.0.1:5400/test/w/28e3c9888e9935f667aed6f07c007c7c/ds/f95a4bb6-e911-4cab-bebe-830f1202fede
+#export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
+#export STEP_ID="f95a4bb6-e911-4cab-bebe-830f1202fede"
+
+#EXAMPLE8
+# SVG Scatter
+# http://127.0.0.1:5400/test/w/28e3c9888e9935f667aed6f07c007c7c/ds/2eb69100-57c2-4589-8f81-ad3cb2881083
 export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
-export STEP_ID="63235187-2f58-48c5-a60c-9ecfc718e9f4"
+export STEP_ID="2eb69100-57c2-4589-8f81-ad3cb2881083"
+
+# EXAMPLE3 - Scatter crabs (has X-axis table)
+#export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
+#export STEP_ID="102a1b30-ee6d-42ae-9681-607ceb526b5e"
 
 # Memory tracker path
 MEMORY_TRACKER="/home/thiago/workspaces/tercen/main/memory_tracker/target/release/memory_tracker"
@@ -82,6 +96,7 @@ MEMORY_TRACKER="/home/thiago/workspaces/tercen/main/memory_tracker/target/releas
 # Parse arguments
 BACKEND="${1:-cpu}"
 THEME="${2:-gray}"
+FORMAT="${3:-png}"
 
 # Fixed values (can be customized in operator_config.json directly)
 LEGEND_POSITION="right"
@@ -91,6 +106,7 @@ PNG_COMPRESSION="fast"
 # Valid values for properties (from operator.json)
 VALID_BACKENDS=("cpu" "gpu")
 VALID_THEMES=("gray" "bw" "linedraw" "light" "dark" "minimal" "classic" "void")
+VALID_FORMATS=("png" "svg" "hsvg")
 
 # Validate backend
 if [[ ! " ${VALID_BACKENDS[@]} " =~ " ${BACKEND} " ]]; then
@@ -106,6 +122,13 @@ if [[ ! " ${VALID_THEMES[@]} " =~ " ${THEME} " ]]; then
     exit 1
 fi
 
+# Validate format
+if [[ ! " ${VALID_FORMATS[@]} " =~ " ${FORMAT} " ]]; then
+    echo "ERROR: Invalid format '$FORMAT'"
+    echo "Valid values: ${VALID_FORMATS[*]}"
+    exit 1
+fi
+
 # Fixed chunk size (not configurable from command line anymore)
 CHUNK_SIZE=15000
 
@@ -113,6 +136,7 @@ CHUNK_SIZE=15000
 echo "Creating operator_config.json..."
 echo "  Backend: $BACKEND"
 echo "  Theme: $THEME"
+echo "  Format: $FORMAT"
 echo "  Legend position: $LEGEND_POSITION"
 echo "  PNG compression: $PNG_COMPRESSION"
 
@@ -124,7 +148,8 @@ cat > operator_config.json <<EOF
   "cache_axis_ranges": true,
   "default_plot_width": 6000,
   "default_plot_height": 2000,
-  "backend": "cpu",
+  "backend": "$BACKEND",
+  "output.format": "hsvg",
   "theme": "light",
   "legend.position": "$LEGEND_POSITION",
   "legend.justification": "$LEGEND_JUSTIFICATION",
@@ -134,19 +159,20 @@ cat > operator_config.json <<EOF
   "plot.title.justification": "0,1",
   "axis.x.label": "X Axis Label",
   "axis.y.label": "Y Axis Label",
-  "point.shapes": "19;17;15"
+  "point.shapes": "19;17;15",
+  "point.opacity": "0.5"
 }
 EOF
 
 echo ""
 echo "============================================"
-echo "Running test with backend=$BACKEND"
+echo "Running test with backend=$BACKEND format=$FORMAT"
 echo "============================================"
 echo ""
 
 # Clean old binaries and plots to ensure fresh build
 echo "Cleaning old binaries and plots..."
-rm -f target/debug/dev plot.png plot_*.png
+rm -f target/debug/dev plot.png plot_*.png plot.svg plot_*.svg
 echo ""
 
 # Build first to avoid compilation time in measurements

@@ -1818,53 +1818,31 @@ impl TercenStreamGenerator {
 
         // Map color values to RGB based on the coloring mode
         // Priority order:
-        // 1. Legacy color_infos (explicit color factors from step)
-        // 2. Per-layer explicit colors (from per_layer_colors)
-        // 3. Per-layer constant colors (fallback when no color factor)
-        // 4. Layer-based coloring (multiple layers, no explicit colors)
+        // 1. Per-layer colors (multi-layer: respects .axisIndex for per-layer color config)
+        // 2. Legacy color_infos (single-layer: explicit color factors from step)
+        // 3. Layer-based coloring (multiple layers, no explicit colors — palette by .axisIndex)
 
-        let has_explicit_per_layer = self
-            .per_layer_colors
-            .as_ref()
-            .map(|plc| plc.has_explicit_colors())
-            .unwrap_or(false);
-
-        let has_constant_per_layer = self
-            .per_layer_colors
-            .as_ref()
-            .map(|plc| plc.has_constant_colors() && !plc.has_explicit_colors())
-            .unwrap_or(false);
-
-        if !self.color_infos.is_empty() {
-            // Priority 1: Legacy uniform colors (explicit color factors)
+        if let Some(ref plc) = self.per_layer_colors {
+            // Multi-layer: per-layer color config (handles mixed, explicit, and constant)
+            eprintln!(
+                "DEBUG: Adding per-layer colors for {} layers (explicit={}, mixed={}, constant={})",
+                self.n_layers,
+                plc.has_explicit_colors(),
+                plc.is_mixed(),
+                plc.has_constant_colors()
+            );
+            df = crate::tercen::color_processor::add_mixed_layer_colors(df, plc)?;
+            eprintln!("DEBUG: Per-layer colors added successfully");
+        } else if !self.color_infos.is_empty() {
+            // Single-layer: legacy uniform colors (explicit color factors)
             eprintln!(
                 "DEBUG: Adding color columns for {} color factors (legacy path)",
                 self.color_infos.len()
             );
             df = crate::tercen::color_processor::add_color_columns(df, &self.color_infos)?;
             eprintln!("DEBUG: Color columns added successfully");
-        } else if has_explicit_per_layer || is_mixed_layer {
-            // Priority 2: Per-layer with explicit colors or mixed scenario
-            eprintln!(
-                "DEBUG: Adding per-layer colors for {} layers (explicit={}, mixed={})",
-                self.n_layers, has_explicit_per_layer, is_mixed_layer
-            );
-            if let Some(ref plc) = self.per_layer_colors {
-                df = crate::tercen::color_processor::add_mixed_layer_colors(df, plc)?;
-                eprintln!("DEBUG: Per-layer colors added successfully");
-            }
-        } else if has_constant_per_layer {
-            // Priority 3: Per-layer constant colors (no explicit color factor)
-            eprintln!(
-                "DEBUG: Adding per-layer constant colors for {} layers",
-                self.n_layers
-            );
-            if let Some(ref plc) = self.per_layer_colors {
-                df = crate::tercen::color_processor::add_mixed_layer_colors(df, plc)?;
-                eprintln!("DEBUG: Per-layer constant colors added successfully");
-            }
         } else if use_layer_colors {
-            // Pure layer-based coloring
+            // Pure layer-based coloring (no color factors on any layer)
             eprintln!(
                 "DEBUG: Adding layer-based colors for {} layers using palette {:?}",
                 self.n_layers, self.layer_palette_name
@@ -2013,7 +1991,6 @@ impl StreamGenerator for TercenStreamGenerator {
             if !categories.is_empty() && categories.len() == n_cols {
                 return AxisData::Categorical(CategoricalAxisData { categories });
             }
-
             // Fallback: return numeric if labels don't match grid size
             return AxisData::Numeric(NumericAxisData {
                 min_value: -0.5,
@@ -2061,7 +2038,6 @@ impl StreamGenerator for TercenStreamGenerator {
             if !categories.is_empty() && categories.len() == n_rows {
                 return AxisData::Categorical(CategoricalAxisData { categories });
             }
-
             // Fallback: return numeric if labels don't match grid size
             return AxisData::Numeric(NumericAxisData {
                 min_value: -0.5,

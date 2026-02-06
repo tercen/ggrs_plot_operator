@@ -125,6 +125,13 @@
     },
     {
       "kind": "EnumeratedProperty",
+      "name": "output.format",
+      "defaultValue": "png",
+      "description": "Output format: 'png' (raster), 'svg' (editable vector), or 'hsvg' (hybrid: vector labels + rasterized data for Inkscape editing).",
+      "values": ["png", "svg", "hsvg"]
+    },
+    {
+      "kind": "EnumeratedProperty",
       "name": "legend.position",
       "defaultValue": "right",
       "description": "Legend position: where the legend appears relative to the plot.",
@@ -188,6 +195,12 @@
     },
     {
       "kind": "StringProperty",
+      "name": "opacity",
+      "defaultValue": "1",
+      "description": "Opacity for all data elements (points, lines, tiles, bars). Range: 0.0 (transparent) to 1.0 (opaque). Default: 1.0."
+    },
+    {
+      "kind": "StringProperty",
       "name": "axis.x.tick.rotation",
       "defaultValue": "0",
       "description": "X-axis tick label rotation in degrees. Common values: 0 (horizontal), 45 (diagonal), 90 (vertical). Default: 0."
@@ -197,6 +210,42 @@
       "name": "axis.y.tick.rotation",
       "defaultValue": "0",
       "description": "Y-axis tick label rotation in degrees. Common values: 0 (horizontal), 90 (vertical). Default: 0."
+    },
+    {
+      "kind": "StringProperty",
+      "name": "grid.major.disable",
+      "defaultValue": "false",
+      "description": "Disable major grid lines. Set to 'true' to hide. Default: false (grid shown)."
+    },
+    {
+      "kind": "StringProperty",
+      "name": "grid.minor.disable",
+      "defaultValue": "false",
+      "description": "Disable minor grid lines. Set to 'true' to hide. Default: false (grid shown)."
+    },
+    {
+      "kind": "StringProperty",
+      "name": "plot.title.font.size",
+      "defaultValue": "",
+      "description": "Plot title font size in points. Empty = use theme default (~13.2pt)."
+    },
+    {
+      "kind": "StringProperty",
+      "name": "axis.label.font.size",
+      "defaultValue": "",
+      "description": "Axis label font size in points. Empty = use theme default (~11pt)."
+    },
+    {
+      "kind": "StringProperty",
+      "name": "axis.tick.font.size",
+      "defaultValue": "",
+      "description": "Tick label font size in points. Empty = use theme default (~8.8pt)."
+    },
+    {
+      "kind": "StringProperty",
+      "name": "axis.line.width",
+      "defaultValue": "",
+      "description": "Panel border/axis line width in points. Empty = use theme default (0.5pt)."
     },
     {
       "kind": "EnumeratedProperty",

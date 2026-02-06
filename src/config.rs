@@ -125,6 +125,30 @@ pub struct OperatorConfig {
     /// Cycles through layers based on .axisIndex.
     /// Common shapes: 19=filled circle, 15=filled square, 17=filled triangle
     pub layer_shapes: Vec<i32>,
+
+    /// Global opacity for data geoms (0.0 = transparent, 1.0 = opaque)
+    pub opacity: f64,
+
+    /// Output format: "png", "svg", or "hsvg" (hybrid: vector chrome + rasterized data)
+    pub output_format: String,
+
+    /// Disable major grid lines
+    pub grid_major_disable: bool,
+
+    /// Disable minor grid lines
+    pub grid_minor_disable: bool,
+
+    /// Plot title font size in points (None = use theme default)
+    pub title_font_size: Option<f64>,
+
+    /// Axis label font size in points (None = use theme default)
+    pub axis_label_font_size: Option<f64>,
+
+    /// Tick label font size in points (None = use theme default)
+    pub tick_label_font_size: Option<f64>,
+
+    /// Panel border/axis line width in points (None = use theme default)
+    pub axis_line_width: Option<f64>,
 }
 
 impl OperatorConfig {
@@ -139,11 +163,11 @@ impl OperatorConfig {
     pub fn from_properties(
         operator_settings: Option<&OperatorSettings>,
         ui_point_size: Option<i32>,
-    ) -> Self {
+    ) -> Result<Self, String> {
         let props = OperatorPropertyReader::new(operator_settings);
 
         // Theme: validated enum (gray, bw, minimal)
-        let theme = props.get_enum("theme");
+        let theme = props.get_enum("theme")?;
 
         // Parse plot dimensions with "auto" support
         // Empty string or "auto" → Auto (derive from facet count)
@@ -155,54 +179,72 @@ impl OperatorConfig {
             PlotDimension::from_str(&props.get_string("plot.height"), PlotDimension::Auto);
 
         // Backend: uses get_enum for validation against operator.json values
-        let backend = props.get_enum("backend");
+        let backend = props.get_enum("backend")?;
 
         // Legend position: validated enum
-        let legend_position = props.get_enum("legend.position");
+        let legend_position = props.get_enum("legend.position")?;
 
         // Legend position inside (coordinate pair)
-        let legend_position_inside = props.get_coords("legend.position.inside");
+        let legend_position_inside = props.get_coords("legend.position.inside")?;
 
         // Legend justification (coordinate pair)
-        let legend_justification = props.get_coords("legend.justification");
+        let legend_justification = props.get_coords("legend.justification")?;
 
         // Chunk size (not in operator.json, internal setting)
         let chunk_size = 10_000usize;
 
         // PNG compression: validated enum
-        let png_compression = props.get_enum("png.compression");
+        let png_compression = props.get_enum("png.compression")?;
 
         // Text labels (all optional)
         let plot_title = props.get_optional_string("plot.title");
 
         // Plot title position: validated enum
-        let plot_title_position = props.get_enum("plot.title.position");
+        let plot_title_position = props.get_enum("plot.title.position")?;
 
         // Plot title justification
-        let plot_title_justification = props.get_coords("plot.title.justification");
+        let plot_title_justification = props.get_coords("plot.title.justification")?;
 
         // Axis labels
         let x_axis_label = props.get_optional_string("axis.x.label");
         let y_axis_label = props.get_optional_string("axis.y.label");
 
         // Tick rotation (degrees)
-        let x_tick_rotation = props.get_f64("axis.x.tick.rotation");
-        let y_tick_rotation = props.get_f64("axis.y.tick.rotation");
+        let x_tick_rotation = props.get_f64("axis.x.tick.rotation")?;
+        let y_tick_rotation = props.get_f64("axis.y.tick.rotation")?;
 
         // Heatmap cell aggregation: validated enum
         let heatmap_cell_aggregation =
-            HeatmapCellAggregation::parse(&props.get_enum("heatmap.cell.aggregation"));
+            HeatmapCellAggregation::parse(&props.get_enum("heatmap.cell.aggregation")?);
 
         // Point shapes per layer
-        let layer_shapes = props.get_shape_list("point.shapes");
+        let layer_shapes = props.get_shape_list("point.shapes")?;
 
         // Point size: UI value (1-10) * multiplier
         // Default UI value is 4 (from crosstab model, not operator.json)
-        let point_size_multiplier = props.get_f64_in_range("point.size.multiplier", 0.01, 100.0);
+        let point_size_multiplier = props.get_f64_in_range("point.size.multiplier", 0.01, 100.0)?;
         let ui_size = ui_point_size.unwrap_or(4).clamp(1, 10);
         let point_size = (ui_size as f64) * point_size_multiplier;
 
-        Self {
+        // Opacity for data geoms (0.0 = transparent, 1.0 = opaque)
+        let opacity = props.get_f64_in_range("opacity", 0.0, 1.0)?;
+
+        // Output format: "png", "svg", or "hsvg"
+        let output_format = props.get_enum("output.format")?;
+
+        // Grid disable toggles
+        let grid_major_disable = props.get_bool("grid.major.disable")?;
+        let grid_minor_disable = props.get_bool("grid.minor.disable")?;
+
+        // Font size overrides (None = use theme default)
+        let title_font_size = props.get_optional_f64("plot.title.font.size")?;
+        let axis_label_font_size = props.get_optional_f64("axis.label.font.size")?;
+        let tick_label_font_size = props.get_optional_f64("axis.tick.font.size")?;
+
+        // Axis line width override (None = use theme default)
+        let axis_line_width = props.get_optional_f64("axis.line.width")?;
+
+        Ok(Self {
             chunk_size,
             theme,
             plot_width,
@@ -222,7 +264,15 @@ impl OperatorConfig {
             y_tick_rotation,
             heatmap_cell_aggregation,
             layer_shapes,
-        }
+            opacity,
+            output_format,
+            grid_major_disable,
+            grid_minor_disable,
+            title_font_size,
+            axis_label_font_size,
+            tick_label_font_size,
+            axis_line_width,
+        })
     }
 
     /// Resolve plot dimensions to actual pixels

@@ -131,7 +131,8 @@ async fn process_task(
     let ctx = tercen::ProductionContext::from_task_id(client_arc.clone(), task_id).await?;
 
     // Load configuration
-    let config = config::OperatorConfig::from_properties(ctx.operator_settings(), ctx.point_size());
+    let config =
+        config::OperatorConfig::from_properties(ctx.operator_settings(), ctx.point_size())?;
 
     // Generate plots using shared pipeline
     let plot_results = pipeline::generate_plots(&ctx, &config).await?;
