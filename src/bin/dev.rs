@@ -89,16 +89,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log_phase(start, "PHASE 4: Saving to local files");
     println!("\nSaving {} plot(s) to local files...", plot_results.len());
 
-    let ext = match config.output_format.as_str() {
-        "svg" | "hsvg" => "svg",
-        _ => "png",
-    };
-
     for (i, plot) in plot_results.iter().enumerate() {
         let filename = if plot_results.len() > 1 {
-            format!("plot_{}.{}", i + 1, ext)
+            format!("plot_{}.{}", i + 1, plot.output_ext)
         } else {
-            format!("plot.{}", ext)
+            format!("plot.{}", plot.output_ext)
         };
 
         std::fs::write(&filename, &plot.png_buffer)?;

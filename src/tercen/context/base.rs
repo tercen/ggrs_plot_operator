@@ -301,6 +301,7 @@ impl ContextBase {
         png_buffer: Vec<u8>,
         width: i32,
         height: i32,
+        output_ext: &str,
         task: &mut ETask,
     ) -> Result<(), Box<dyn std::error::Error>> {
         crate::tercen::result::save_result(
@@ -310,6 +311,7 @@ impl ContextBase {
             png_buffer,
             width,
             height,
+            output_ext,
             task,
         )
         .await

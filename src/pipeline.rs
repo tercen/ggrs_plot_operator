@@ -442,6 +442,7 @@ fn render_page<C: TercenContext>(
         width: plot_width,
         height: plot_height,
         page_factors,
+        output_ext: ext.to_string(),
     })
 }
 

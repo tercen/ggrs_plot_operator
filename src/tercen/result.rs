@@ -25,7 +25,7 @@ use std::sync::Arc;
 pub struct PlotResult {
     /// Page label (e.g., "female", "male")
     pub label: String,
-    /// PNG bytes
+    /// Plot image bytes (PNG or SVG)
     pub png_buffer: Vec<u8>,
     /// Plot width in pixels
     pub width: i32,
@@ -33,6 +33,16 @@ pub struct PlotResult {
     pub height: i32,
     /// Page factor values as key-value pairs (e.g., [("Gender", "female")])
     pub page_factors: Vec<(String, String)>,
+    /// File extension: "png" or "svg"
+    pub output_ext: String,
+}
+
+/// Get MIME type from file extension
+fn mimetype_for_ext(ext: &str) -> &'static str {
+    match ext {
+        "svg" => "image/svg+xml",
+        _ => "image/png",
+    }
 }
 
 /// Save multiple PNG plot results back to Tercen
@@ -91,8 +101,8 @@ pub async fn save_results(
         ci_vec.push(0);
         ri_vec.push(idx as i32);
         content_vec.push(base64_png);
-        filename_vec.push(format!("plot_{}.png", plot.label));
-        mimetype_vec.push("image/png".to_string());
+        filename_vec.push(format!("plot_{}.{}", plot.label, plot.output_ext));
+        mimetype_vec.push(mimetype_for_ext(&plot.output_ext).to_string());
         width_vec.push(plot.width as f64);
         height_vec.push(plot.height as f64);
 
@@ -188,6 +198,7 @@ pub async fn save_results(
 ///
 /// # Returns
 /// Result indicating success or error during upload
+#[allow(clippy::too_many_arguments)]
 pub async fn save_result(
     client: Arc<TercenClient>,
     project_id: &str,
@@ -195,22 +206,32 @@ pub async fn save_result(
     png_buffer: Vec<u8>,
     plot_width: i32,
     plot_height: i32,
+    output_ext: &str,
     task: &mut proto::ETask,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use base64::Engine;
 
-    println!("Encoding PNG to base64...");
-    // 1. Encode PNG to base64
+    println!("Encoding plot to base64...");
+    // 1. Encode to base64
     let base64_png = base64::engine::general_purpose::STANDARD.encode(&png_buffer);
     println!(
-        "  PNG size: {} bytes, base64 size: {} bytes",
+        "  Plot size: {} bytes, base64 size: {} bytes",
         png_buffer.len(),
         base64_png.len()
     );
 
     // 2. Create result DataFrame with namespace-prefixed columns
     println!("Creating result DataFrame...");
-    let result_df = create_result_dataframe(base64_png, namespace, plot_width, plot_height)?;
+    let filename = format!("plot.{}", output_ext);
+    let mimetype = mimetype_for_ext(output_ext);
+    let result_df = create_result_dataframe(
+        base64_png,
+        namespace,
+        plot_width,
+        plot_height,
+        &filename,
+        mimetype,
+    )?;
     println!(
         "  DataFrame: {} rows, {} columns",
         result_df.height(),
@@ -312,6 +333,8 @@ fn create_result_dataframe(
     namespace: &str,
     plot_width: i32,
     plot_height: i32,
+    filename: &str,
+    mimetype: &str,
 ) -> Result<DataFrame, Box<dyn std::error::Error>> {
     const CHUNK_SIZE: usize = 1_000_000; // 1MB chunks
 
@@ -324,8 +347,8 @@ fn create_result_dataframe(
             ".ci" => [0i32],
             ".ri" => [0i32],
             ".content" => [png_base64],
-            &format!("{}.filename", namespace) => ["plot.png"],
-            &format!("{}.mimetype", namespace) => ["image/png"],
+            &format!("{}.filename", namespace) => [filename],
+            &format!("{}.mimetype", namespace) => [mimetype],
             &format!("{}.plot_width", namespace) => [plot_width as f64],
             &format!("{}.plot_height", namespace) => [plot_height as f64]
         }?;
@@ -347,8 +370,8 @@ fn create_result_dataframe(
         // Create vectors for each column (all chunks have same .ci/.ri)
         let ci_vec = vec![0i32; n_chunks];
         let ri_vec = vec![0i32; n_chunks];
-        let filename_vec = vec!["plot.png"; n_chunks];
-        let mimetype_vec = vec!["image/png"; n_chunks];
+        let filename_vec = vec![filename; n_chunks];
+        let mimetype_vec = vec![mimetype; n_chunks];
         let width_vec = vec![plot_width as f64; n_chunks];
         let height_vec = vec![plot_height as f64; n_chunks];
 
