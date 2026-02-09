@@ -35,6 +35,8 @@ pub struct PlotResult {
     pub page_factors: Vec<(String, String)>,
     /// File extension: "png" or "svg"
     pub output_ext: String,
+    /// Base filename without extension (e.g., "plot" or "myplot")
+    pub filename: String,
 }
 
 /// Get MIME type from file extension
@@ -101,7 +103,10 @@ pub async fn save_results(
         ci_vec.push(0);
         ri_vec.push(idx as i32);
         content_vec.push(base64_png);
-        filename_vec.push(format!("plot_{}.{}", plot.label, plot.output_ext));
+        filename_vec.push(format!(
+            "{}_{}.{}",
+            plot.filename, plot.label, plot.output_ext
+        ));
         mimetype_vec.push(mimetype_for_ext(&plot.output_ext).to_string());
         width_vec.push(plot.width as f64);
         height_vec.push(plot.height as f64);
@@ -207,6 +212,7 @@ pub async fn save_result(
     plot_width: i32,
     plot_height: i32,
     output_ext: &str,
+    filename: &str,
     task: &mut proto::ETask,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use base64::Engine;
@@ -222,7 +228,7 @@ pub async fn save_result(
 
     // 2. Create result DataFrame with namespace-prefixed columns
     println!("Creating result DataFrame...");
-    let filename = format!("plot.{}", output_ext);
+    let filename = format!("{}.{}", filename, output_ext);
     let mimetype = mimetype_for_ext(output_ext);
     let result_df = create_result_dataframe(
         base64_png,

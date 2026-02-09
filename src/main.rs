@@ -158,6 +158,7 @@ async fn process_task(
             plot.width,
             plot.height,
             &plot.output_ext,
+            &plot.filename,
             &mut task,
         )
         .await?;

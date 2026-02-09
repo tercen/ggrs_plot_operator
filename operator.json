@@ -101,8 +101,8 @@
       "kind": "EnumeratedProperty",
       "name": "theme",
       "defaultValue": "gray",
-      "description": "Plot theme matching ggplot2: 'gray' (default with gray background), 'bw' (black and white), 'linedraw' (black lines on white), 'light' (light grey lines), 'dark' (dark background), 'minimal' (no decorations), 'classic' (axis lines, no grid), 'void' (completely empty).",
-      "values": ["gray", "bw", "linedraw", "light", "dark", "minimal", "classic", "void"]
+      "description": "Plot theme matching ggplot2: 'gray' (default with gray background), 'bw' (black and white), 'linedraw' (black lines on white), 'light' (light grey lines), 'dark' (dark background), 'minimal' (no decorations), 'classic' (axis lines, no grid), 'void' (completely empty), 'publish' (clean white background, no grid).",
+      "values": ["gray", "bw", "linedraw", "light", "dark", "minimal", "classic", "void", "publish"]
     },
     {
       "kind": "StringProperty",
@@ -246,6 +246,12 @@
       "name": "axis.line.width",
       "defaultValue": "",
       "description": "Panel border/axis line width in points. Empty = use theme default (0.5pt)."
+    },
+    {
+      "kind": "StringProperty",
+      "name": "filename",
+      "defaultValue": "plot",
+      "description": "Output filename (without extension). For multi-page plots, page number is appended as a suffix (e.g., 'myplot' becomes 'myplot_p1.png', 'myplot_p2.png'). Default: 'plot'."
     },
     {
       "kind": "EnumeratedProperty",

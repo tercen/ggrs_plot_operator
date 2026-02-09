@@ -149,6 +149,9 @@ pub struct OperatorConfig {
 
     /// Panel border/axis line width in points (None = use theme default)
     pub axis_line_width: Option<f64>,
+
+    /// Output filename without extension (default: "plot")
+    pub filename: String,
 }
 
 impl OperatorConfig {
@@ -244,6 +247,16 @@ impl OperatorConfig {
         // Axis line width override (None = use theme default)
         let axis_line_width = props.get_optional_f64("axis.line.width")?;
 
+        // Output filename (without extension)
+        let filename = {
+            let s = props.get_string("filename");
+            if s.is_empty() {
+                "plot".to_string()
+            } else {
+                s
+            }
+        };
+
         Ok(Self {
             chunk_size,
             theme,
@@ -272,6 +285,7 @@ impl OperatorConfig {
             axis_label_font_size,
             tick_label_font_size,
             axis_line_width,
+            filename,
         })
     }
 
@@ -392,6 +406,7 @@ impl OperatorConfig {
             "minimal" => Theme::minimal(),
             "classic" => Theme::classic(),
             "void" => Theme::void(),
+            "publish" => Theme::publish(),
             _ => Theme::gray(), // "gray" or any other value
         }
     }

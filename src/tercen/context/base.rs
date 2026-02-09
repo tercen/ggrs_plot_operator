@@ -302,6 +302,7 @@ impl ContextBase {
         width: i32,
         height: i32,
         output_ext: &str,
+        filename: &str,
         task: &mut ETask,
     ) -> Result<(), Box<dyn std::error::Error>> {
         crate::tercen::result::save_result(
@@ -312,6 +313,7 @@ impl ContextBase {
             width,
             height,
             output_ext,
+            filename,
             task,
         )
         .await

@@ -443,6 +443,7 @@ fn render_page<C: TercenContext>(
         height: plot_height,
         page_factors,
         output_ext: ext.to_string(),
+        filename: config.filename.clone(),
     })
 }
 

@@ -91,9 +91,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for (i, plot) in plot_results.iter().enumerate() {
         let filename = if plot_results.len() > 1 {
-            format!("plot_{}.{}", i + 1, plot.output_ext)
+            format!("{}_{}.{}", plot.filename, i + 1, plot.output_ext)
         } else {
-            format!("plot.{}", plot.output_ext)
+            format!("{}.{}", plot.filename, plot.output_ext)
         };
 
         std::fs::write(&filename, &plot.png_buffer)?;
