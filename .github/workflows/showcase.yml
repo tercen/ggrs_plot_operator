@@ -18,12 +18,12 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Configure git for private dependencies
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+
       - name: Checkout ggrs
-        uses: actions/checkout@v4
-        with:
-          repository: tercen/ggrs
-          token: ${{ secrets.GH_PAT }}
-          path: ../ggrs
+        run: git clone --depth 1 https://github.com/tercen/ggrs.git ../ggrs
 
       - name: Start Tercen
         uses: tercen/actions/start-tercen@main
@@ -40,10 +40,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-
-      - name: Configure git for private dependencies
-        run: |
-          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
 
       - name: Cache cargo registry
         uses: actions/cache@v4
