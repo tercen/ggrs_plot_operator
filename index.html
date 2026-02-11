@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GGRS Plot Operator — Showcase</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-padding-top: 4rem; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f5f5f5; color: #333;
+    max-width: 1000px; margin: 0 auto; padding: 0 2rem 2rem;
+  }
+
+  /* --- Sticky nav --- */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: #fff; border-bottom: 1px solid #e0e0e0;
+    margin: 0 -2rem; padding: 0 2rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  nav .nav-inner {
+    display: flex; gap: 0; overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  nav .nav-inner::-webkit-scrollbar { display: none; }
+  nav .nav-group {
+    display: flex; gap: 0; align-items: stretch;
+    border-right: 1px solid #e8e8e8;
+  }
+  nav .nav-group:last-child { border-right: none; }
+  nav .nav-group-label {
+    font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em;
+    color: #999; padding: 0.25rem 0.6rem 0; white-space: nowrap;
+    align-self: flex-start;
+  }
+  nav a {
+    display: flex; align-items: center;
+    padding: 0.6rem 0.7rem; font-size: 0.8rem; color: #555;
+    text-decoration: none; white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  nav a:hover { color: #111; }
+  nav a.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
+
+  /* --- Header --- */
+  .header { padding: 2rem 0 0.5rem; }
+  .header h1 { font-size: 1.8rem; margin-bottom: 0.3rem; }
+  .header .subtitle { color: #666; font-size: 0.95rem; margin-bottom: 0; }
+  .header .build-info {
+    font-size: 0.8rem; color: #999; margin-top: 0.3rem;
+  }
+  .header .build-info code {
+    background: #f0f0f0; padding: 0.1rem 0.4rem; border-radius: 3px;
+    font-family: "SF Mono", "Fira Code", monospace; font-size: 0.78rem;
+  }
+
+  /* --- Intro --- */
+  .intro {
+    background: #fff; border-radius: 8px; padding: 1.5rem;
+    margin: 1.5rem 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    line-height: 1.6; font-size: 0.92rem; color: #444;
+  }
+  .intro h2 { font-size: 1.1rem; margin-bottom: 0.8rem; color: #333; }
+  .intro ul { margin: 0.5rem 0 0.5rem 1.5rem; }
+  .intro li { margin-bottom: 0.3rem; }
+  .intro strong { color: #333; }
+  .intro .tech-note { font-size: 0.82rem; color: #888; margin-top: 0.8rem; }
+
+  /* --- Category headers --- */
+  .category-header {
+    font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em;
+    color: #999; font-weight: 600; margin: 2rem 0 0.8rem;
+    padding-bottom: 0.3rem; border-bottom: 1px solid #e0e0e0;
+  }
+
+  /* --- Section cards --- */
+  section { background: #fff; border-radius: 8px; padding: 1.5rem;
+    margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  section h2 { font-size: 1.3rem; margin-bottom: 1rem; }
+  .controls { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; align-items: flex-end; }
+  .control-group { display: flex; flex-direction: column; gap: 0.2rem; }
+  .control-group label { font-size: 0.8rem; color: #666; font-weight: 500; }
+  select {
+    padding: 0.4rem 0.8rem; border: 1px solid #ccc; border-radius: 4px;
+    font-size: 0.9rem; background: #fff; cursor: pointer;
+  }
+  select:hover { border-color: #888; }
+  .toggles { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  .toggle-group { display: flex; align-items: center; gap: 0.3rem; }
+  .toggle-group input[type="checkbox"] { cursor: pointer; }
+  .toggle-group label { font-size: 0.85rem; color: #444; cursor: pointer; user-select: none; }
+  .image-container {
+    background: #fafafa; border: 1px solid #eee; border-radius: 4px;
+    display: flex; justify-content: center; align-items: center;
+    min-height: 300px; padding: 0.5rem;
+  }
+  .image-container img {
+    max-width: 100%; height: auto; border-radius: 2px;
+  }
+  .image-container .error {
+    color: #999; font-style: italic;
+  }
+  .filename { font-size: 0.75rem; color: #999; margin-top: 0.5rem; text-align: center; }
+  .section-desc { color: #666; font-size: 0.9rem; margin-bottom: 1rem; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="nav-group">
+      <span class="nav-group-label">Charts</span>
+      <a href="#sec-scatter">Scatter</a>
+      <a href="#sec-line">Line</a>
+      <a href="#sec-heatmap">Heatmap</a>
+    </div>
+    <div class="nav-group">
+      <span class="nav-group-label">Layout</span>
+      <a href="#sec-facets">Facets</a>
+    </div>
+    <div class="nav-group">
+      <span class="nav-group-label">Properties</span>
+      <a href="#sec-markers">Markers</a>
+      <a href="#sec-opacity">Opacity</a>
+      <a href="#sec-transforms">Transforms</a>
+    </div>
+    <div class="nav-group">
+      <span class="nav-group-label">Visibility</span>
+      <a href="#sec-toggles">Toggles</a>
+    </div>
+  </div>
+</nav>
+
+<div class="header">
+  <h1>GGRS Plot Operator — Showcase</h1>
+  <p class="subtitle">Interactive visual reference for the Tercen GGRS plotting operator</p>
+  <p class="build-info">Generated on 2026-02-11 19:55 UTC from commit <code>6bf5d1f8</code></p>
+</div>
+
+<div class="intro">
+  <h2>About this showcase</h2>
+  <p>
+    This page demonstrates the rendering capabilities of the <strong>GGRS Plot Operator</strong>,
+    a Rust-based Tercen operator that generates publication-quality plots from crosstab data.
+    All images were generated from synthetic test data (5 000 rows, 4 categorical groups) and
+    rendered against a live Tercen instance.
+  </p>
+  <ul>
+    <li><strong>Chart types</strong> — Scatter, line, and heatmap with optional categorical color</li>
+    <li><strong>9 themes</strong> — gray, bw, light, dark, minimal, classic, linedraw, void, publish</li>
+    <li><strong>2 backends</strong> — CPU (Cairo) and GPU (WebGPU/Vulkan)</li>
+    <li><strong>Faceting</strong> — Row, column, or both, using ggplot2-style facet grids</li>
+    <li><strong>Visual properties</strong> — 26 marker shapes (pch 0-25), opacity control, axis transforms</li>
+    <li><strong>Element toggles</strong> — Independent control of text, axis lines, major/minor grid</li>
+  </ul>
+  <p class="tech-note">
+    Use the dropdowns and controls in each section to interactively compare options.
+    Filename shown below each plot for reference.
+  </p>
+</div>
+
+<div class="category-header" id="cat-charts">Chart Types</div>
+
+<section id="sec-scatter">
+  <h2>Scatter Plots</h2>
+  <div class="controls">
+    <div class="control-group">
+      <label>Color</label>
+      <select data-section="scatter" data-dim="variant">
+        <option value="scatter_nocolor">No color</option>
+        <option value="scatter_cat">Categorical (CAT1)</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Theme</label>
+      <select data-section="scatter" data-dim="theme">
+        <option value="gray">gray</option>
+        <option value="bw">bw</option>
+        <option value="light">light</option>
+        <option value="dark">dark</option>
+        <option value="minimal">minimal</option>
+        <option value="classic">classic</option>
+        <option value="linedraw">linedraw</option>
+        <option value="void">void</option>
+        <option value="publish">publish</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Backend</label>
+      <select data-section="scatter" data-dim="backend">
+        <option value="cpu">CPU (Cairo)</option>
+        <option value="gpu">GPU (WebGPU)</option>
+      </select>
+    </div>
+  </div>
+  <div class="image-container">
+    <img id="img-scatter" src="showcase_output/scatter_nocolor_cpu_gray_0000.png"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+         alt="Scatter plot">
+    <span class="error" style="display:none">Image not available</span>
+  </div>
+  <div class="filename" id="fn-scatter">scatter_nocolor_cpu_gray_0000.png</div>
+</section>
+
+<section id="sec-line">
+  <h2>Line Plots</h2>
+  <div class="controls">
+    <div class="control-group">
+      <label>Color</label>
+      <select data-section="line" data-dim="variant">
+        <option value="line_nocolor">No color</option>
+        <option value="line_cat">Categorical (CAT1)</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Theme</label>
+      <select data-section="line" data-dim="theme">
+        <option value="gray">gray</option>
+        <option value="bw">bw</option>
+        <option value="light">light</option>
+        <option value="dark">dark</option>
+        <option value="minimal">minimal</option>
+        <option value="classic">classic</option>
+        <option value="linedraw">linedraw</option>
+        <option value="void">void</option>
+        <option value="publish">publish</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Backend</label>
+      <select data-section="line" data-dim="backend">
+        <option value="cpu">CPU (Cairo)</option>
+        <option value="gpu">GPU (WebGPU)</option>
+      </select>
+    </div>
+  </div>
+  <div class="image-container">
+    <img id="img-line" src="showcase_output/line_nocolor_cpu_gray_0000.png"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+         alt="Line plot">
+    <span class="error" style="display:none">Image not available</span>
+  </div>
+  <div class="filename" id="fn-line">line_nocolor_cpu_gray_0000.png</div>
+</section>
+
+<section id="sec-heatmap">
+  <h2>Heatmap</h2>
+  <div class="controls">
+    <div class="control-group">
+      <label>Palette</label>
+      <select data-section="heatmap" data-dim="palette">
+        <option value="Spectral">Spectral</option>
+        <option value="Jet">Jet</option>
+        <option value="Viridis">Viridis</option>
+        <option value="Hot">Hot</option>
+        <option value="Cool">Cool</option>
+        <option value="RdBu">RdBu</option>
+        <option value="YlGnBu">YlGnBu</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Theme</label>
+      <select data-section="heatmap" data-dim="theme">
+        <option value="gray">gray</option>
+        <option value="bw">bw</option>
+        <option value="light">light</option>
+        <option value="dark">dark</option>
+        <option value="minimal">minimal</option>
+        <option value="classic">classic</option>
+        <option value="linedraw">linedraw</option>
+        <option value="void">void</option>
+        <option value="publish">publish</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Backend</label>
+      <select data-section="heatmap" data-dim="backend">
+        <option value="cpu">CPU (Cairo)</option>
+        <option value="gpu">GPU (WebGPU)</option>
+      </select>
+    </div>
+  </div>
+  <div class="image-container">
+    <img id="img-heatmap" src="showcase_output/heatmap_cpu_gray_Spectral_0000.png"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+         alt="Heatmap">
+    <span class="error" style="display:none">Image not available</span>
+  </div>
+  <div class="filename" id="fn-heatmap">heatmap_cpu_gray_Spectral_0000.png</div>
+</section>
+
+<div class="category-header" id="cat-layout">Layout</div>
+
+<section id="sec-facets">
+  <h2>Faceted Plots</h2>
+  <p class="section-desc">
+    Faceting with categorical color (CAT1). Row facets use CAT2 (4 levels),
+    column facets use CAT2 or CAT3. Rendered with <strong>bw</strong> theme,
+    <strong>CPU</strong> backend, axis labels and plot title.
+  </p>
+  <div class="controls">
+    <div class="control-group">
+      <label>Chart type</label>
+      <select id="facet-chart-type">
+        <option value="scatter">Scatter</option>
+        <option value="line">Line</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Faceting</label>
+      <select id="facet-dim">
+        <option value="row">Row facets (~ facet_grid(CAT2 ~ .))</option>
+        <option value="col">Column facets (~ facet_grid(. ~ CAT2))</option>
+        <option value="both">Both (~ facet_grid(CAT2 ~ CAT3))</option>
+      </select>
+    </div>
+  </div>
+  <div class="image-container">
+    <img id="img-facets" src="showcase_output/scatter_facet_row_cpu_bw_0000.png"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+         alt="Faceted plot">
+    <span class="error" style="display:none">Image not available</span>
+  </div>
+  <div class="filename" id="fn-facets">scatter_facet_row_cpu_bw_0000.png</div>
+</section>
+
+<div class="category-header" id="cat-properties">Visual Properties</div>
+
+<section id="sec-markers">
+  <h2>Marker Shapes</h2>
+  <p class="section-desc">
+    All 26 ggplot2 point shapes (pch 0–25). Rendered with categorical color (CAT1),
+    <strong>bw</strong> theme, <strong>CPU</strong> backend, axis labels and plot title.
+    Shapes 0–14 are hollow (outline only), 15–20 are filled, 21–25 are filled with black border.
+  </p>
+  <div class="controls">
+    <div class="control-group">
+      <label>Shape (pch)</label>
+      <select id="marker-select">
+        <option value="0">0 — hollow square</option>
+        <option value="1">1 — hollow circle</option>
+        <option value="2">2 — hollow triangle up</option>
+        <option value="3">3 — plus</option>
+        <option value="4">4 — cross (X)</option>
+        <option value="5">5 — hollow diamond</option>
+        <option value="6">6 — hollow triangle down</option>
+        <option value="7">7 — square cross</option>
+        <option value="8">8 — asterisk</option>
+        <option value="9">9 — diamond plus</option>
+        <option value="10">10 — circle plus</option>
+        <option value="11">11 — star (two triangles)</option>
+        <option value="12">12 — square plus</option>
+        <option value="13">13 — circle cross</option>
+        <option value="14">14 — square triangle</option>
+        <option value="15">15 — filled square</option>
+        <option value="16">16 — filled circle</option>
+        <option value="17">17 — filled triangle up</option>
+        <option value="18">18 — filled diamond</option>
+        <option value="19" selected>19 — solid circle (default)</option>
+        <option value="20">20 — bullet (small circle)</option>
+        <option value="21">21 — circle with border</option>
+        <option value="22">22 — square with border</option>
+        <option value="23">23 — diamond with border</option>
+        <option value="24">24 — triangle up with border</option>
+        <option value="25">25 — triangle down with border</option>
+      </select>
+    </div>
+  </div>
+  <div class="image-container">
+    <img id="img-markers" src="showcase_output/scatter_cat_cpu_bw_pch_19.png"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+         alt="Marker shape">
+    <span class="error" style="display:none">Image not available</span>
+  </div>
+  <div class="filename" id="fn-markers">scatter_cat_cpu_bw_pch_19.png</div>
+</section>
+
+<section id="sec-opacity">
+  <h2>Opacity</h2>
+  <p class="section-desc">
+    Global opacity applied to all data geoms (points, tiles, bars, lines).
+    Non-data elements (axes, labels, grid) stay fully opaque.
+    Rendered with categorical color (CAT1), <strong>bw</strong> theme,
+    <strong>CPU</strong> backend, axis labels and plot title.
+  </p>
+  <div class="controls" style="align-items:center;">
+    <div class="control-group">
+      <label>Opacity</label>
+      <div style="display:flex;align-items:center;gap:0.8rem;">
+        <input type="range" id="opacity-slider" min="0" max="3" step="1" value="3"
+               style="width:180px;cursor:pointer;">
+        <span id="opacity-value" style="font-size:0.95rem;font-weight:500;min-width:2.5rem;">1</span>
+      </div>
+    </div>
+  </div>
+  <div class="image-container">
+    <img id="img-opacity" src="showcase_output/scatter_cat_cpu_bw_opacity_1.png"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+         alt="Opacity">
+    <span class="error" style="display:none">Image not available</span>
+  </div>
+  <div class="filename" id="fn-opacity">scatter_cat_cpu_bw_opacity_1.png</div>
+</section>
+
+<section id="sec-transforms">
+  <h2>Axis Transforms</h2>
+  <p class="section-desc">
+    Scatter plot with categorical color (CAT1), applying the same transform to both axes.
+    Currently only <strong>log</strong>, <strong>asinh</strong>, and <strong>logicle</strong>
+    are selectable in the Tercen UI. Rendered with <strong>bw</strong> theme,
+    <strong>CPU</strong> backend, axis labels and plot title.
+  </p>
+  <div class="controls">
+    <div class="control-group">
+      <label>Transform</label>
+      <select id="tf-select">
+        <option value="none">None (identity)</option>
+        <option value="log">Log (natural log)</option>
+        <option value="asinh">Asinh (arcsinh)</option>
+        <option value="logicle">Logicle</option>
+      </select>
+    </div>
+  </div>
+  <div class="image-container">
+    <img id="img-transforms" src="showcase_output/scatter_cat_cpu_bw_tf_none.png"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+         alt="Axis transform">
+    <span class="error" style="display:none">Image not available</span>
+  </div>
+  <div class="filename" id="fn-transforms">scatter_cat_cpu_bw_tf_none.png</div>
+</section>
+
+<div class="category-header" id="cat-visibility">Element Visibility</div>
+
+<section id="sec-toggles">
+  <h2>Element Toggles</h2>
+  <p class="section-desc">
+    Toggle plot elements on/off. All rendered with <strong>bw</strong> theme,
+    <strong>CPU</strong> backend, categorical color, axis labels, and plot title.
+  </p>
+  <div class="controls">
+    <div class="control-group">
+      <label>Chart type</label>
+      <select id="tog-chart-type">
+        <option value="scatter">Scatter</option>
+        <option value="line">Line</option>
+        <option value="heatmap">Heatmap</option>
+      </select>
+    </div>
+  </div>
+  <div class="toggles" style="margin-bottom:1rem;">
+    <div class="toggle-group">
+      <input type="checkbox" id="tog-text" checked>
+      <label for="tog-text">Text labels</label>
+    </div>
+    <div class="toggle-group">
+      <input type="checkbox" id="tog-axis" checked>
+      <label for="tog-axis">Axis lines</label>
+    </div>
+    <div class="toggle-group">
+      <input type="checkbox" id="tog-gmaj" checked>
+      <label for="tog-gmaj">Major grid</label>
+    </div>
+    <div class="toggle-group">
+      <input type="checkbox" id="tog-gmin" checked>
+      <label for="tog-gmin">Minor grid</label>
+    </div>
+  </div>
+  <div class="image-container">
+    <img id="img-toggles" src="showcase_output/scatter_cat_cpu_bw_0000.png"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+         alt="Element toggles">
+    <span class="error" style="display:none">Image not available</span>
+  </div>
+  <div class="filename" id="fn-toggles">scatter_cat_cpu_bw_0000.png</div>
+</section>
+
+<script>
+/* --- Main sections: theme/backend/variant selectors, always _0000 flags --- */
+function updateMainImage(section) {
+  const selects = document.querySelectorAll(`select[data-section="${section}"]`);
+  const vals = {};
+  selects.forEach(s => vals[s.dataset.dim] = s.value);
+
+  const variant = vals.variant || section;
+  const backend = vals.backend || 'cpu';
+  const theme = vals.theme || 'gray';
+
+  let filename;
+  if (section === 'heatmap') {
+    const palette = vals.palette || 'Spectral';
+    filename = `${variant}_${backend}_${theme}_${palette}_0000.png`;
+  } else {
+    filename = `${variant}_${backend}_${theme}_0000.png`;
+  }
+
+  const img = document.getElementById(`img-${section}`);
+  const fn = document.getElementById(`fn-${section}`);
+  const err = img.nextElementSibling;
+  img.style.display = '';
+  err.style.display = 'none';
+  img.src = `showcase_output/${filename}`;
+  fn.textContent = filename;
+}
+
+/* --- Transforms section: transform selector --- */
+function updateTransformImage() {
+  const tf = document.getElementById('tf-select').value;
+  const filename = `scatter_cat_cpu_bw_tf_${tf}.png`;
+
+  const img = document.getElementById('img-transforms');
+  const fn = document.getElementById('fn-transforms');
+  img.style.display = ''; img.nextElementSibling.style.display = 'none';
+  img.src = `showcase_output/${filename}`;
+  fn.textContent = filename;
+}
+
+document.getElementById('tf-select').addEventListener('change', updateTransformImage);
+
+/* --- Marker shapes section: pch selector --- */
+function updateMarkerImage() {
+  const pch = document.getElementById('marker-select').value;
+  const filename = `scatter_cat_cpu_bw_pch_${pch}.png`;
+
+  const img = document.getElementById('img-markers');
+  const fn = document.getElementById('fn-markers');
+  img.style.display = ''; img.nextElementSibling.style.display = 'none';
+  img.src = `showcase_output/${filename}`;
+  fn.textContent = filename;
+}
+
+document.getElementById('marker-select').addEventListener('change', updateMarkerImage);
+
+/* --- Opacity section: range slider --- */
+const opacitySteps = ['0.25', '0.5', '0.75', '1'];
+function updateOpacityImage() {
+  const idx = document.getElementById('opacity-slider').value;
+  const op = opacitySteps[idx];
+  document.getElementById('opacity-value').textContent = op;
+  const filename = `scatter_cat_cpu_bw_opacity_${op}.png`;
+
+  const img = document.getElementById('img-opacity');
+  const fn = document.getElementById('fn-opacity');
+  img.style.display = ''; img.nextElementSibling.style.display = 'none';
+  img.src = `showcase_output/${filename}`;
+  fn.textContent = filename;
+}
+
+document.getElementById('opacity-slider').addEventListener('input', updateOpacityImage);
+
+/* --- Facets section: chart type + faceting dimension --- */
+function updateFacetImage() {
+  const chartType = document.getElementById('facet-chart-type').value;
+  const facetDim = document.getElementById('facet-dim').value;
+  const name = `${chartType}_facet_${facetDim}`;
+  const filename = `${name}_cpu_bw_0000.png`;
+
+  const img = document.getElementById('img-facets');
+  const fn = document.getElementById('fn-facets');
+  img.style.display = ''; img.nextElementSibling.style.display = 'none';
+  img.src = `showcase_output/${filename}`;
+  fn.textContent = filename;
+}
+
+document.getElementById('facet-chart-type').addEventListener('change', updateFacetImage);
+document.getElementById('facet-dim').addEventListener('change', updateFacetImage);
+
+/* --- Toggle section: checkboxes + chart type selector --- */
+function updateToggleImage() {
+  const chartType = document.getElementById('tog-chart-type').value;
+  const flagOrder = ['text', 'axis', 'gmaj', 'gmin'];
+  let flags = '';
+  flagOrder.forEach(f => {
+    const cb = document.getElementById(`tog-${f}`);
+    flags += (cb && cb.checked) ? '0' : '1';
+  });
+
+  let filename;
+  if (chartType === 'heatmap') {
+    filename = `heatmap_cpu_bw_Jet_${flags}.png`;
+  } else if (chartType === 'line') {
+    filename = `line_cat_cpu_bw_${flags}.png`;
+  } else {
+    filename = `scatter_cat_cpu_bw_${flags}.png`;
+  }
+
+  const img = document.getElementById('img-toggles');
+  const fn = document.getElementById('fn-toggles');
+  img.style.display = ''; img.nextElementSibling.style.display = 'none';
+  img.src = `showcase_output/${filename}`;
+  fn.textContent = filename;
+}
+
+/* Wire up main section selectors */
+document.querySelectorAll('select[data-section]').forEach(sel => {
+  sel.addEventListener('change', () => updateMainImage(sel.dataset.section));
+});
+
+/* Wire up toggle controls */
+document.getElementById('tog-chart-type').addEventListener('change', updateToggleImage);
+document.querySelectorAll('#sec-toggles input[type="checkbox"]').forEach(cb => {
+  cb.addEventListener('change', updateToggleImage);
+});
+
+/* --- Scroll spy: highlight active nav link --- */
+(function() {
+  const navLinks = document.querySelectorAll('nav a[href^="#"]');
+  const sections = Array.from(navLinks).map(a => ({
+    link: a,
+    target: document.querySelector(a.getAttribute('href'))
+  })).filter(s => s.target);
+
+  function updateActive() {
+    const scrollY = window.scrollY + 80;
+    let current = sections[0];
+    for (const s of sections) {
+      if (s.target.offsetTop <= scrollY) current = s;
+    }
+    navLinks.forEach(a => a.classList.remove('active'));
+    if (current) current.link.classList.add('active');
+  }
+
+  window.addEventListener('scroll', updateActive, { passive: true });
+  updateActive();
+})();
+</script>
+
+</body>
+</html>
