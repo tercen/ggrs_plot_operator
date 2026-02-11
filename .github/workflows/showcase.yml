@@ -1,0 +1,93 @@
+name: Generate Showcase
+
+on:
+  workflow_dispatch:
+
+env:
+  TERCEN_URI: http://172.42.0.42:5400
+  TERCEN_GRPC_URI: http://172.42.0.42:50051
+  TERCEN_USER: test
+  TERCEN_PASSWORD: test
+
+jobs:
+  showcase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Checkout ggrs
+        uses: actions/checkout@v4
+        with:
+          repository: tercen/ggrs
+          token: ${{ secrets.GH_PAT }}
+          path: ../ggrs
+
+      - name: Start Tercen
+        uses: tercen/actions/start-tercen@main
+
+      - name: Install tercenctl
+        run: |
+          gh release download v0.7.0 -R tercen/sci -p 'tercenctl-linux-x64' -D /tmp
+          sudo mv /tmp/tercenctl-linux-x64 /usr/local/bin/tercenctl
+          sudo chmod +x /usr/local/bin/tercenctl
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Configure git for private dependencies
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache target directory
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-target-showcase-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            libssl-dev \
+            protobuf-compiler \
+            libjemalloc-dev \
+            libglib2.0-dev \
+            libcairo2-dev \
+            libpango1.0-dev \
+            libfontconfig1-dev \
+            libfreetype6-dev
+
+      - name: Generate showcase
+        run: ./setup_test_data.sh
+        env:
+          SHOWCASE_BACKENDS: cpu
+          SHOWCASE_COMMIT: ${{ github.sha }}
+
+      - name: Upload showcase artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: showcase-${{ github.sha }}
+          path: |
+            showcase.html
+            showcase_output/
+          retention-days: 90

@@ -128,8 +128,18 @@ pub async fn generate_plots<C: TercenContext>(
         .page_factors(ctx.page_factors().to_vec())
         .schema_cache(schema_cache.clone())
         .heatmap_cell_aggregation(config.heatmap_cell_aggregation)
-        .y_transform(ctx.y_transform().map(|s| s.to_string()))
-        .x_transform(ctx.x_transform().map(|s| s.to_string()))
+        .y_transform(
+            config
+                .y_transform_override
+                .clone()
+                .or_else(|| ctx.y_transform().map(|s| s.to_string())),
+        )
+        .x_transform(
+            config
+                .x_transform_override
+                .clone()
+                .or_else(|| ctx.x_transform().map(|s| s.to_string())),
+        )
         .n_layers(ctx.n_layers())
         .layer_palette_name(ctx.layer_palette_name().map(|s| s.to_string()))
         .layer_y_factor_names(ctx.layer_y_factor_names().to_vec())
@@ -242,7 +252,7 @@ fn render_page<C: TercenContext>(
         println!("  Y-axis tick rotation: {}°", config.y_tick_rotation);
     }
 
-    // Grid disable
+    // Element disable toggles
     if config.grid_major_disable {
         theme.disable_grid_major();
         println!("  Major grid: disabled");
@@ -250,6 +260,14 @@ fn render_page<C: TercenContext>(
     if config.grid_minor_disable {
         theme.disable_grid_minor();
         println!("  Minor grid: disabled");
+    }
+    if config.axis_lines_disable {
+        theme.disable_axis_lines();
+        println!("  Axis lines: disabled");
+    }
+    if config.text_disable {
+        theme.disable_text();
+        println!("  Text labels: disabled");
     }
 
     // Font size overrides

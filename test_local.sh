@@ -41,8 +41,8 @@ export TERCEN_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vMT
 
 # EXAMPLE2
 # Scatter simple (no X-axis table - uses sequential X range)
-#export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
-#export STEP_ID="7a8eb4a9-d7bf-4fb9-8385-6f902fb73693"
+export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
+export STEP_ID="7a8eb4a9-d7bf-4fb9-8385-6f902fb73693"
 
 # EXAMPLE3
 # Scatter crabs (has X-axis table)
@@ -83,8 +83,8 @@ export TERCEN_TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vMT
 #EXAMPLE8
 # SVG Scatter
 # http://127.0.0.1:5400/test/w/28e3c9888e9935f667aed6f07c007c7c/ds/2eb69100-57c2-4589-8f81-ad3cb2881083
-export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
-export STEP_ID="2eb69100-57c2-4589-8f81-ad3cb2881083"
+#export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
+#export STEP_ID="2eb69100-57c2-4589-8f81-ad3cb2881083"
 
 # EXAMPLE3 - Scatter crabs (has X-axis table)
 #export WORKFLOW_ID="28e3c9888e9935f667aed6f07c007c7c"
@@ -105,7 +105,7 @@ PNG_COMPRESSION="fast"
 
 # Valid values for properties (from operator.json)
 VALID_BACKENDS=("cpu" "gpu")
-VALID_THEMES=("gray" "bw" "linedraw" "light" "dark" "minimal" "classic" "void")
+VALID_THEMES=("gray" "bw" "linedraw" "light" "dark" "minimal" "classic" "void" "publish")
 VALID_FORMATS=("png" "svg" "hsvg")
 
 # Validate backend
@@ -149,8 +149,8 @@ cat > operator_config.json <<EOF
   "default_plot_width": 6000,
   "default_plot_height": 2000,
   "backend": "$BACKEND",
-  "output.format": "hsvg",
-  "theme": "light",
+  "output.format": "$FORMAT",
+  "theme": "$THEME",
   "legend.position": "$LEGEND_POSITION",
   "legend.justification": "$LEGEND_JUSTIFICATION",
   "png.compression": "$PNG_COMPRESSION",

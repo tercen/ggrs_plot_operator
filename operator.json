@@ -212,16 +212,28 @@
       "description": "Y-axis tick label rotation in degrees. Common values: 0 (horizontal), 90 (vertical). Default: 0."
     },
     {
-      "kind": "StringProperty",
+      "kind": "BooleanProperty",
       "name": "grid.major.disable",
-      "defaultValue": "false",
-      "description": "Disable major grid lines. Set to 'true' to hide. Default: false (grid shown)."
+      "defaultValue": false,
+      "description": "Disable major grid lines."
     },
     {
-      "kind": "StringProperty",
+      "kind": "BooleanProperty",
       "name": "grid.minor.disable",
-      "defaultValue": "false",
-      "description": "Disable minor grid lines. Set to 'true' to hide. Default: false (grid shown)."
+      "defaultValue": false,
+      "description": "Disable minor grid lines."
+    },
+    {
+      "kind": "BooleanProperty",
+      "name": "axis.lines.disable",
+      "defaultValue": false,
+      "description": "Disable axis lines, ticks, and panel border."
+    },
+    {
+      "kind": "BooleanProperty",
+      "name": "text.disable",
+      "defaultValue": false,
+      "description": "Disable all text labels (axis titles, tick labels, plot title)."
     },
     {
       "kind": "StringProperty",

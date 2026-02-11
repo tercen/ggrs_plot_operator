@@ -195,4 +195,14 @@ impl TercenClient {
             interceptor,
         ))
     }
+
+    /// Get the underlying channel for use with arbitrary service clients
+    pub fn channel(&self) -> &Channel {
+        &self.channel
+    }
+
+    /// Create an auth interceptor for use with arbitrary service clients
+    pub fn auth_interceptor(&self) -> Result<AuthInterceptor> {
+        AuthInterceptor::new(self.token.clone())
+    }
 }

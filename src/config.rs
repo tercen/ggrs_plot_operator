@@ -138,6 +138,12 @@ pub struct OperatorConfig {
     /// Disable minor grid lines
     pub grid_minor_disable: bool,
 
+    /// Disable axis lines, ticks, and panel border
+    pub axis_lines_disable: bool,
+
+    /// Disable all text labels (axis titles, tick labels, plot title)
+    pub text_disable: bool,
+
     /// Plot title font size in points (None = use theme default)
     pub title_font_size: Option<f64>,
 
@@ -152,6 +158,13 @@ pub struct OperatorConfig {
 
     /// Output filename without extension (default: "plot")
     pub filename: String,
+
+    /// Y-axis transform override (e.g., "log", "asinh", "logicle")
+    /// When set, overrides the transform from the Tercen model
+    pub y_transform_override: Option<String>,
+
+    /// X-axis transform override
+    pub x_transform_override: Option<String>,
 }
 
 impl OperatorConfig {
@@ -235,9 +248,11 @@ impl OperatorConfig {
         // Output format: "png", "svg", or "hsvg"
         let output_format = props.get_enum("output.format")?;
 
-        // Grid disable toggles
+        // Disable toggles
         let grid_major_disable = props.get_bool("grid.major.disable")?;
         let grid_minor_disable = props.get_bool("grid.minor.disable")?;
+        let axis_lines_disable = props.get_bool("axis.lines.disable")?;
+        let text_disable = props.get_bool("text.disable")?;
 
         // Font size overrides (None = use theme default)
         let title_font_size = props.get_optional_f64("plot.title.font.size")?;
@@ -256,6 +271,10 @@ impl OperatorConfig {
                 s
             }
         };
+
+        // Axis transform overrides (optional, override Tercen model transforms)
+        let y_transform_override = props.get_optional_string("axis.y.transform");
+        let x_transform_override = props.get_optional_string("axis.x.transform");
 
         Ok(Self {
             chunk_size,
@@ -281,11 +300,15 @@ impl OperatorConfig {
             output_format,
             grid_major_disable,
             grid_minor_disable,
+            axis_lines_disable,
+            text_disable,
             title_font_size,
             axis_label_font_size,
             tick_label_font_size,
             axis_line_width,
             filename,
+            y_transform_override,
+            x_transform_override,
         })
     }
 

@@ -1,121 +1,131 @@
 # Continue From Here
 
-**Last Updated**: 2026-02-06
-**Status**: SVG cosmetic properties + output metadata complete; all tests pass
+**Last Updated**: 2026-02-10
+**Status**: Showcase ready to run — pending visual verification
 
 ---
 
-## Current State
+## Current Task: Interactive HTML Showcase
 
-### Recent Changes (2026-02-06, latest session)
+### What We Built
 
-1. **SVG Legend rendering** (ggrs-core)
-   - Discrete legends: `<circle>` + `<text>` elements
-   - Continuous legends: `<linearGradient>` + `<rect>`
-   - Legend y-position clamping: prevents off-screen rendering when legend taller than plot
+A fully automated showcase pipeline (`setup_test_data.sh`) that:
+1. Creates a Tercen project, uploads test data, builds a workflow
+2. Creates 5 data steps (scatter×2, line×2, heatmap)
+3. Renders all combinations of backend × theme (and palette for heatmap)
+4. Generates `showcase.html` with interactive dropdowns
 
-2. **Hybrid SVG (hSVG)** (ggrs-core)
-   - Vector SVG skeleton (axes, labels, grids) + per-panel rasterized PNG as `<image>` elements
-   - `BackendChoice::HybridSvg` + `OutputFormat::HybridSvg`
-   - Supports all geom types (points, lines, tiles, bars) via `stream_data_hybrid()`
-   - Inkscape compatibility: `xmlns:xlink` + `xlink:href` attributes
+### Showcase Scenarios
 
-3. **SVG Cosmetic Properties** — 6 new operator properties
-   - `grid.major.disable` / `grid.minor.disable` — boolean toggles (default: false)
-   - `plot.title.font.size` / `axis.label.font.size` / `axis.tick.font.size` — optional pt overrides
-   - `axis.line.width` — optional panel border width override
-   - All default to empty = use theme defaults
+| Scenario | Chart | Y | X | Color | Notes |
+|----------|-------|---|---|-------|-------|
+| `scatter_nocolor` | point | y | x | — | Basic scatter |
+| `scatter_cat` | point | y | x | CAT1 | Categorical color |
+| `line_nocolor` | line | y | x | — | Basic line |
+| `line_cat` | line | y | x | CAT1 | Categorical color |
+| `heatmap` | heatmap | heatval | — | heatval (RampPalette) | Continuous color, palette iteration |
 
-4. **Theme setters** (ggrs-core `theme/mod.rs`)
-   - `set_plot_title_size(pt)`, `set_axis_title_size(pt)`, `set_axis_text_size(pt)`
-   - `set_panel_border_linewidth(pt)`, `panel_border_color()`, `panel_border_linewidth()`
-   - `disable_grid_major()`, `disable_grid_minor()`, `show_grid_major()`, `show_grid_minor()`
+### Test Data Design
 
-5. **SVG Y-axis tick rotation** (ggrs-core `svg/mod.rs`)
-   - Fixed: Y-axis tick labels now respect `theme.y_tick_rotation()` (X already worked)
+CSV with 5000 rows, columns: `x, y, heatval, CAT1, CAT2, CAT3`
 
-6. **SVG grid conditionals** (ggrs-core `svg/mod.rs`)
-   - Major grid wrapped in `if theme.show_grid_major() { ... }`
-   - Minor grid wrapped in `if theme.show_grid_minor() && ... { ... }`
+**`y` — category-dependent for scatter/line:**
+- Per-CAT1 offsets: alpha=-6, beta=-2, gamma=+2, delta=+6
+- Per-CAT1 slopes: alpha=0.3, beta=0.6, gamma=-0.2, delta=0.8
+- ±2 noise
+- Result: four clearly separated bands with different trends
 
-7. **SVG panel border from theme** (ggrs-core `svg/mod.rs`)
-   - Replaced hardcoded `#333333`/`0.5` with `theme.panel_border_color()` / `theme.panel_border_linewidth()`
+**`heatval` — category-dependent for heatmap:**
+- 16 distinct base means (4 CAT1 × 4 CAT2), spread across 0-100
+- ±8 noise, clamped [0, 100]
+- Result: clear checkerboard pattern that makes palettes pop
 
-8. **SVG output metadata** (operator `result.rs`)
-   - `PlotResult` now has `output_ext: String` field
-   - `mimetype_for_ext()` helper: `"svg"` → `"image/svg+xml"`, default → `"image/png"`
-   - `save_result()` and `save_results()` use dynamic filename/mimetype from output_ext
-   - `dev.rs` uses `plot.output_ext` for local file naming
-   - Production `main.rs` passes `&plot.output_ext` to `save_result()`
+### Image Counts
 
-### Files Changed (this session)
+| Type | Formula | Count |
+|------|---------|-------|
+| Non-heatmap | 4 scenarios × 2 backends × 9 themes | 72 |
+| Heatmap | 1 scenario × 2 backends × 9 themes × 7 palettes | 126 |
+| **Total** | | **198** |
 
-**ggrs-core:**
-| File | Change |
-|------|--------|
-| `svg/mod.rs` | Legend rendering, y-tick rotation fix, grid conditionals, themed panel border |
-| `theme/mod.rs` | Font size setters, grid visibility methods, panel border getters/setters |
+### Heatmap Palette Iteration
 
-**operator:**
-| File | Change |
-|------|--------|
-| `operator.json` | 6 new cosmetic properties |
-| `src/tercen/operator_properties.rs` | `get_bool()`, `get_optional_f64()` methods + tests |
-| `src/config.rs` | 6 new fields (grid_major_disable, grid_minor_disable, title_font_size, axis_label_font_size, tick_label_font_size, axis_line_width) |
-| `src/pipeline.rs` | Theme customization block (grid/font/linewidth), `output_ext` in PlotResult |
-| `src/tercen/result.rs` | `output_ext` field, `mimetype_for_ext()`, dynamic filename/mimetype |
-| `src/tercen/context/base.rs` | `save_result()` wrapper updated with `output_ext` param |
-| `src/main.rs` | Passes `&plot.output_ext` to `save_result()` |
-| `src/bin/dev.rs` | Uses `plot.output_ext` for local file naming |
+The heatmap cycles over 7 palettes: `Spectral, Jet, Viridis, Hot, Cool, RdBu, YlGnBu`
+
+Key functions:
+- `patch_ramp_palette(wf_id, step_id, palette_name)` — patches `colors/palette` with a named `RampPalette` (`isUserDefined: false`)
+- `render_heatmap_scenario()` — outer loop re-patches palette before each backend×theme batch
+- Filename: `heatmap_{backend}_{theme}_{palette}.png`
+
+### Showcase HTML
+
+`showcase.html` with sections for Scatter, Line, Heatmap:
+- Scatter/Line: dropdowns for Color variant, Theme, Backend
+- Heatmap: dropdowns for **Palette**, Theme, Backend
+- JS updates `<img src>` on dropdown change
+
+### Recent Rendering Fixes (this session)
+
+**Axis lines, tick marks, panel borders** — previously missing from all themes:
+- Added `axis_line_x_color()`, `axis_line_y_color()`, `axis_line_linewidth()`, `axis_ticks_linewidth()` to `theme/mod.rs`
+- Added panel border drawing, axis tick marks, and axis lines to `setup_cairo_chrome()` in `render.rs`
+- Verified across classic, bw, publish, light, dark themes
+
+### What's Done
+
+- [x] `setup_test_data.sh` — full pipeline script
+- [x] `prepare.rs` binary — creates CubeQueryTask for a step
+- [x] CSV data with category-dependent means (y + heatval)
+- [x] Heatmap color factor + palette patching (`add_color_factor` + `patch_ramp_palette`)
+- [x] Heatmap palette iteration (7 palettes)
+- [x] HTML showcase with interactive dropdowns
+- [x] Axis lines, tick marks, panel borders in renderer
+
+### Next Steps (Tomorrow)
+
+1. **Run `./setup_test_data.sh`** — generate all 198 images + showcase.html
+2. **Visual verification** — open showcase.html, spot-check:
+   - scatter_cat: four separated color bands
+   - line_cat: four diverging trend lines
+   - heatmap: colorful checkerboard across palettes
+   - Themes: axis lines (classic/publish), panel borders (bw/linedraw), ticks
+3. **Fix any rendering issues** discovered during verification
+4. **Quality checks**: `cargo fmt && cargo clippy -- -D warnings && cargo test` on both repos
+
+### Not Yet Supported
+
+- `scatter_cont` (continuous color): using same column for axis+color causes `.colorLevels` conflict
+- `bar`: operator X-axis loading expects `.minX/.maxX`, bar provides `.xLevels`
 
 ---
 
-## Project Architecture
+## Key Files
 
-```
-src/
-├── tercen/                    # Tercen gRPC integration
-│   ├── client.rs              # TercenClient with auth
-│   ├── context/               # TercenContext trait + impls
-│   ├── result.rs              # Result upload (PNG/SVG, dynamic mimetype)
-│   ├── table.rs               # TableStreamer
-│   ├── colors.rs              # Color types, palette extraction, ChartKind
-│   ├── color_processor.rs     # add_color_columns() + add_mixed_layer_colors()
-│   ├── palettes.rs            # PALETTE_REGISTRY
-│   ├── operator_properties.rs # OperatorPropertyReader (strict validation)
-│   └── ...
-├── ggrs_integration/
-│   ├── stream_generator.rs    # TercenStreamGenerator (implements StreamGenerator)
-│   └── cached_stream_generator.rs
-├── pipeline.rs                # Plot generation orchestration
-├── config.rs                  # OperatorConfig from operator.json
-└── main.rs                    # Production entry point
-```
+| File | Role |
+|------|------|
+| `setup_test_data.sh` | Showcase generator script |
+| `showcase.html` | Generated interactive HTML (output) |
+| `showcase_output/` | Generated images directory (output) |
+| `src/bin/prepare.rs` | CubeQueryTask creation binary |
+| `src/bin/dev.rs` | Local rendering binary |
+| `ggrs-core/src/render.rs` | Renderer (axis lines/ticks/borders added) |
+| `ggrs-core/src/theme/mod.rs` | Theme accessors (axis line/tick methods added) |
 
 ---
 
-## Test Configuration
+## Previous Work (Completed)
 
-Edit `test_local.sh` to select test example:
-- **EXAMPLE1**: Heatmap with divergent palette
-- **EXAMPLE2**: Simple scatter (no X-axis table)
-- **EXAMPLE3**: Scatter with X-axis table (crabs dataset)
-- **EXAMPLE4**: Log transform test
-- **EXAMPLE5**: Bar plots
-- **EXAMPLE6**: Multiple layers
-- **EXAMPLE7**: Line plot
-- **EXAMPLE8**: SVG scatter test — currently active
+### GPU Rendering (Phase 1) — Complete
 
-Override cosmetic properties via `operator_config.json`:
-```json
-{
-  "grid.major.disable": "true",
-  "plot.title.font.size": "20",
-  "axis.label.font.size": "16",
-  "axis.tick.font.size": "12",
-  "axis.line.width": "2"
-}
-```
+- Hybrid GPU+Cairo architecture working for points
+- Vulkan backend (GL has non-square texture bug)
+- `Rgba8Unorm` texture format (avoids sRGB double-encoding)
+- Visual verification passed: GPU scatter matches CPU scatter
+
+### Pending (Not Current Priority)
+
+- Push ggrs-core to git, switch to git dependency
+- GPU Phase 2: heatmap/bar visual verification, performance comparison
 
 ---
 
@@ -128,48 +138,28 @@ cargo build --profile dev-release
 # Quality checks (MANDATORY)
 cargo fmt && cargo clippy -- -D warnings && cargo test
 
-# Local test
+# ggrs-core checks
+cd ../ggrs/crates/ggrs-core && cargo fmt && cargo clippy --features "webgpu-backend,cairo-backend" -- -D warnings
+
+# Run showcase
+./setup_test_data.sh
+
+# Local test (single step)
 ./test_local.sh [cpu|gpu] [theme] [png|svg|hsvg]
 ```
 
 ### Cargo.toml Dependency
 
-Currently using **path dependency** (local ggrs-core). The git version does NOT have the latest theme setters/grid methods/hSVG support.
-
-```toml
-# Local dev (CURRENT):
-ggrs-core = { path = "../ggrs/crates/ggrs-core", features = [...] }
-
-# CI/Production (switch after pushing ggrs-core changes):
-# ggrs-core = { git = "https://github.com/tercen/ggrs", branch = "main", features = [...] }
-```
-
-**Before committing operator**: Push ggrs-core changes to git first, then switch to git dependency.
-
----
-
-## Pending Tasks
-
-### Before Committing
-- [ ] Push ggrs-core changes to git (theme setters, SVG legend, hSVG, grid conditionals, y-tick rotation, panel border from theme)
-- [ ] Switch Cargo.toml to git dependency
-- [ ] Commit operator changes
-
-### SVG Phase 2
-- [ ] Non-circle shapes (pch 0-25) via `<defs>/<use>` + shapes.rs
-- [ ] SVGZ compression option
-- [ ] Better text measurement (font metrics instead of estimation)
-
-### General
-- [ ] Visual verification of line plot (EXAMPLE7) with SVG output
-- [ ] Visual verification of hSVG with heatmap (EXAMPLE1)
+Currently using **path dependency** (local ggrs-core).
 
 ---
 
 ## Session History
 
-- 2026-02-06: SVG output metadata (dynamic ext/mimetype), cosmetic properties (grid toggle, font sizes, axis line width), Y-tick rotation fix, legend y-position clamping, hSVG backend
-- 2026-02-06: SVG backend Phase 1, operator wiring, visual testing
+- 2026-02-10: Showcase heatmap fix (color factor + palette patching), palette iteration, category-dependent data, axis lines/ticks/borders in renderer
+- 2026-02-09: Showcase pipeline — setup_test_data.sh, prepare.rs, 5 scenarios, HTML generation
+- 2026-02-09: GPU rendering Phase 1 — layout extraction, WebGPU pipelines, compositing
+- 2026-02-06: SVG output, cosmetic properties, hSVG backend
 - 2026-02-06: Global opacity, line rendering, strict property validation, multi-layer color fix
 - 2026-02-05: Theme publish, heatmap categorical labels, tile rendering fix, bar plots
 - 2026-02-04: Refactoring complete - rendering path, color processor, transform parsing

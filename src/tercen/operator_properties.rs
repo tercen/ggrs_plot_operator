@@ -25,7 +25,7 @@ pub struct PropertyDef {
 pub enum PropertyKind {
     String,
     Enumerated,
-    // Add more as needed (Boolean, Integer, etc.)
+    Boolean,
 }
 
 /// Registry of all operator properties with their defaults from operator.json
@@ -58,10 +58,20 @@ impl PropertyRegistry {
             let kind = match kind_str {
                 "StringProperty" => PropertyKind::String,
                 "EnumeratedProperty" => PropertyKind::Enumerated,
+                "BooleanProperty" => PropertyKind::Boolean,
                 other => panic!("Unknown property kind: {}", other),
             };
 
-            let default_value = prop["defaultValue"].as_str().unwrap_or("").to_string();
+            // BooleanProperty uses a JSON bool for defaultValue, others use string
+            let default_value = if kind == PropertyKind::Boolean {
+                match &prop["defaultValue"] {
+                    v if v.is_boolean() => v.as_bool().unwrap().to_string(),
+                    v if v.is_string() => v.as_str().unwrap().to_string(),
+                    _ => "false".to_string(),
+                }
+            } else {
+                prop["defaultValue"].as_str().unwrap_or("").to_string()
+            };
 
             let description = prop["description"].as_str().unwrap_or("").to_string();
 
@@ -416,6 +426,8 @@ mod tests {
         let reader = OperatorPropertyReader::new(None);
         assert!(!reader.get_bool("grid.major.disable").unwrap());
         assert!(!reader.get_bool("grid.minor.disable").unwrap());
+        assert!(!reader.get_bool("axis.lines.disable").unwrap());
+        assert!(!reader.get_bool("text.disable").unwrap());
     }
 
     #[test]

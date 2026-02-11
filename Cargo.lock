@@ -1125,8 +1125,7 @@ dependencies = [
 
 [[package]]
 name = "ggrs-core"
-version = "0.2.0"
-source = "git+https://github.com/tercen/ggrs?tag=0.2.0#92b21de7e88cf78fb7eebc5d985f05d06b2fcc9e"
+version = "0.4.0"
 dependencies = [
  "bytemuck",
  "cairo-rs",
@@ -1147,7 +1146,6 @@ dependencies = [
 [[package]]
 name = "ggrs-text"
 version = "0.1.0"
-source = "git+https://github.com/tercen/ggrs?tag=0.2.0#92b21de7e88cf78fb7eebc5d985f05d06b2fcc9e"
 dependencies = [
  "ab_glyph",
  "thiserror 1.0.69",
