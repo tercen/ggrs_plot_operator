@@ -177,11 +177,9 @@ generate_csv() {
             if (hv > 100) hv = 100
 
             # Pre-transformed columns for axis transform showcase
-            # Log: map to span ~1 to 10^4 so decade ticks are visible
-            # x ∈ [-10,10] → [0, 4*ln(10)] ≈ [0, 9.21] → exp → [1, 10000]
-            ln10 = 2.302585
-            x_log = ((x + 10) / 20) * 4 * ln10
-            y_log = ((y + 20) / 40) * 4 * ln10
+            # Log: ln(value), non-positive values become NaN (skipped by GGRS)
+            x_log_s = (x > 0) ? sprintf("%.6f", log(x)) : ""
+            y_log_s = (y > 0) ? sprintf("%.6f", log(y)) : ""
 
             # Asinh: handles negative values naturally
             # asinh(v) = ln(v + sqrt(v^2 + 1))
@@ -197,8 +195,8 @@ generate_csv() {
             x_logicle = sx * log(1 + ax)
             y_logicle = sy * log(1 + ay)
 
-            printf "%.4f,%.4f,%.2f,%s,%s,%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n", \
-                x, y, hv, c1, c2, c3, x_log, y_log, x_asinh, y_asinh, x_logicle, y_logicle
+            printf "%.4f,%.4f,%.2f,%s,%s,%s,%s,%s,%.6f,%.6f,%.6f,%.6f\n", \
+                x, y, hv, c1, c2, c3, x_log_s, y_log_s, x_asinh, y_asinh, x_logicle, y_logicle
         }
     }' > "$csv_path"
 
