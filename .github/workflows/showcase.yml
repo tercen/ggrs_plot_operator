@@ -87,3 +87,15 @@ jobs:
             showcase.html
             showcase_output/
           retention-days: 90
+
+      - name: Prepare GitHub Pages content
+        run: |
+          mkdir -p _pages
+          cp showcase.html _pages/index.html
+          cp -r showcase_output _pages/showcase_output
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: _pages

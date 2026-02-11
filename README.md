@@ -1,6 +1,8 @@
 # ggrs_plot_operator
 Plot operator using ggrs
 
+[View the interactive showcase](https://tercen.github.io/ggrs_plot_operator/)
+
 # Roadmap
 
 ### 0.0.1 ✅ COMPLETE
