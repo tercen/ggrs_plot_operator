@@ -76,7 +76,7 @@ The `ggrs-core` library at `../ggrs/crates/ggrs-core` is the plotting engine. Ch
 ggrs-core = { path = "../ggrs/crates/ggrs-core", features = [...] }
 
 # Switch back to git before committing — must push ggrs-core to git first
-# ggrs-core = { git = "https://github.com/tercen/ggrs", tag = "0.2.0", features = [...] }
+# ggrs-core = { git = "https://github.com/tercen/ggrs", tag = "0.3.0", features = [...] }
 ```
 
 **Important**: The git version may lag behind the local path version. Always verify the git version has all needed methods/types before switching the operator to a git dependency.
@@ -117,16 +117,6 @@ Override operator properties via `operator_config.json`:
 ### Showcase Pipeline
 
 `setup_test_data.sh` automates end-to-end visual testing: creates a Tercen project, uploads test data, builds workflow steps, renders all combinations of backend × theme (× palette for heatmaps), and generates `showcase.html` with interactive dropdowns. Output images go to `showcase_output/`.
-
-## Detailed Rules
-
-See `.claude/rules/` for comprehensive documentation:
-- `architecture.md` — Design principles, component responsibilities, error handling patterns
-- `ggrs-integration.md` — GGRS bindings, StreamGenerator trait, data contract columns, BatchRenderer API, PlotSpec configuration
-- `tercen-api.md` — Tercen gRPC integration, table IDs, TSON format
-- `data-flow.md` — Coordinate systems, chart types, color flow, axis scale types, opacity, line rendering, multi-layer color priority
-- `debugging.md` — Common errors, lessons learned, heatmap coordinate gotchas
-- `commands.md` — Build, test, and development commands
 
 ## Session Context
 
