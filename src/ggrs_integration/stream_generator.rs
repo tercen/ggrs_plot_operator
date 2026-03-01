@@ -4,9 +4,6 @@
 //! enabling lazy loading of data directly from Tercen's gRPC API.
 
 use crate::config::HeatmapCellAggregation;
-use crate::tercen::{
-    tson_to_dataframe, ChartKind, FacetInfo, SchemaCache, TableStreamer, TercenClient,
-};
 use ggrs_core::{
     aes::Aes,
     data::DataFrame,
@@ -19,6 +16,10 @@ use ggrs_core::{
 use polars::prelude::IntoColumn;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use tercen_rs::{
+    extract_column_names_from_schema, tson_to_dataframe, ChartKind, FacetInfo, SchemaCache,
+    TableStreamer, TercenClient,
+};
 
 /// Default number of categorical color levels in Tercen's built-in palette.
 /// When no actual category names are available, generic labels "Level 0" through "Level 7" are used.
@@ -43,9 +44,9 @@ pub struct TercenStreamConfig {
     /// Chunk size for streaming data
     pub chunk_size: usize,
     /// Color factor configurations (legacy - used when all layers share same colors)
-    pub color_infos: Vec<crate::tercen::ColorInfo>,
+    pub color_infos: Vec<tercen_rs::ColorInfo>,
     /// Per-layer color configuration (for mixed-layer scenarios)
-    pub per_layer_colors: Option<crate::tercen::PerLayerColorConfig>,
+    pub per_layer_colors: Option<tercen_rs::PerLayerColorConfig>,
     /// Page factor names for pagination
     pub page_factors: Vec<String>,
     /// Optional schema cache for multi-page plots
@@ -116,13 +117,13 @@ impl TercenStreamConfig {
     }
 
     /// Set color information (legacy - use per_layer_colors for mixed scenarios)
-    pub fn colors(mut self, color_infos: Vec<crate::tercen::ColorInfo>) -> Self {
+    pub fn colors(mut self, color_infos: Vec<tercen_rs::ColorInfo>) -> Self {
         self.color_infos = color_infos;
         self
     }
 
     /// Set per-layer color configuration (for mixed-layer scenarios)
-    pub fn per_layer_colors(mut self, config: Option<crate::tercen::PerLayerColorConfig>) -> Self {
+    pub fn per_layer_colors(mut self, config: Option<tercen_rs::PerLayerColorConfig>) -> Self {
         self.per_layer_colors = config;
         self
     }
@@ -181,9 +182,9 @@ impl TercenStreamConfig {
 
 /// Extract row count from schema
 fn extract_row_count_from_schema(
-    schema: &crate::tercen::client::proto::ESchema,
+    schema: &tercen_rs::client::proto::ESchema,
 ) -> Result<i64, Box<dyn std::error::Error>> {
-    use crate::tercen::client::proto::e_schema;
+    use tercen_rs::client::proto::e_schema;
 
     // All schema types (TableSchema, ComputedTableSchema, CubeQueryTableSchema) have nRows field
     match &schema.object {
@@ -192,27 +193,6 @@ fn extract_row_count_from_schema(
         Some(e_schema::Object::Cubequerytableschema(cqts)) => Ok(cqts.n_rows as i64),
         Some(e_schema::Object::Schema(_)) => Err("Schema variant not supported".into()),
         None => Err("Schema object is None".into()),
-    }
-}
-
-/// Helper function to extract column names from a schema
-pub fn extract_column_names_from_schema(
-    schema: &crate::tercen::client::proto::ESchema,
-) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    use crate::tercen::client::proto::e_schema;
-
-    if let Some(e_schema::Object::Cubequerytableschema(cqts)) = &schema.object {
-        let mut column_names = Vec::new();
-        for col in &cqts.columns {
-            if let Some(crate::tercen::client::proto::e_column_schema::Object::Columnschema(cs)) =
-                &col.object
-            {
-                column_names.push(cs.name.clone());
-            }
-        }
-        Ok(column_names)
-    } else {
-        Err("Schema is not a CubeQueryTableSchema".into())
     }
 }
 
@@ -252,10 +232,10 @@ pub struct TercenStreamGenerator {
     chunk_size: usize,
 
     /// Color information (factors and palettes) - legacy field
-    color_infos: Vec<crate::tercen::ColorInfo>,
+    color_infos: Vec<tercen_rs::ColorInfo>,
 
     /// Per-layer color configuration (for mixed-layer scenarios)
-    per_layer_colors: Option<crate::tercen::PerLayerColorConfig>,
+    per_layer_colors: Option<tercen_rs::PerLayerColorConfig>,
 
     /// Cached legend scale (loaded during initialization)
     cached_legend_scale: LegendScale,
@@ -501,7 +481,7 @@ impl TercenStreamGenerator {
             if !color_infos.is_empty() {
                 eprintln!("DEBUG: Color factor: '{}'", color_infos[0].factor_name);
                 match &color_infos[0].mapping {
-                    crate::tercen::ColorMapping::Continuous(palette) => {
+                    tercen_rs::ColorMapping::Continuous(palette) => {
                         eprintln!(
                             "DEBUG: Continuous palette with {} color stops",
                             palette.stops.len()
@@ -513,7 +493,7 @@ impl TercenStreamGenerator {
                             );
                         }
                     }
-                    crate::tercen::ColorMapping::Categorical(color_map) => {
+                    tercen_rs::ColorMapping::Categorical(color_map) => {
                         eprintln!(
                             "DEBUG: Categorical palette with {} categories",
                             color_map.mappings.len()
@@ -625,7 +605,7 @@ impl TercenStreamGenerator {
         axis_ranges: HashMap<(usize, usize), (AxisData, AxisData)>,
         total_rows: usize,
         chunk_size: usize,
-        color_infos: Vec<crate::tercen::ColorInfo>,
+        color_infos: Vec<tercen_rs::ColorInfo>,
         page_factors: Vec<String>,
     ) -> Self {
         // Aesthetics use dequantized coordinates: .x and .y (actual data values)
@@ -792,13 +772,13 @@ impl TercenStreamGenerator {
         let mut has_color_levels = false;
         for color_info in &self.color_infos {
             match &color_info.mapping {
-                crate::tercen::ColorMapping::Categorical(_) => {
+                tercen_rs::ColorMapping::Categorical(_) => {
                     if !has_color_levels {
                         columns.push(".colorLevels".to_string());
                         has_color_levels = true;
                     }
                 }
-                crate::tercen::ColorMapping::Continuous(_) => {
+                tercen_rs::ColorMapping::Continuous(_) => {
                     columns.push(color_info.factor_name.clone());
                 }
             }
@@ -839,7 +819,7 @@ impl TercenStreamGenerator {
             }
 
             let chunk_df = tson_to_dataframe(&tson_data)?;
-            let chunk_rows = chunk_df.nrow();
+            let chunk_rows = chunk_df.height();
 
             if chunk_rows == 0 {
                 break;
@@ -850,7 +830,7 @@ impl TercenStreamGenerator {
                 offset, chunk_rows
             );
 
-            accumulated_dfs.push(chunk_df.inner().clone());
+            accumulated_dfs.push(chunk_df);
             offset += chunk_rows;
         }
 
@@ -891,7 +871,7 @@ impl TercenStreamGenerator {
         let mut has_color_levels_agg = false;
         for color_info in &self.color_infos {
             match &color_info.mapping {
-                crate::tercen::ColorMapping::Categorical(_) => {
+                tercen_rs::ColorMapping::Categorical(_) => {
                     if !has_color_levels_agg {
                         // Categorical always uses last (mean/median don't make sense)
                         let expr = col(".colorLevels").last();
@@ -899,7 +879,7 @@ impl TercenStreamGenerator {
                         has_color_levels_agg = true;
                     }
                 }
-                crate::tercen::ColorMapping::Continuous(_) => {
+                tercen_rs::ColorMapping::Continuous(_) => {
                     // For continuous colors, use the configured aggregation method
                     let col_name = &color_info.factor_name;
                     let expr = match self.heatmap_cell_aggregation {
@@ -926,17 +906,18 @@ impl TercenStreamGenerator {
             offset
         );
 
-        // Wrap in ggrs DataFrame
-        let mut df = ggrs_core::data::DataFrame::from_polars(aggregated);
-
         // Add color columns to the aggregated data
-        if !self.color_infos.is_empty() {
+        let result = if !self.color_infos.is_empty() {
             eprintln!("DEBUG: Adding color columns to aggregated data");
-            df = crate::tercen::color_processor::add_color_columns(df, &self.color_infos)?;
+            let colored =
+                tercen_rs::color_processor::add_color_columns(aggregated, &self.color_infos)?;
             eprintln!("DEBUG: Color columns added to aggregated data");
-        }
+            colored
+        } else {
+            aggregated
+        };
 
-        Ok(df)
+        Ok(ggrs_core::data::DataFrame::from_polars(result))
     }
 
     /// Load axis ranges from pre-computed Y-axis table
@@ -1015,7 +996,7 @@ impl TercenStreamGenerator {
             .await?;
 
         println!("  Parsing {} bytes...", data.len());
-        let df = tson_to_dataframe(&data)?;
+        let df = ggrs_core::data::DataFrame::from_polars(tson_to_dataframe(&data)?);
         println!("  Parsed {} rows", df.nrow());
 
         // Get total row count from main table schema
@@ -1230,7 +1211,7 @@ impl TercenStreamGenerator {
             .await?;
 
         println!("  Parsing {} bytes...", data.len());
-        let df = tson_to_dataframe(&data)?;
+        let df = ggrs_core::data::DataFrame::from_polars(tson_to_dataframe(&data)?);
         println!("  Parsed {} rows", df.nrow());
 
         let has_ci = df.columns().contains(&".ci".to_string());
@@ -1324,7 +1305,7 @@ impl TercenStreamGenerator {
         let entries: Vec<(String, [u8; 3])> = (0..DEFAULT_PALETTE_LEVELS)
             .map(|i| {
                 let label = format!("Level {}", i);
-                let color = crate::tercen::categorical_color_from_level(i as i32);
+                let color = tercen_rs::categorical_color_from_level(i as i32);
                 (label, color)
             })
             .collect();
@@ -1341,8 +1322,8 @@ impl TercenStreamGenerator {
     /// For mixed-layer scenarios (some layers with colors, some without),
     /// creates a combined legend with sections for each type.
     fn load_legend_scale(
-        color_infos: &[crate::tercen::ColorInfo],
-        per_layer_colors: Option<&crate::tercen::PerLayerColorConfig>,
+        color_infos: &[tercen_rs::ColorInfo],
+        per_layer_colors: Option<&tercen_rs::PerLayerColorConfig>,
         layer_y_factor_names: &[String],
     ) -> Result<LegendScale, Box<dyn std::error::Error>> {
         // Handle mixed-layer scenarios
@@ -1368,7 +1349,7 @@ impl TercenStreamGenerator {
         // Build combined aesthetic name from all categorical factor names
         let categorical_names: Vec<&str> = color_infos
             .iter()
-            .filter(|ci| matches!(ci.mapping, crate::tercen::ColorMapping::Categorical(_)))
+            .filter(|ci| matches!(ci.mapping, tercen_rs::ColorMapping::Categorical(_)))
             .map(|ci| ci.factor_name.as_str())
             .collect();
         let combined_name = if categorical_names.is_empty() {
@@ -1381,7 +1362,7 @@ impl TercenStreamGenerator {
         let color_info = &color_infos[0];
 
         match &color_info.mapping {
-            crate::tercen::ColorMapping::Continuous(palette) => {
+            tercen_rs::ColorMapping::Continuous(palette) => {
                 // For continuous colors, get the min/max and color stops from the palette
                 if let Some((min_val, max_val)) = palette.range() {
                     // Convert Tercen ColorStops to GGRS LegendColorStops
@@ -1409,7 +1390,7 @@ impl TercenStreamGenerator {
                     Ok(LegendScale::None)
                 }
             }
-            crate::tercen::ColorMapping::Categorical(color_map) => {
+            tercen_rs::ColorMapping::Categorical(color_map) => {
                 // For categorical colors, check if we have explicit mappings
                 if !color_map.mappings.is_empty() {
                     // Explicit label→color mappings from palette
@@ -1435,7 +1416,7 @@ impl TercenStreamGenerator {
                         .iter()
                         .enumerate()
                         .map(|(i, label)| {
-                            let color = crate::tercen::categorical_color_from_level(i as i32);
+                            let color = tercen_rs::categorical_color_from_level(i as i32);
                             (label.clone(), color)
                         })
                         .collect();
@@ -1452,7 +1433,7 @@ impl TercenStreamGenerator {
                     let entries: Vec<(String, [u8; 3])> = (0..n_levels)
                         .map(|i| {
                             let label = format!("Level {}", i);
-                            let color = crate::tercen::categorical_color_from_level(i as i32);
+                            let color = tercen_rs::categorical_color_from_level(i as i32);
                             (label, color)
                         })
                         .collect();
@@ -1477,10 +1458,10 @@ impl TercenStreamGenerator {
     /// - Layers with explicit color factors (continuous or discrete)
     /// - Layers without color factors (discrete with Y-factor name and pre-computed layer color)
     fn build_combined_legend(
-        per_layer_colors: &crate::tercen::PerLayerColorConfig,
+        per_layer_colors: &tercen_rs::PerLayerColorConfig,
         layer_y_factor_names: &[String],
     ) -> Result<LegendScale, Box<dyn std::error::Error>> {
-        use crate::tercen::LayerColorConfig;
+        use tercen_rs::LayerColorConfig;
 
         let mut sections: Vec<LegendSection> = Vec::new();
 
@@ -1587,10 +1568,10 @@ impl TercenStreamGenerator {
 
     /// Build a discrete legend for layer-based colors (all layers with constant colors)
     fn build_layer_based_legend(
-        per_layer_colors: &crate::tercen::PerLayerColorConfig,
+        per_layer_colors: &tercen_rs::PerLayerColorConfig,
         layer_y_factor_names: &[String],
     ) -> Result<LegendScale, Box<dyn std::error::Error>> {
-        use crate::tercen::LayerColorConfig;
+        use tercen_rs::LayerColorConfig;
 
         let entries: Vec<(String, [u8; 3])> = per_layer_colors
             .layer_configs
@@ -1701,7 +1682,7 @@ impl TercenStreamGenerator {
 
             // Fetch color columns for layers that have explicit colors
             if let Some(ref plc) = self.per_layer_colors {
-                use crate::tercen::LayerColorConfig;
+                use tercen_rs::LayerColorConfig;
                 for (layer_idx, config) in plc.layer_configs.iter().enumerate() {
                     match config {
                         LayerColorConfig::Categorical { .. } => {
@@ -1739,13 +1720,13 @@ impl TercenStreamGenerator {
             // Legacy uniform colors: all layers share the same color config
             for color_info in &self.color_infos {
                 match &color_info.mapping {
-                    crate::tercen::ColorMapping::Categorical(_) => {
+                    tercen_rs::ColorMapping::Categorical(_) => {
                         // Add .colorLevels for categorical colors
                         if !columns.contains(&".colorLevels".to_string()) {
                             columns.push(".colorLevels".to_string());
                         }
                     }
-                    crate::tercen::ColorMapping::Continuous(_) => {
+                    tercen_rs::ColorMapping::Continuous(_) => {
                         // Add the factor column for continuous colors
                         columns.push(color_info.factor_name.clone());
                     }
@@ -1777,24 +1758,21 @@ impl TercenStreamGenerator {
 
         // Parse TSON to DataFrame - contains .ci, .ri, .xs, .ys, and color factors
         let mut df = tson_to_dataframe(&tson_data)?;
-        eprintln!("DEBUG: Parsed DataFrame with {} rows", df.nrow());
-        eprintln!("DEBUG: Returned columns: {:?}", df.columns());
+        eprintln!("DEBUG: Parsed DataFrame with {} rows", df.height());
+        eprintln!("DEBUG: Returned columns: {:?}", df.get_column_names());
 
         // DEBUG: Print heatmap column info (first chunk only)
         if data_range.start == 0 {
-            let polars_df = df.inner();
-            if let Ok(n_x_levels) = polars_df.column(".nXLevels") {
+            if let Ok(n_x_levels) = df.column(".nXLevels") {
                 if let Ok(n_x_i64) = n_x_levels.i64() {
                     let n_levels = n_x_i64.get(0).unwrap_or(0);
                     eprintln!("DEBUG HEATMAP: Total X levels (columns) = {}", n_levels);
                 }
             }
             // Compare .xs, .ys, .xLevels
-            if let (Ok(xs_col), Ok(ys_col), Ok(xl_col)) = (
-                polars_df.column(".xs"),
-                polars_df.column(".ys"),
-                polars_df.column(".xLevels"),
-            ) {
+            if let (Ok(xs_col), Ok(ys_col), Ok(xl_col)) =
+                (df.column(".xs"), df.column(".ys"), df.column(".xLevels"))
+            {
                 if let (Ok(xs_i64), Ok(ys_i64), Ok(xl_i64)) =
                     (xs_col.i64(), ys_col.i64(), xl_col.i64())
                 {
@@ -1831,7 +1809,7 @@ impl TercenStreamGenerator {
                 plc.is_mixed(),
                 plc.has_constant_colors()
             );
-            df = crate::tercen::color_processor::add_mixed_layer_colors(df, plc)?;
+            df = tercen_rs::color_processor::add_mixed_layer_colors(df, plc)?;
             eprintln!("DEBUG: Per-layer colors added successfully");
         } else if !self.color_infos.is_empty() {
             // Single-layer: legacy uniform colors (explicit color factors)
@@ -1839,7 +1817,7 @@ impl TercenStreamGenerator {
                 "DEBUG: Adding color columns for {} color factors (legacy path)",
                 self.color_infos.len()
             );
-            df = crate::tercen::color_processor::add_color_columns(df, &self.color_infos)?;
+            df = tercen_rs::color_processor::add_color_columns(df, &self.color_infos)?;
             eprintln!("DEBUG: Color columns added successfully");
         } else if use_layer_colors {
             // Pure layer-based coloring (no color factors on any layer)
@@ -1847,14 +1825,14 @@ impl TercenStreamGenerator {
                 "DEBUG: Adding layer-based colors for {} layers using palette {:?}",
                 self.n_layers, self.layer_palette_name
             );
-            df = crate::tercen::color_processor::add_layer_colors(
+            df = tercen_rs::color_processor::add_layer_colors(
                 df,
                 self.layer_palette_name.as_deref(),
             )?;
             eprintln!("DEBUG: Layer colors added successfully");
         }
 
-        Ok(df)
+        Ok(ggrs_core::data::DataFrame::from_polars(df))
     }
 
     // NOTE: Dequantization now happens in GGRS, not in the operator

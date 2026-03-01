@@ -6,5 +6,5 @@
 pub mod config;
 pub mod ggrs_integration;
 pub mod memprof;
+pub mod operator_props;
 pub mod pipeline;
-pub mod tercen;

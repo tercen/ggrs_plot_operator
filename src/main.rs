@@ -11,8 +11,10 @@
 pub mod config;
 pub mod ggrs_integration;
 pub mod memprof;
+pub mod operator_props;
 pub mod pipeline;
-pub mod tercen;
+
+use tercen_rs::TercenContext;
 
 #[cfg(feature = "jemalloc")]
 use tikv_jemallocator::Jemalloc;
@@ -35,7 +37,7 @@ async fn main() {
 
     // Connect to Tercen
     println!("Attempting to connect to Tercen...");
-    match tercen::TercenClient::from_env().await {
+    match tercen_rs::TercenClient::from_env().await {
         Ok(client) => {
             println!("✓ Successfully connected to Tercen!\n");
 
@@ -119,16 +121,14 @@ fn print_env_info() {
 
 /// Process a Tercen task: fetch data, generate plot, upload result
 async fn process_task(
-    client_arc: std::sync::Arc<tercen::TercenClient>,
+    client_arc: std::sync::Arc<tercen_rs::TercenClient>,
     task_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use tercen::TercenContext;
-
     println!("=== Task Processing Started ===");
     println!("Task ID: {}\n", task_id);
 
     // Create ProductionContext
-    let ctx = tercen::ProductionContext::from_task_id(client_arc.clone(), task_id).await?;
+    let ctx = tercen_rs::ProductionContext::from_task_id(client_arc.clone(), task_id).await?;
 
     // Load configuration
     let config =
@@ -141,7 +141,7 @@ async fn process_task(
     println!("\n[5/5] Uploading result(s) to Tercen...");
 
     let mut task_service = client_arc.task_service()?;
-    let request = tonic::Request::new(tercen::client::proto::GetRequest {
+    let request = tonic::Request::new(tercen_rs::client::proto::GetRequest {
         id: task_id.to_string(),
         ..Default::default()
     });
@@ -150,7 +150,7 @@ async fn process_task(
 
     if plot_results.len() == 1 {
         let plot = plot_results.into_iter().next().unwrap();
-        tercen::result::save_result(
+        tercen_rs::result::save_result(
             client_arc.clone(),
             ctx.project_id(),
             ctx.namespace(),
@@ -175,7 +175,7 @@ async fn process_task(
             );
         }
 
-        tercen::result::save_results(
+        tercen_rs::result::save_results(
             client_arc.clone(),
             ctx.project_id(),
             ctx.namespace(),

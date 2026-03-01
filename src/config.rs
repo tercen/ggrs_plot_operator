@@ -6,9 +6,9 @@
 //! Property definitions and defaults are parsed from operator.json at compile time
 //! via the `OperatorPropertyReader` which ensures single-source-of-truth for defaults.
 
-use crate::tercen::client::proto::OperatorSettings;
-use crate::tercen::operator_properties::OperatorPropertyReader;
-use crate::tercen::properties::PlotDimension;
+use crate::operator_props::OperatorPropertyReader;
+use tercen_rs::client::proto::OperatorSettings;
+use tercen_rs::PlotDimension;
 
 /// How to aggregate multiple data points in the same heatmap cell
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -369,7 +369,7 @@ impl OperatorConfig {
     /// but not yet used by GGRS for positioning along edges - that requires extending
     /// the GGRS rendering logic.
     pub fn to_legend_position(&self) -> ggrs_core::theme::LegendPosition {
-        use crate::tercen::operator_properties::registry;
+        use crate::operator_props::registry;
         use ggrs_core::theme::LegendPosition;
 
         match self.legend_position.to_lowercase().as_str() {

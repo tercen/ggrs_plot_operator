@@ -16,9 +16,9 @@
 //! cargo run --bin prepare -- --delete-project PROJECT_ID
 //! ```
 
-use ggrs_plot_operator::tercen::client::proto;
-use ggrs_plot_operator::tercen::TercenClient;
 use std::sync::Arc;
+use tercen_rs::client::proto;
+use tercen_rs::TercenClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

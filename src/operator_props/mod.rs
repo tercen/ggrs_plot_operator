@@ -4,8 +4,8 @@
 //! and their default values. This ensures defaults are defined in ONE place (operator.json)
 //! and eliminates hardcoded fallback values scattered throughout the codebase.
 
-use crate::tercen::client::proto::OperatorSettings;
 use std::collections::HashMap;
+use tercen_rs::client::proto::OperatorSettings;
 
 /// Operator.json embedded at compile time
 const OPERATOR_JSON: &str = include_str!("../../operator.json");
