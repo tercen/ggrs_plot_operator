@@ -15,9 +15,9 @@
 use ggrs_plot_operator::config::OperatorConfig;
 use ggrs_plot_operator::memprof;
 use ggrs_plot_operator::pipeline;
-use ggrs_plot_operator::tercen::{DevContext, TercenClient, TercenContext};
 use std::sync::Arc;
 use std::time::Instant;
+use tercen_rs::{DevContext, TercenClient, TercenContext};
 
 fn log_phase(start: Instant, phase: &str) {
     let elapsed = start.elapsed();
@@ -117,8 +117,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn load_dev_config(
     ui_point_size: Option<i32>,
 ) -> Result<OperatorConfig, Box<dyn std::error::Error>> {
-    use ggrs_plot_operator::tercen::client::proto::{OperatorRef, OperatorSettings, PropertyValue};
     use std::fs;
+    use tercen_rs::client::proto::{OperatorRef, OperatorSettings, PropertyValue};
 
     let config_path = "operator_config.json";
     let config_json = match fs::read_to_string(config_path) {

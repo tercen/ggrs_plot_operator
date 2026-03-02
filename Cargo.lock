@@ -1165,16 +1165,15 @@ dependencies = [
  "polars",
  "prost",
  "prost-types",
- "rustson",
  "serde",
  "serde_json",
+ "tercen-rs",
  "thiserror 1.0.69",
  "tikv-jemallocator",
  "tokio",
  "tokio-stream",
  "tonic",
  "tonic-prost",
- "tonic-prost-build",
  "uuid",
 ]
 
@@ -3834,6 +3833,29 @@ dependencies = [
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "tercen-rs"
+version = "0.1.0"
+source = "git+https://github.com/tercen/tercen-rs?branch=main#112126ec4cc68ccd754a2bc2127974f4b83f259a"
+dependencies = [
+ "base64",
+ "futures",
+ "once_cell",
+ "polars",
+ "prost",
+ "prost-types",
+ "rustson",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
+ "uuid",
 ]
 
 [[package]]

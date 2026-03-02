@@ -12,13 +12,13 @@
 use crate::config::OperatorConfig;
 use crate::ggrs_integration::{TercenStreamConfig, TercenStreamGenerator};
 use crate::memprof;
-use crate::tercen::{
-    extract_page_values, new_schema_cache, ChartKind, ColorMapping, PlotResult, TercenContext,
-};
 use ggrs_core::scale::ContinuousScale;
 use ggrs_core::stream::{DataCache, StreamGenerator};
 use ggrs_core::theme::elements::Element;
 use ggrs_core::{EnginePlotSpec, Geom, HeatmapLayout, PlotGenerator, PlotRenderer};
+use tercen_rs::{
+    extract_page_values, new_schema_cache, ChartKind, ColorMapping, PlotResult, TercenContext,
+};
 
 /// Error type for pipeline operations
 pub type PipelineError = Box<dyn std::error::Error>;
@@ -198,7 +198,7 @@ fn render_page<C: TercenContext>(
     ctx: &C,
     config: &OperatorConfig,
     stream_gen: TercenStreamGenerator,
-    page_value: &crate::tercen::PageValue,
+    page_value: &tercen_rs::PageValue,
     page_idx: usize,
     total_pages: usize,
     cache: Option<&DataCache>,
@@ -491,7 +491,7 @@ fn print_context_info<C: TercenContext>(ctx: &C, config: &OperatorConfig) {
 fn print_color_info<C: TercenContext>(ctx: &C) {
     // Check for per-layer color configuration first
     if let Some(plc) = ctx.per_layer_colors() {
-        use crate::tercen::LayerColorConfig;
+        use tercen_rs::LayerColorConfig;
 
         println!("  Per-layer color configuration:");
         println!(

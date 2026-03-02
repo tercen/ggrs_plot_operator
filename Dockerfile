@@ -31,17 +31,8 @@ WORKDIR /app
 COPY Cargo.toml ./
 COPY Cargo.lock ./
 
-# Copy build script
-COPY build.rs ./
-
-# Copy proto files submodule (needed for build.rs)
-COPY tercen_grpc_api ./tercen_grpc_api
-
 # Copy source tree
 COPY src ./src
-
-# Copy palettes.json (used by include_str! at compile time)
-COPY palettes.json ./
 
 # Copy operator.json (used by include_str! at compile time)
 COPY operator.json ./
