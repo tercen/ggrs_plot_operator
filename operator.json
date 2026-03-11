@@ -5,7 +5,7 @@
   "communicationProtocol": "grpc",
   "authors": ["Tercen"],
   "urls": ["https://github.com/tercen/ggrs_plot_operator"],
-  "container": "ghcr.io/tercen/ggrs_plot_operator:extract-tercen-rs",
+  "container": "ghcr.io/tercen/ggrs_plot_operator",
   "operatorSpec": {
     "kind": "OperatorSpec",
     "ontologyUri": "https://tercen.com/_ontology/tercen",
